@@ -102,18 +102,6 @@ const ContentWrapper = ({ children }: { children: ReactNode }) => {
   );
 };
 
-// Layout visibility hook - determines which components to show based on route
-const useLayoutVisibility = () => {
-  const location = useLocation();
-  const isHushhAI = location.pathname.startsWith('/hushh-ai');
-  
-  return {
-    showNavbar: !isHushhAI,
-    showFooter: !isHushhAI,
-    showMobileNav: !isHushhAI,
-  };
-};
-
 // Google Analytics setup function
 const initializeGoogleAnalytics = () => {
   // Check if gtag is already loaded
@@ -204,247 +192,237 @@ function App() {
     }
   }, []);
 
-  // Inner layout component that uses hooks for conditional rendering
-  const AppLayout = () => {
-    const { showNavbar, showFooter, showMobileNav } = useLayoutVisibility();
-    
-    return (
-      <div className="min-h-screen flex flex-col">
-        {/* Navbar - Only show for non-Hushh AI routes */}
-        {showNavbar && <Navbar />}
-        {/* {session && <NDAPopup />} */}
-        <ContentWrapper>
-          <Routes>
-            <Route path="/" element={<Hero />} />
-            <Route path="/about/leadership" element={<Leadership />} />
-            <Route path="/about/philosophy" element={<Philosophy />} />
-            <Route path="/Login" element={<Login />} />
-            <Route path="/Contact" element={<Contact />} />
-            <Route path="/benefits" element={<BenefitsPage />} />
-            <Route path='/services/consumers' element={<Consumers />} />
-            <Route path='/services/business' element={<Business />} />
-            <Route path='/Signup' element={<Signup />} />
-            <Route path='/faq' element={<Faq />} />
-            <Route path='/profile' element={
-              <Profile />
-            } />
-            <Route path="/career" element={<Career />} />
-            <Route path="/career/*" element={<Career />} />
-            <Route path='/privacy-policy' element={<PrivacyPolicy />} />
-            <Route path='/carrer-privacy-policy' element={<CareersPrivacyPolicy />} />
-            <Route path="/community" element={
-              <CommunityList />
-            } />
-            <Route path='/california-privacy-policy' element={<CaliforniaPrivacyPolicy />} />
-            <Route path='/eu-uk-jobs-privacy-policy' element={<EUUKPrivacyPolicy />} />
-            <Route path='/delete-account' element={<DeleteAccountPage />} />
-            <Route path="/community/*" element={
-
-              <CommunityPost />
-
-            } />
-            <Route path="/reports/:id" element={
-
-              <ReportDetailPage />
-
-            } />
-            <Route path="/auth/callback" element={<AuthCallback />} />
-            {/* Investor Onboarding Guide - Public landing page */}
-            <Route path="/investor-guide" element={<InvestorGuidePage />} />
-            <Route path="/onboarding/step-1" element={
-              <ProtectedRoute>
-                <OnboardingStep1 />
-              </ProtectedRoute>
-            } />
-            <Route path="/onboarding/step-2" element={
-              <ProtectedRoute>
-                <OnboardingStep2 />
-              </ProtectedRoute>
-            } />
-            <Route path="/onboarding/step-3" element={
-              <ProtectedRoute>
-                <OnboardingStep3 />
-              </ProtectedRoute>
-            } />
-            <Route path="/onboarding/step-4" element={
-              <ProtectedRoute>
-                <OnboardingStep4 />
-              </ProtectedRoute>
-            } />
-            <Route path="/onboarding/step-5" element={
-              <ProtectedRoute>
-                <OnboardingStep5 />
-              </ProtectedRoute>
-            } />
-            <Route path="/onboarding/step-6" element={
-              <ProtectedRoute>
-                <OnboardingStep6 />
-              </ProtectedRoute>
-            } />
-            <Route path="/onboarding/step-7" element={
-              <ProtectedRoute>
-                <OnboardingStep7 />
-              </ProtectedRoute>
-            } />
-            <Route path="/onboarding/step-8" element={
-              <ProtectedRoute>
-                <OnboardingStep8 />
-              </ProtectedRoute>
-            } />
-            <Route path="/onboarding/step-9" element={
-              <ProtectedRoute>
-                <OnboardingStep9 />
-              </ProtectedRoute>
-            } />
-            <Route path="/onboarding/step-10" element={
-              <ProtectedRoute>
-                <OnboardingStep10 />
-              </ProtectedRoute>
-            } />
-            <Route path="/onboarding/step-11" element={
-              <ProtectedRoute>
-                <OnboardingStep11 />
-              </ProtectedRoute>
-            } />
-            <Route path="/onboarding/step-12" element={
-              <ProtectedRoute>
-                <OnboardingStep12 />
-              </ProtectedRoute>
-            } />
-            <Route path="/onboarding/step-13" element={
-              <ProtectedRoute>
-                <OnboardingStep13 />
-              </ProtectedRoute>
-            } />
-            <Route path="/onboarding/step-14" element={
-              <ProtectedRoute>
-                <OnboardingStep14 />
-              </ProtectedRoute>
-            } />
-            <Route path="/onboarding/step-15" element={
-              <ProtectedRoute>
-                <OnboardingStep15 />
-              </ProtectedRoute>
-            } />
-            <Route path="/onboarding/verify" element={
-              <ProtectedRoute>
-                <VerifyIdentityPage />
-              </ProtectedRoute>
-            } />
-            <Route path="/onboarding/verify-complete" element={
-              <ProtectedRoute>
-                <VerifyCompletePage />
-              </ProtectedRoute>
-            } />
-            <Route path="/onboarding/meet-ceo" element={
-              <ProtectedRoute>
-                <MeetCeoPage />
-              </ProtectedRoute>
-            } />
-            <Route path="/hushh-user-profile" element={
-              <ProtectedRoute>
-                <HushhUserProfilePage />
-              </ProtectedRoute>
-            } />
-            <Route path="/hushh-user-profile/view" element={
-              <ProtectedRoute>
-                <ViewPreferencesPage />
-              </ProtectedRoute>
-            } />
-            <Route path="/hushh-user-profile/privacy" element={
-              <ProtectedRoute>
-                <PrivacyControlsPage />
-              </ProtectedRoute>
-            } />
-            <Route path="/profile/:id" element={<ViewPreferencesPage />} />
-            <Route path="/hushhid/:id" element={<PublicHushhProfilePage />} />
-            <Route path="/hushhid-hero-demo" element={<HushhIDHeroDemo />} />
-            {/* <Route path="/solutions" element={<SolutionsPage />} /> */}
-            <Route path='/kyc-verification' element={
-
-              <KYCVerificationPage />
-
-            } />
-            <Route path='/kyc-form' element={
-
-              <KYCFormPage />
-
-            } />
-            <Route path='/discover-fund-a' element={
-
-              <DiscoverFundA />
-
-            } />
-            <Route path='/sell-the-wall' element={
-
-              <SellTheWallPage />
-
-            } />
-            <Route path='/ai-powered-berkshire' element={
-
-              <AIPoweredBerkshirePage />
-
-            } />
-            <Route path='/user-registration' element={
-              <ProtectedRoute>
-                <UserRegistration />
-              </ProtectedRoute>
-            } />
-            <Route path='/nda-form' element={
-
-              <NDARequestModalComponent
-                session={session}
-                onSubmit={(result: string) => {
-                  console.log("NDA submission result:", result);
-                  // Handle post-submission actions here
-                  if (result === "Approved" || result === "Pending" || result === "Requested permission") {
-                    // Redirect to appropriate page on success
-                    window.location.href = "/";
-                  }
-                }}
-              />
-
-            } />
-            <Route path='/investor-profile' element={
-              <ProtectedRoute>
-                <InvestorProfilePage />
-              </ProtectedRoute>
-            } />
-            <Route path='/investor/:slug' element={<PublicInvestorProfilePage />} />
-            <Route path='/user-profile' element={
-
-              <UserProfilePage />
-
-            } />
-            <Route path='/your-profile' element={
-
-              <YourProfilePage />
-
-            } />
-            <Route path='/kyc-demo' element={<KYCDemoPage />} />
-            <Route path='/kyc-flow' element={<KycFlowPage />} />
-            <Route path='/a2a-playground' element={<A2APlaygroundPage />} />
-            <Route path='/receipt-generator' element={<ReceiptGeneratorPage />} />
-            <Route path='/developer-docs' element={<DeveloperDocsPage />} />
-            <Route path='/hushh-agent-mailer' element={<HushhAgentMailerPage />} />
-            <Route path='/hushh-ai' element={<HushhAIPage />} />
-            <Route path='/hushh-ai/login' element={<HushhAILoginPage />} />
-            <Route path='/hushh-ai/signup' element={<HushhAISignupPage />} />
-          </Routes>
-        </ContentWrapper>
-        {/* Footer - Only show for non-Hushh AI routes */}
-        {showFooter && <Footer />}
-        {/* Mobile Bottom Navigation - only visible on mobile and non-Hushh AI routes */}
-        {showMobileNav && <MobileBottomNav />}
-      </div>
-    );
-  };
-
   return (
     <ChakraProvider theme={theme}>
       <Router>
         <ScrollToTop />
-        <AppLayout />
+        <div className="min-h-screen flex flex-col">
+          {/* Navbar - Sticky header with brand lockup */}
+          <Navbar />
+          {/* {session && <NDAPopup />} */}
+          <ContentWrapper>
+            <Routes>
+              <Route path="/" element={<Hero />} />
+              <Route path="/about/leadership" element={<Leadership />} />
+              <Route path="/about/philosophy" element={<Philosophy />} />
+              <Route path="/Login" element={<Login />} />
+              <Route path="/Contact" element={<Contact />} />
+              <Route path="/benefits" element={<BenefitsPage />} />
+              <Route path='/services/consumers' element={<Consumers />} />
+              <Route path='/services/business' element={<Business />} />
+              <Route path='/Signup' element={<Signup />} />
+              <Route path='/faq' element={<Faq />} />
+              <Route path='/profile' element={
+                <Profile />
+              } />
+              <Route path="/career" element={<Career />} />
+              <Route path="/career/*" element={<Career />} />
+              <Route path='/privacy-policy' element={<PrivacyPolicy />} />
+              <Route path='/carrer-privacy-policy' element={<CareersPrivacyPolicy />} />
+              <Route path="/community" element={
+                <CommunityList />
+              } />
+              <Route path='/california-privacy-policy' element={<CaliforniaPrivacyPolicy />} />
+              <Route path='/eu-uk-jobs-privacy-policy' element={<EUUKPrivacyPolicy />} />
+              <Route path='/delete-account' element={<DeleteAccountPage />} />
+              <Route path="/community/*" element={
+
+                <CommunityPost />
+
+              } />
+              <Route path="/reports/:id" element={
+
+                <ReportDetailPage />
+
+              } />
+              <Route path="/auth/callback" element={<AuthCallback />} />
+              {/* Investor Onboarding Guide - Public landing page */}
+              <Route path="/investor-guide" element={<InvestorGuidePage />} />
+              <Route path="/onboarding/step-1" element={
+                <ProtectedRoute>
+                  <OnboardingStep1 />
+                </ProtectedRoute>
+              } />
+              <Route path="/onboarding/step-2" element={
+                <ProtectedRoute>
+                  <OnboardingStep2 />
+                </ProtectedRoute>
+              } />
+              <Route path="/onboarding/step-3" element={
+                <ProtectedRoute>
+                  <OnboardingStep3 />
+                </ProtectedRoute>
+              } />
+              <Route path="/onboarding/step-4" element={
+                <ProtectedRoute>
+                  <OnboardingStep4 />
+                </ProtectedRoute>
+              } />
+              <Route path="/onboarding/step-5" element={
+                <ProtectedRoute>
+                  <OnboardingStep5 />
+                </ProtectedRoute>
+              } />
+              <Route path="/onboarding/step-6" element={
+                <ProtectedRoute>
+                  <OnboardingStep6 />
+                </ProtectedRoute>
+              } />
+              <Route path="/onboarding/step-7" element={
+                <ProtectedRoute>
+                  <OnboardingStep7 />
+                </ProtectedRoute>
+              } />
+              <Route path="/onboarding/step-8" element={
+                <ProtectedRoute>
+                  <OnboardingStep8 />
+                </ProtectedRoute>
+              } />
+              <Route path="/onboarding/step-9" element={
+                <ProtectedRoute>
+                  <OnboardingStep9 />
+                </ProtectedRoute>
+              } />
+              <Route path="/onboarding/step-10" element={
+                <ProtectedRoute>
+                  <OnboardingStep10 />
+                </ProtectedRoute>
+              } />
+              <Route path="/onboarding/step-11" element={
+                <ProtectedRoute>
+                  <OnboardingStep11 />
+                </ProtectedRoute>
+              } />
+              <Route path="/onboarding/step-12" element={
+                <ProtectedRoute>
+                  <OnboardingStep12 />
+                </ProtectedRoute>
+              } />
+              <Route path="/onboarding/step-13" element={
+                <ProtectedRoute>
+                  <OnboardingStep13 />
+                </ProtectedRoute>
+              } />
+              <Route path="/onboarding/step-14" element={
+                <ProtectedRoute>
+                  <OnboardingStep14 />
+                </ProtectedRoute>
+              } />
+              <Route path="/onboarding/step-15" element={
+                <ProtectedRoute>
+                  <OnboardingStep15 />
+                </ProtectedRoute>
+              } />
+              <Route path="/onboarding/verify" element={
+                <ProtectedRoute>
+                  <VerifyIdentityPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/onboarding/verify-complete" element={
+                <ProtectedRoute>
+                  <VerifyCompletePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/onboarding/meet-ceo" element={
+                <ProtectedRoute>
+                  <MeetCeoPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/hushh-user-profile" element={
+                <ProtectedRoute>
+                  <HushhUserProfilePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/hushh-user-profile/view" element={
+                <ProtectedRoute>
+                  <ViewPreferencesPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/hushh-user-profile/privacy" element={
+                <ProtectedRoute>
+                  <PrivacyControlsPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/profile/:id" element={<ViewPreferencesPage />} />
+              <Route path="/hushhid/:id" element={<PublicHushhProfilePage />} />
+              <Route path="/hushhid-hero-demo" element={<HushhIDHeroDemo />} />
+              {/* <Route path="/solutions" element={<SolutionsPage />} /> */}
+              <Route path='/kyc-verification' element={
+
+                <KYCVerificationPage />
+
+              } />
+              <Route path='/kyc-form' element={
+
+                <KYCFormPage />
+
+              } />
+              <Route path='/discover-fund-a' element={
+
+                <DiscoverFundA />
+
+              } />
+              <Route path='/sell-the-wall' element={
+
+                <SellTheWallPage />
+
+              } />
+              <Route path='/ai-powered-berkshire' element={
+
+                <AIPoweredBerkshirePage />
+
+              } />
+              <Route path='/user-registration' element={
+                <ProtectedRoute>
+                  <UserRegistration />
+                </ProtectedRoute>
+              } />
+              <Route path='/nda-form' element={
+
+                <NDARequestModalComponent
+                  session={session}
+                  onSubmit={(result: string) => {
+                    console.log("NDA submission result:", result);
+                    // Handle post-submission actions here
+                    if (result === "Approved" || result === "Pending" || result === "Requested permission") {
+                      // Redirect to appropriate page on success
+                      window.location.href = "/";
+                    }
+                  }}
+                />
+
+              } />
+              <Route path='/investor-profile' element={
+                <ProtectedRoute>
+                  <InvestorProfilePage />
+                </ProtectedRoute>
+              } />
+              <Route path='/investor/:slug' element={<PublicInvestorProfilePage />} />
+              <Route path='/user-profile' element={
+
+                <UserProfilePage />
+
+              } />
+              <Route path='/your-profile' element={
+
+                <YourProfilePage />
+
+              } />
+              <Route path='/kyc-demo' element={<KYCDemoPage />} />
+              <Route path='/kyc-flow' element={<KycFlowPage />} />
+              <Route path='/a2a-playground' element={<A2APlaygroundPage />} />
+              <Route path='/receipt-generator' element={<ReceiptGeneratorPage />} />
+              <Route path='/developer-docs' element={<DeveloperDocsPage />} />
+              <Route path='/hushh-agent-mailer' element={<HushhAgentMailerPage />} />
+              <Route path='/hushh-ai' element={<HushhAIPage />} />
+              <Route path='/hushh-ai/login' element={<HushhAILoginPage />} />
+              <Route path='/hushh-ai/signup' element={<HushhAISignupPage />} />
+            </Routes>
+          </ContentWrapper>
+          <Footer />
+          {/* Mobile Bottom Navigation - only visible on mobile */}
+          <MobileBottomNav />
+        </div>
         
         {/* Dev Console Toggle Button - only shows when enabled but console is closed */}
         {devConsoleEnabled && !isDevConsoleOpen && (
