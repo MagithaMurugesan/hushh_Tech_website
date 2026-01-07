@@ -1,4 +1,4 @@
--- ============================================
+i-- ============================================
 -- Add metadata column to hushh_ai_messages
 -- Stores structured data like calendar events
 -- ============================================

@@ -12,6 +12,7 @@ import type { HushhChat, HushhMessage, MediaLimits, ChatState, CalendarEventMeta
 import * as service from '../services/hushhAIService';
 import { CalendarEventCard } from '../presentation/components/CalendarEventCard';
 import { CalendarEventErrorBoundary } from '../presentation/components/CalendarEventErrorBoundary';
+import { CalendarSidebar, CalendarSidebarTrigger } from '../presentation/components/CalendarSidebar';
 import config from '../../resources/config/config';
 import { trackProductUsage, PRODUCTS } from '../../services/productUsage/trackProductUsage';
 import DeleteAccountModal from '../../components/DeleteAccountModal';
@@ -46,7 +47,10 @@ export default function HushhAIPage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [userProfile, setUserProfile] = useState<{ email: string; displayName: string | null; avatarUrl: string | null } | null | undefined>(undefined);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  
+
+  // Calendar sidebar state
+  const [isCalendarSidebarOpen, setIsCalendarSidebarOpen] = useState(false);
+
   // Delete account modal
   const { isOpen: isDeleteModalOpen, onOpen: onOpenDeleteModalOriginal, onClose: onCloseDeleteModal } = useDisclosure();
 
@@ -684,26 +688,32 @@ export default function HushhAIPage() {
       {/* Main Chat Area */}
       <Flex flex={1} direction="column">
         {/* Top Bar */}
-        <HStack 
-          p={4} 
+        <HStack
+          p={4}
           borderBottom={`1px solid ${THEME.colors.border}`}
           bg={THEME.colors.surface}
+          justifyContent="space-between"
         >
-          {!sidebarOpen && (
-            <IconButton
-              aria-label="Open sidebar"
-              icon={<SidebarIcon />}
-              variant="ghost"
-              size="sm"
-              onClick={() => setSidebarOpen(true)}
-            />
-          )}
-          <Text 
-            fontWeight={THEME.fontWeights.medium}
-            color={THEME.colors.textPrimary}
-          >
-            {currentChat?.title || BRANDING.productName}
-          </Text>
+          <HStack spacing={2}>
+            {!sidebarOpen && (
+              <IconButton
+                aria-label="Open sidebar"
+                icon={<SidebarIcon />}
+                variant="ghost"
+                size="sm"
+                onClick={() => setSidebarOpen(true)}
+              />
+            )}
+            <Text
+              fontWeight={THEME.fontWeights.medium}
+              color={THEME.colors.textPrimary}
+            >
+              {currentChat?.title || BRANDING.productName}
+            </Text>
+          </HStack>
+
+          {/* Calendar Sidebar Trigger */}
+          <CalendarSidebarTrigger onClick={() => setIsCalendarSidebarOpen(true)} />
         </HStack>
 
         {/* Messages */}
@@ -861,6 +871,13 @@ export default function HushhAIPage() {
         isOpen={isDeleteModalOpen}
         onClose={onCloseDeleteModal}
         onAccountDeleted={handleAccountDeleted}
+      />
+
+      {/* Calendar Sidebar */}
+      <CalendarSidebar
+        isOpen={isCalendarSidebarOpen}
+        onClose={() => setIsCalendarSidebarOpen(false)}
+        userEmail={userProfile?.email || ''}
       />
     </Flex>
   );
