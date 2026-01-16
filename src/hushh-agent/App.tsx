@@ -3,17 +3,18 @@ import { Coach } from './types';
 import { COACHES } from './constants';
 import CoachCard from './components/CoachCard';
 import LiveSession from './components/LiveSession';
-import PhoneLoginModal from './components/PhoneLoginModal';
-import { usePhoneAuth } from './hooks/usePhoneAuth';
+import EmailLoginModal from './components/EmailLoginModal';
+import { useEmailAuth } from './hooks/useEmailAuth';
 
 type FilterType = 'all' | 'biological' | 'automation' | 'dating' | 'career';
 
 const App: React.FC = () => {
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [showLoginModal, setShowLoginModal] = useState(false);
   
-  // Phone Auth Hook
-  const { isAuthenticated, isLoading, user, logout } = usePhoneAuth();
+  // Email Auth Hook
+  const { isAuthenticated, isLoading, user, signOut } = useEmailAuth();
 
   const filteredCoaches = useMemo(() => {
     if (activeFilter === 'all') return COACHES;
@@ -34,7 +35,14 @@ const App: React.FC = () => {
 
   // Show login modal if not authenticated
   if (!isAuthenticated) {
-    return <PhoneLoginModal />;
+    return (
+      <div className="min-h-screen bg-[#020202] flex items-center justify-center">
+        <EmailLoginModal 
+          isOpen={true} 
+          onClose={() => {}} 
+        />
+      </div>
+    );
   }
 
   return (
@@ -55,12 +63,12 @@ const App: React.FC = () => {
               <div className="flex items-center gap-3">
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
                 <span className="text-[10px] uppercase tracking-[0.3em] text-white/50 font-black">
-                  {user?.phoneNumber || 'Connected'}
+                  {user?.email || 'Connected'}
                 </span>
               </div>
               <div className="w-px h-4 bg-white/10"></div>
               <button
-                onClick={logout}
+                onClick={signOut}
                 className="text-[10px] uppercase tracking-[0.2em] text-white/30 hover:text-red-400 transition-colors font-black"
               >
                 Disconnect
