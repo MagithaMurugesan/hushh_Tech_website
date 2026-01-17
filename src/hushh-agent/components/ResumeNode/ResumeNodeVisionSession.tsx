@@ -25,7 +25,7 @@ import { FaceAnalysis } from '../../services/mediapipeService';
 import EmotionalStateHUD from './EmotionalStateHUD';
 import ResumeUploadDialog from './ResumeUploadDialog';
 import { decode, decodeAudioData, createPcmBlob } from '../../services/audioUtils';
-import { uploadAndCacheResume, CachedContent, UploadedFile } from '../../services/geminiFileService';
+import { prepareResumeForLiveSession } from '../../services/geminiFileService';
 
 interface ResumeNodeVisionSessionProps {
   onClose: () => void;
@@ -107,7 +107,7 @@ const ResumeNodeVisionSession: React.FC<ResumeNodeVisionSessionProps> = ({
   const [showResumeUpload, setShowResumeUpload] = useState(false);
   const [isUploadingResume, setIsUploadingResume] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [resumeCache, setResumeCache] = useState<CachedContent | null>(null);
+  const [resumeData, setResumeData] = useState<{ fileName: string; fileSize: number } | null>(null);
   const [welcomeStep, setWelcomeStep] = useState(0);
   const [uploadComplete, setUploadComplete] = useState(false);
 
@@ -347,7 +347,7 @@ This is Phase 0 - Neural Calibration before resume analysis.`
     }
   };
 
-  // Handle resume upload
+  // Handle resume upload - using simple inline base64 approach
   const handleResumeUpload = useCallback(async (file: File) => {
     if (!selectedCoach) return;
     
@@ -356,29 +356,40 @@ This is Phase 0 - Neural Calibration before resume analysis.`
     setUploadComplete(false);
     
     try {
-      const result = await uploadAndCacheResume(
+      // Use the simpler inline approach
+      const result = await prepareResumeForLiveSession(
         file,
-        selectedCoach.id as 'victor' | 'sophia',
         (progress) => setUploadProgress(progress.percentage)
       );
       
-      setResumeCache(result.cache);
+      // Store resume data for UI
+      setResumeData({ fileName: result.fileName, fileSize: result.fileSize });
       setUploadComplete(true); // Trigger success state in dialog
       
-      // Notify Gemini about the uploaded resume
+      // Send the resume directly to Gemini Live session as inline data
       if (sessionRef.current) {
+        // Send the PDF as inline data to the Live session
         sessionRef.current.sendRealtimeInput({
-          text: `[SYSTEM: Resume Uploaded Successfully]
-The user has uploaded their resume: ${file.name}
-Resume is now cached and available for analysis.
-Token count: ${result.cache.usageMetadata?.totalTokenCount || 'unknown'} tokens cached.
+          media: {
+            data: result.base64Data,
+            mimeType: result.mimeType,
+          }
+        });
+        
+        // Then send a text prompt to analyze it
+        setTimeout(() => {
+          sessionRef.current?.sendRealtimeInput({
+            text: `[SYSTEM: Resume Uploaded Successfully]
+The user has just uploaded their resume: ${result.fileName} (${(result.fileSize / 1024).toFixed(1)} KB)
+The resume PDF has been sent to you for analysis.
 
 Now provide a brief acknowledgment and ask what aspect of their resume they'd like to explore first.
 Be specific - mention that you can see their resume and are ready to analyze it.`
-        });
+          });
+        }, 500);
       }
       
-      console.log('[Vision] Resume cached:', result.cache.name);
+      console.log('[Vision] Resume sent to Live session:', result.fileName);
     } catch (error) {
       console.error('[Vision] Resume upload failed:', error);
       setUploadComplete(false);
@@ -766,7 +777,7 @@ Ask them about their current role and career goals instead.`
           {/* Action Buttons */}
           <div className="space-y-3">
             {/* Upload Resume Button */}
-            {!resumeCache && (
+            {!resumeData && (
               <button
                 onClick={handleShowResumeUpload}
                 className="w-full py-4 rounded-2xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/50 text-purple-300 text-[11px] font-black uppercase tracking-[0.3em] transition-all group"
@@ -777,11 +788,11 @@ Ask them about their current role and career goals instead.`
             )}
             
             {/* Resume Uploaded Indicator */}
-            {resumeCache && (
+            {resumeData && (
               <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-green-500/10 border border-green-500/30">
                 <i className="fas fa-check-circle text-green-400"></i>
                 <span className="text-green-300 text-[10px] uppercase tracking-[0.2em] font-bold">
-                  Resume Cached • {resumeCache.usageMetadata?.totalTokenCount || 'N/A'} Tokens
+                  Resume Ready • {(resumeData.fileSize / 1024).toFixed(1)} KB
                 </span>
               </div>
             )}

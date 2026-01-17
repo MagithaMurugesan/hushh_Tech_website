@@ -2,15 +2,78 @@
  * geminiFileService.ts
  * 
  * Gemini File API Integration
- * - Upload files up to 2GB
- * - Files persist for 48 hours
+ * - Inline data for files up to 30MB (resumes, documents)
+ * - File API for larger files (up to 2GB)
  * - Explicit caching for resume tokens
  * 
- * Reference: https://ai.google.dev/gemini-api/docs/file-upload
+ * Reference: https://ai.google.dev/gemini-api/docs/file-input-methods
+ * 
+ * For resumes (typically < 5MB), we use inline base64 encoding
+ * which is simpler and more reliable than the File API.
  */
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com';
+
+// Max file size for inline upload (30MB - well under Gemini's 50MB PDF limit)
+export const MAX_INLINE_FILE_SIZE = 30 * 1024 * 1024;
+
+/**
+ * Convert a File to base64 string for inline upload to Gemini
+ * This is the simplest and most reliable method for files under 50MB
+ */
+export async function convertFileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // Remove the data URL prefix (e.g., "data:application/pdf;base64,")
+      const base64 = result.split(',')[1];
+      resolve(base64);
+    };
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Prepare resume for Gemini Live session using inline base64
+ * This is simpler and more reliable than the File API + caching approach
+ * 
+ * Returns the base64 data and mime type for sending to Live session
+ */
+export async function prepareResumeForLiveSession(
+  file: File,
+  onProgress?: (progress: UploadProgress) => void
+): Promise<{
+  base64Data: string;
+  mimeType: string;
+  fileName: string;
+  fileSize: number;
+}> {
+  // Validate file size
+  if (file.size > MAX_INLINE_FILE_SIZE) {
+    throw new Error(`File too large. Maximum size is ${MAX_INLINE_FILE_SIZE / 1024 / 1024}MB`);
+  }
+
+  // Step 1: Reading file (0-30%)
+  if (onProgress) onProgress({ loaded: 0, total: 100, percentage: 10 });
+  
+  const base64Data = await convertFileToBase64(file);
+  
+  // Step 2: Processing complete (30-60%)
+  if (onProgress) onProgress({ loaded: 60, total: 100, percentage: 60 });
+  
+  // Step 3: Ready for session (60-100%)
+  if (onProgress) onProgress({ loaded: 100, total: 100, percentage: 100 });
+
+  return {
+    base64Data,
+    mimeType: file.type,
+    fileName: file.name,
+    fileSize: file.size,
+  };
+}
 
 export interface UploadedFile {
   name: string;           // e.g., "files/abc123"

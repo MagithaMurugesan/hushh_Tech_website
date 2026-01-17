@@ -133,8 +133,8 @@ const ResumeUploadDialog: React.FC<ResumeUploadDialogProps> = ({
       return false;
     }
     
-    if (file.size > 10 * 1024 * 1024) {
-      setError('File size must be under 10MB');
+    if (file.size > 30 * 1024 * 1024) {
+      setError('File size must be under 30MB');
       return false;
     }
     
@@ -309,7 +309,7 @@ const ResumeUploadDialog: React.FC<ResumeUploadDialogProps> = ({
                     or <span className="text-blue-400 hover:underline">browse</span> to choose a file
                   </p>
                   <p className="text-white/20 text-xs mt-3">
-                    PDF, DOC, DOCX • Max 10MB
+                    PDF, DOC, DOCX • Max 30MB
                   </p>
                 </div>
               </div>
