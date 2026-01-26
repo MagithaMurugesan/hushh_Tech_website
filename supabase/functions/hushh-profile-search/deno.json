@@ -1,0 +1,5 @@
+{
+  "imports": {
+    "blueimp-md5": "npm:blueimp-md5@^2.19.0"
+  }
+}

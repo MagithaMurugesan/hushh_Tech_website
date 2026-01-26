@@ -11,6 +11,7 @@ import resources from "../../resources/resources";
 import { generateInvestorProfile } from "../../services/investorProfile/apiClient";
 import { downloadHushhGoldPass, launchGoogleWalletPass } from "../../services/walletPass";
 import { InvestorProfile, FIELD_LABELS, VALUE_LABELS } from "../../types/investorProfile";
+import AIDetectedPreferences from "../../components/profile/AIDetectedPreferences";
 
 interface FormState {
   name: string;
@@ -1003,6 +1004,22 @@ const HushhUserProfilePage: React.FC = () => {
               </div>
             </div>
           </section>
+
+          {/* AI-Detected Preferences Section */}
+          {userId && (
+            <AIDetectedPreferences 
+              userId={userId}
+              onSave={(preferences) => {
+                console.log('[Profile] AI preferences updated:', Object.keys(preferences).length);
+                toast({
+                  title: "Preferences Saved",
+                  description: "Your preferences have been updated",
+                  status: "success",
+                  duration: 3000,
+                });
+              }}
+            />
+          )}
 
           {/* AI Generated Investor Profile Section */}
           {investorProfile && (
