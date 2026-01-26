@@ -163,7 +163,7 @@ function OnboardingStep10() {
         .from('onboarding_data')
         .select('address_line_1, address_line_2, address_country, state, city, zip_code, legal_first_name, legal_last_name')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
       // If user already has address data, use it (they may have edited it)
       if (onboardingData?.address_line_1) {
@@ -181,7 +181,7 @@ function OnboardingStep10() {
         .from('user_enriched_profiles')
         .select('address')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
       if (enrichedProfile?.address) {
         const addr = enrichedProfile.address as ParsedAddress;
