@@ -230,80 +230,107 @@ const parseDobResponse = (text: string): DobInferenceResult => {
   return result;
 };
 
-// Infer DOB using Gemini + Google Search
+// Infer DOB using Gemini + Google Search (Enhanced Prompt v2)
 const inferDob = async (params: DobInferenceRequest): Promise<DobInferenceResult> => {
   const { name, email, address, residenceCountry, phone } = params;
   
-  // Build context from available data
-  const contextParts: string[] = [];
+  // Build location string
+  const locationParts: string[] = [];
+  if (address?.city) locationParts.push(address.city);
+  if (address?.state) locationParts.push(address.state);
+  if (address?.country) locationParts.push(address.country);
+  else if (residenceCountry) locationParts.push(residenceCountry);
   
-  if (address?.city) contextParts.push(`City: ${address.city}`);
-  if (address?.state) contextParts.push(`State: ${address.state}`);
-  if (address?.country) contextParts.push(`Country: ${address.country}`);
-  if (address?.zipCode) contextParts.push(`ZIP: ${address.zipCode}`);
-  if (residenceCountry) contextParts.push(`Residence: ${residenceCountry}`);
-  if (email) contextParts.push(`Email: ${email}`);
-  if (phone) contextParts.push(`Phone: ${phone}`);
-  
-  const contextString = contextParts.length > 0 
-    ? contextParts.join(', ')
-    : 'No additional context';
+  const location = locationParts.join(', ') || 'Unknown';
 
   const prompt = `
-# DOB INFERENCE TASK
+# DOB DISCOVERY MISSION - DIGITAL FOOTPRINT ANALYSIS
 
-You are an expert public records researcher. Your task is to find the Date of Birth (DOB) for the following person using public records, social media, and available online information.
+You are an expert OSINT researcher. Your ONLY task is to find the Date of Birth (DOB) for this person.
 
 ## TARGET PERSON
-- **Full Name**: "${name}"
-- **Context**: ${contextString}
+- **Name**: "${name}"
+- **Location**: ${location}
+- **Email**: ${email || 'Not provided'}
+- **Phone**: ${phone || 'Not provided'}
 
-## SEARCH STRATEGY
+---
 
-1. **LinkedIn/Professional Profiles**: Search for "${name}" on LinkedIn. Education graduation dates can help estimate birth year.
-2. **Social Media**: Check Twitter/X, Facebook, Instagram for birthday announcements.
-3. **Public Records**: Search voter records, property records, court records.
-4. **News Articles**: Look for age mentions in news articles featuring this person.
-5. **Wikipedia/Bio Pages**: Check for biographical information.
+### PHASE 1: DIGITAL FOOTPRINT & DOB DISCOVERY (CRITICAL)
 
-## ONOMASTIC AGE ESTIMATION (Backup Method)
+You must SEARCH for the User's Date of Birth (DOB) or Age using Google Search based on their Name, Email, and Location.
 
-If exact DOB cannot be found, estimate using name popularity curves:
+**SEARCH STRATEGY:**
 
-| Name Pattern | Peak Popularity | Estimated Age Range (2026) |
-|-------------|-----------------|---------------------------|
-| Ankit, Amit, Priya | 1985-1995 | 31-41 years |
-| Rahul, Arun, Sanjay | 1970-1985 | 41-56 years |
-| Aarav, Advait, Ananya | 2010-2020 | 6-16 years |
-| Michael, David, James | 1950-1965 | 61-76 years |
-| Jason, Jennifer | 1970-1985 | 41-56 years |
-| Joshua, Jessica, Ashley | 1985-2000 | 26-41 years |
+1. **EMAIL DEEP SEARCH**: Perform a deep search for the email: "${email || 'N/A'}". Look for linked profiles:
+   - LinkedIn profiles
+   - Facebook profiles  
+   - Resume/CV on job sites
+   - GitHub profiles
+   - Personal websites
 
-For the name "${name.split(' ')[0]}", determine the most likely birth year range.
+2. **NAME + LOCATION SEARCH**: Search for "${name}" + "${location}" + "LinkedIn" or "Education" or "Birthday"
 
-## OUTPUT FORMAT (STRICT)
+3. **⚠️ EMAIL WARNING**: The email address might contain random numbers (e.g., 'ankit97593'). 
+   **DO NOT** assume '97' means 1997 unless you find an actual profile or date confirming it. 
+   Random large numbers (like 97593) are often just unique identifiers, NOT birth years.
 
-You MUST respond with EXACTLY this format:
+4. **AGE ESTIMATION HEURISTICS (If exact DOB not found):**
+   
+   **FOR INDIA (Pune, Bangalore, Delhi, Mumbai, etc.):**
+   - If the user appears to be a **Student, Fresher, or recent graduate** in Pune, India:
+     → Likely birth year is **2000-2004** (Gen Z, currently 22-26 years old)
+   - If appears to be a **Working Professional (3-8 years exp)** in Indian tech:
+     → Likely birth year is **1993-2000** (currently 26-33 years old)
+   - If appears to be a **Senior Professional/Manager**:
+     → Likely birth year is **1985-1993** (currently 33-41 years old)
+   
+   **Do NOT default to Millennials (1990s) if context suggests younger professional or student.**
+   
+   **Look for these clues:**
+   - "Class of 202X" → Calculate: 202X - 22 = birth year
+   - "Graduated 202X" → Calculate: 202X - 22 = birth year
+   - "X years of experience" → Calculate: 2026 - X - 22 = approximate birth year
+   - College admission year → Add 18 to get birth year
+
+5. **NAME POPULARITY CURVES (Last Resort):**
+   
+   | Indian Names | Peak Years | Current Age (2026) |
+   |-------------|------------|-------------------|
+   | Aarav, Advait, Ananya | 2010-2020 | 6-16 years |
+   | Aryan, Riya, Ishaan | 2000-2010 | 16-26 years |
+   | Ankit, Amit, Priya, Pooja | 1985-1995 | 31-41 years |
+   | Rahul, Arun, Sanjay, Suresh | 1970-1985 | 41-56 years |
+
+---
+
+### OUTPUT FORMAT (STRICT JSON-LIKE)
+
+Respond with EXACTLY this format:
 
 DOB: YYYY-MM-DD
 CONFIDENCE: [0-100]
-SOURCES: [comma-separated list of sources used]
+METHOD: [Search / Graduation Year / Experience Calculation / Heuristic / Name Curve]
+SOURCES: [comma-separated list of sources or signals used]
 REASONING: [1-2 sentence explanation of how you determined the DOB]
 
-**IMPORTANT RULES**:
-- If you find an exact DOB, use CONFIDENCE: 90-100
-- If you find birth year only, use month/day as 06-15 (middle of year) with CONFIDENCE: 60-75
-- If you can only estimate from name patterns, use CONFIDENCE: 30-50
-- If person appears to be in tech/startup (email domain, context), likely age 25-45
-- The current year is 2026 for age calculations
+**CONFIDENCE LEVELS:**
+- 90-100: Found exact DOB from public profile
+- 70-89: Found graduation year or specific age mention
+- 50-69: Calculated from experience/education timeline
+- 30-49: Estimated from name popularity + location context
+- 0-29: Pure guess, insufficient data
 
-**Example Response**:
-DOB: 1990-06-15
-CONFIDENCE: 65
-SOURCES: LinkedIn graduation year, Name popularity curve
-REASONING: LinkedIn shows graduation in 2012 (typical age 22), suggesting birth around 1990. Name "Ankit" peaked in popularity 1985-1995, consistent with this estimate.
+**EXAMPLE OUTPUT:**
+DOB: 2001-06-15
+CONFIDENCE: 72
+METHOD: Graduation Year
+SOURCES: LinkedIn Education section shows B.Tech 2023
+REASONING: Found graduation year 2023, assuming typical age 22 at graduation, birth year would be around 2001. Used June 15 as default day/month.
 
-Now search for "${name}" and provide the DOB inference:
+---
+
+Now search for "${name}" with email "${email || 'not provided'}" in "${location}" and find their DOB:
 `;
 
   try {
