@@ -7,8 +7,9 @@ import { corsHeaders } from "../_shared/cors.ts";
 
 // Vertex AI Configuration
 const PROJECT_ID = Deno.env.get("GCP_PROJECT_ID") || "hushone-app";
-const MODEL_ID = "gemini-3-pro-preview";
-const VERTEX_AI_LOCATION = "global";
+// Use gemini-2.0-flash-exp for Google Search grounding support
+const MODEL_ID = "gemini-2.0-flash-exp";
+const VERTEX_AI_LOCATION = "us-central1";
 
 interface DobInferenceRequest {
   name: string;
