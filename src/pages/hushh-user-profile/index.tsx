@@ -288,6 +288,12 @@ const HushhUserProfilePage: React.FC = () => {
           if (existingProfile.investor_profile) {
             setInvestorProfile(existingProfile.investor_profile);
           }
+
+          // Load shadow profile if available (for data consistency when sharing)
+          if (existingProfile.shadow_profile) {
+            setShadowProfile(existingProfile.shadow_profile);
+            console.log('[Profile] Loaded cached shadow profile from Supabase');
+          }
           
           // Prefill form from investor_profiles table
           setForm((prev) => ({
@@ -432,35 +438,10 @@ const HushhUserProfilePage: React.FC = () => {
       ]);
 
       // Handle Investor Profile result
+      let investorProfileData = null;
       if (investorResult.status === 'fulfilled' && investorResult.value.success && investorResult.value.profile) {
-        setInvestorProfile(investorResult.value.profile);
-
-        if (userId) {
-          const supabase = resources.config.supabaseClient;
-          if (supabase) {
-            const { data: upsertData } = await supabase
-              .from("investor_profiles")
-              .upsert({
-                user_id: userId,
-                name: form.name,
-                email: form.email,
-                age: typeof form.age === "number" ? form.age : Number(form.age),
-                phone_country_code: form.phoneCountryCode,
-                phone_number: form.phoneNumber,
-                organisation: form.organisation || null,
-                investor_profile: investorResult.value.profile,
-                user_confirmed: true,
-                confirmed_at: new Date().toISOString(),
-              })
-              .select("slug")
-              .single();
-
-            // Set profile slug if returned
-            if (upsertData?.slug) {
-              setProfileSlug(upsertData.slug);
-            }
-          }
-        }
+        investorProfileData = investorResult.value.profile;
+        setInvestorProfile(investorProfileData);
       } else {
         const error = investorResult.status === 'rejected' 
           ? investorResult.reason 
@@ -469,14 +450,55 @@ const HushhUserProfilePage: React.FC = () => {
       }
 
       // Handle Shadow Investigator result
+      let shadowProfileData = null;
       if (shadowResult.status === 'fulfilled' && shadowResult.value.success && shadowResult.value.data) {
-        setShadowProfile(shadowResult.value.data.structured);
-        console.log('[Profile] Shadow profile loaded:', shadowResult.value.data.structured.confidence);
+        shadowProfileData = shadowResult.value.data.structured;
+        setShadowProfile(shadowProfileData);
+        console.log('[Profile] Shadow profile loaded:', shadowProfileData.confidence);
       } else {
         const error = shadowResult.status === 'rejected' 
           ? shadowResult.reason 
           : shadowResult.value.error;
         console.error('[Profile] Shadow investigator error:', error);
+      }
+
+      // Save BOTH profiles to Supabase for data consistency (shared profile links)
+      if (userId && (investorProfileData || shadowProfileData)) {
+        const supabase = resources.config.supabaseClient;
+        if (supabase) {
+          const updatePayload: Record<string, unknown> = {
+            user_id: userId,
+            name: form.name,
+            email: form.email,
+            age: typeof form.age === "number" ? form.age : Number(form.age),
+            phone_country_code: form.phoneCountryCode,
+            phone_number: form.phoneNumber,
+            organisation: form.organisation || null,
+            user_confirmed: true,
+            confirmed_at: new Date().toISOString(),
+          };
+
+          // Add investor_profile if available
+          if (investorProfileData) {
+            updatePayload.investor_profile = investorProfileData;
+          }
+
+          // Add shadow_profile if available (for public profile sharing)
+          if (shadowProfileData) {
+            updatePayload.shadow_profile = shadowProfileData;
+          }
+
+          const { data: upsertData } = await supabase
+            .from("investor_profiles")
+            .upsert(updatePayload)
+            .select("slug")
+            .single();
+
+          // Set profile slug if returned
+          if (upsertData?.slug) {
+            setProfileSlug(upsertData.slug);
+          }
+        }
       }
 
       // REQUIRE BOTH APIs to succeed before showing profiles

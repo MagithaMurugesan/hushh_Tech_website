@@ -6,7 +6,7 @@ import {
   ArrowLeft, Share2, Link, Copy, Check, ExternalLink, 
   Home, MessageCircle, Code, User, TrendingUp, 
   Target, Clock, Gauge, Droplets, Briefcase, Layers, Zap, Activity,
-  Brain, ChevronDown, ChevronUp
+  Brain, ChevronDown, ChevronUp, Search, Globe, Coffee, Heart, Users, Newspaper
 } from "lucide-react";
 import { FaApple, FaWhatsapp, FaLinkedin } from "react-icons/fa";
 import { FaXTwitter } from "react-icons/fa6";
@@ -18,6 +18,7 @@ import { fetchPublicInvestorProfileBySlug } from "../../services/investorProfile
 import { maskProfileData, maskOnboardingField } from "../../utils/maskSensitiveData";
 import { InvestorProfile, FIELD_LABELS, VALUE_LABELS, ONBOARDING_FIELD_LABELS } from "../../types/investorProfile";
 import { OnboardingData } from "../../types/onboarding";
+import { ShadowProfile } from "../../services/shadowInvestigator";
 
 type TabType = 'home' | 'chat' | 'developer';
 
@@ -181,6 +182,7 @@ const PublicInvestorProfilePage: React.FC = () => {
 
   const maskedData = maskProfileData(profileData);
   const investorProfile: InvestorProfile = profileData.investor_profile;
+  const shadowProfile: ShadowProfile | null = profileData.shadow_profile;
   const onboardingData: OnboardingData | null = profileData.onboarding_data;
   const privacySettings = profileData.privacy_settings || {};
 
@@ -449,6 +451,151 @@ const PublicInvestorProfilePage: React.FC = () => {
                         );
                       })}
                     </div>
+                  </section>
+                )}
+
+                {/* Shadow Profile Deep Intelligence Section */}
+                {shadowProfile && (
+                  <section className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-5 shadow-lg border border-slate-700">
+                    <div className="flex items-center justify-between mb-5">
+                      <div className="flex items-center gap-3">
+                        <Search className="w-6 h-6 text-purple-400" />
+                        <div>
+                          <h3 className="text-lg font-semibold text-white">Deep Profile Intelligence</h3>
+                          <p className="text-xs text-slate-400">Powered by Shadow Investigator AI</p>
+                        </div>
+                      </div>
+                      <span className="text-xs font-medium px-3 py-1 rounded-full bg-purple-500/20 text-purple-300">
+                        {Math.round((shadowProfile.confidence || 0) * 100)}% Confidence
+                      </span>
+                    </div>
+
+                    {/* Identity Section */}
+                    <div className="mb-5">
+                      <div className="flex items-center gap-2 mb-3">
+                        <User className="w-4 h-4 text-blue-400" />
+                        <span className="text-sm font-medium text-blue-300">Identity & Demographics</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        {shadowProfile.occupation && (
+                          <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
+                            <span className="text-xs text-slate-400">Occupation</span>
+                            <p className="text-sm text-white font-medium">{shadowProfile.occupation}</p>
+                          </div>
+                        )}
+                        {shadowProfile.nationality && (
+                          <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
+                            <span className="text-xs text-slate-400">Nationality</span>
+                            <p className="text-sm text-white font-medium">{shadowProfile.nationality}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Net Worth Section */}
+                    {shadowProfile.netWorthScore > 0 && (
+                      <div className="mb-5 bg-gradient-to-r from-amber-500/10 to-yellow-500/10 rounded-xl p-4 border border-amber-500/20">
+                        <div className="flex items-center gap-2 mb-2">
+                          <TrendingUp className="w-4 h-4 text-amber-400" />
+                          <span className="text-sm font-medium text-amber-300">Wealth Analysis</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="flex-1">
+                            <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-gradient-to-r from-amber-400 to-yellow-400 rounded-full"
+                                style={{ width: `${Math.min(shadowProfile.netWorthScore, 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                          <span className="text-lg font-bold text-amber-400">{shadowProfile.netWorthScore}/100</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Hobbies & Interests */}
+                    {shadowProfile.hobbies && shadowProfile.hobbies.length > 0 && (
+                      <div className="mb-5">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Heart className="w-4 h-4 text-pink-400" />
+                          <span className="text-sm font-medium text-pink-300">Hobbies & Interests</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {shadowProfile.hobbies.map((hobby, idx) => (
+                            <span key={idx} className="text-xs px-2 py-1 bg-pink-500/20 text-pink-300 rounded-full">
+                              {hobby}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Known For */}
+                    {shadowProfile.knownFor && shadowProfile.knownFor.length > 0 && (
+                      <div className="mb-5">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Zap className="w-4 h-4 text-yellow-400" />
+                          <span className="text-sm font-medium text-yellow-300">Known For</span>
+                        </div>
+                        <div className="space-y-2">
+                          {shadowProfile.knownFor.slice(0, 3).map((item, idx) => (
+                            <div key={idx} className="bg-yellow-500/10 rounded-lg p-2 border border-yellow-500/20">
+                              <p className="text-sm text-yellow-100">{item}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Key Network */}
+                    {shadowProfile.associates && shadowProfile.associates.length > 0 && (
+                      <div className="mb-5">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Users className="w-4 h-4 text-green-400" />
+                          <span className="text-sm font-medium text-green-300">Key Network</span>
+                        </div>
+                        <div className="space-y-2">
+                          {shadowProfile.associates.slice(0, 3).map((associate, idx) => (
+                            <div key={idx} className="flex items-center justify-between bg-slate-800/50 rounded-lg p-2 border border-slate-700">
+                              <div>
+                                <p className="text-sm text-white font-medium">{associate.name}</p>
+                                <p className="text-xs text-slate-400">{associate.relation}</p>
+                              </div>
+                              <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                associate.category === 'INNER' ? 'bg-green-500/20 text-green-300' :
+                                associate.category === 'ORBIT' ? 'bg-blue-500/20 text-blue-300' :
+                                'bg-purple-500/20 text-purple-300'
+                              }`}>
+                                {associate.category}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Social Profiles */}
+                    {shadowProfile.socialMedia && shadowProfile.socialMedia.length > 0 && (
+                      <div className="pt-4 border-t border-slate-700">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Globe className="w-4 h-4 text-cyan-400" />
+                          <span className="text-sm font-medium text-cyan-300">Social Profiles</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {shadowProfile.socialMedia.map((social, idx) => (
+                            <a
+                              key={idx}
+                              href={social.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs px-3 py-1.5 bg-cyan-500/20 text-cyan-300 rounded-full hover:bg-cyan-500/30 transition-colors"
+                            >
+                              {social.platform}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </section>
                 )}
 
