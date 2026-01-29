@@ -81,6 +81,7 @@ import HushhAIPage from './hushh-ai/pages';
 import { LoginPage as HushhAILoginPage, SignupPage as HushhAISignupPage } from './hushh-ai/presentation/pages';
 import HushhAgentApp from './hushh-agent/pages';
 import KaiApp from './kai/pages';
+import KaiIndiaApp from './kai-india/pages';
 import HushhStudioApp from './hushh-studio/pages';
 
 // Google Analytics configuration
@@ -445,6 +446,9 @@ function App() {
             {/* Kai - Financial Intelligence Agent */}
             {/* Real-time AI voice/video financial advisor powered by Gemini 2.0 Flash */}
             <Route path='/kai' element={<KaiApp />} />
+            {/* Kai India - Indian Market Intelligence Dashboard */}
+            {/* Real-time NSE/BSE market data powered by Gemini 2.5 Flash with Google Search */}
+            <Route path='/kai-india' element={<KaiIndiaApp />} />
             {/* Hushh Studio - FREE AI Video Generation */}
             {/* Powered by Google Veo 3.1 - No login required, free for Indian audience */}
             <Route path='/studio' element={<HushhStudioApp />} />
