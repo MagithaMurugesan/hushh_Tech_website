@@ -68,17 +68,19 @@ jobs:
           PR_TITLE="${{ github.event.pull_request.title }}"
           echo "PR Title: $PR_TITLE"
           
-          # Check if title follows conventional commits
+          # Check if title follows conventional commits (informational only)
           if [[ "$PR_TITLE" =~ ^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?:\ .+ ]]; then
             echo "✅ PR title follows conventional commits format"
           else
-            echo "⚠️ Warning: PR title doesn't follow conventional commits format"
+            echo "ℹ️ Note: PR title doesn't follow conventional commits format"
             echo "Suggested formats:"
             echo "  feat: add new feature"
             echo "  fix: resolve bug"
             echo "  docs: update documentation"
             echo "  chore: maintenance task"
           fi
+          # Always pass - AI Code Review handles the real review
+          exit 0
 
       - name: Check PR description
         run: |
