@@ -13,7 +13,8 @@ const corsHeaders = {
 // Recipients for NDA notifications
 const NDA_NOTIFICATION_RECIPIENTS = [
   'manish@hushh.ai',
-  'ankit@hushh.ai'
+  'ankit@hushh.ai',
+  'neelesh1@hushh.ai'
 ];
 
 interface NDANotificationPayload {
@@ -282,7 +283,7 @@ serve(async (req) => {
       timeStyle: 'long',
     });
 
-    const subject = `📝 New NDA Signed - ${signerName}`;
+    const subject = `[Hushh NDA] Agreement Signed by ${signerName}`;
     
     // Create professional HTML email
     const html = `
@@ -296,9 +297,9 @@ serve(async (req) => {
         <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
           
           <!-- Header -->
-          <div style="background: linear-gradient(135deg, #0A0A0A 0%, #1a1a1a 100%); padding: 32px; text-align: center;">
+          <div style="background-color: #000000; padding: 32px; text-align: center;">
             <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">
-              📝 NDA Agreement Signed
+              NDA Agreement Signed
             </h1>
             <p style="color: #888888; margin: 8px 0 0 0; font-size: 14px;">
               Hushh Technologies Inc.
@@ -312,7 +313,7 @@ serve(async (req) => {
             </p>
 
             <!-- Signer Details Card -->
-            <div style="background-color: #F8FAFC; border-radius: 12px; padding: 24px; margin-bottom: 24px; border-left: 4px solid #10b981;">
+            <div style="background-color: #F8FAFC; border-radius: 12px; padding: 24px; margin-bottom: 24px; border-left: 4px solid #000000;">
               <h2 style="color: #0B1120; margin: 0 0 16px 0; font-size: 18px; font-weight: 600;">
                 Signer Information
               </h2>
@@ -374,13 +375,19 @@ serve(async (req) => {
             </div>
             ` : ''}
 
-            <!-- Action Button -->
+            <!-- Action Buttons -->
             <div style="text-align: center; margin-top: 32px;">
-              <a href="https://hushh.ai/admin/nda-agreements" 
+              <a href="https://supabase.com/dashboard/project/ibsisfnjxeowvdtvgzff/editor/29410?schema=public" 
                  style="display: inline-block; background-color: #0A0A0A; color: #ffffff; 
                         padding: 14px 32px; text-decoration: none; border-radius: 8px; 
-                        font-weight: 600; font-size: 14px;">
+                        font-weight: 600; font-size: 14px; margin-right: 12px;">
                 View All NDA Agreements
+              </a>
+              <a href="https://hushh.ai/hushh-user-profile" 
+                 style="display: inline-block; background-color: #ffffff; color: #0A0A0A; 
+                        padding: 14px 32px; text-decoration: none; border-radius: 8px; 
+                        font-weight: 600; font-size: 14px; border: 2px solid #0A0A0A;">
+                View User Profiles
               </a>
             </div>
           </div>
