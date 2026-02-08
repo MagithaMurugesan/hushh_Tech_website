@@ -9,10 +9,6 @@ import LanguageSwitcher from "./LanguageSwitcher";
 import DeleteAccountModal from "./DeleteAccountModal";
 import { useStockQuotes, StockQuote, STOCK_LOGOS } from "../hooks/useStockQuotes";
 
-// Secret gesture state for dev console activation
-let tapCount = 0;
-let lastTapTime = 0;
-
 // Chip-based ticker component - Light theme design
 const TickerChip = ({ quote, isLoading }: { quote: StockQuote; isLoading?: boolean }) => {
   return (
@@ -69,31 +65,6 @@ export default function Navbar() {
 
   // quotes already includes fallback data from the hook, so we can use it directly
   const displayQuotes = quotes;
-
-  // Handle secret gesture - 5 rapid taps on logo to open dev console
-  const handleSecretGesture = () => {
-    const now = Date.now();
-    if (now - lastTapTime < 500) {
-      tapCount++;
-      if (tapCount >= 5) {
-        tapCount = 0;
-        // Open the dev console using the global function exposed by App.tsx
-        if ((window as any).openDevConsole) {
-          (window as any).openDevConsole();
-          toast({
-            title: '🔧 Developer Mode Activated',
-            description: 'Dev console is now available',
-            status: 'info',
-            duration: 2000,
-            isClosable: true,
-          });
-        }
-      }
-    } else {
-      tapCount = 1;
-    }
-    lastTapTime = now;
-  };
 
   useEffect(() => {
     if (!config.supabaseClient) return;
@@ -215,14 +186,7 @@ export default function Navbar() {
           {/* Left: Brand Lockup */}
           <Link to="/" className="flex items-center gap-3">
             {/* Hushh Logo Image in Circle with subtle gradient */}
-            <div 
-              className="flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 border border-gray-200/50 shadow-sm shrink-0 cursor-pointer overflow-hidden"
-              onClick={(e) => {
-                e.preventDefault();
-                handleSecretGesture();
-              }}
-              title="Tap 5 times quickly to enable Developer Mode"
-            >
+            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 border border-gray-200/50 shadow-sm shrink-0 overflow-hidden">
               <Image 
                 src={hushhLogo} 
                 alt="Hushh Logo" 
