@@ -1,5 +1,9 @@
 # Automated PR Checks - Required for merging to main
 # No human review needed - these checks serve as the automated reviewer
+#
+# RULE: All tests MUST pass before merging to main.
+# The "Tests" job is a required status check in branch protection.
+# If ANY test fails, the PR cannot be merged.
 
 name: PR Checks
 
@@ -10,10 +14,59 @@ on:
     branches: [main]
 
 jobs:
+  # ─── TESTS (STRICT GATE) ─────────────────────────────────────────
+  # This is a REQUIRED status check. All tests must pass to merge.
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run All Tests (MUST PASS)
+        run: |
+          echo "🧪 Running all unit & integration tests..."
+          echo "⛔ If ANY test fails, this PR CANNOT be merged."
+          echo ""
+          npm run test 2>&1
+          TEST_EXIT_CODE=$?
+          if [ $TEST_EXIT_CODE -ne 0 ]; then
+            echo ""
+            echo "❌ TESTS FAILED — PR cannot be merged until all tests pass."
+            exit $TEST_EXIT_CODE
+          fi
+          echo ""
+          echo "✅ All tests passed!"
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "## 🧪 Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ **All tests passed** — ready to merge" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Tests failed** — PR cannot be merged until ALL tests pass" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Fix failing tests and push again." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ─── LINT & BUILD ────────────────────────────────────────────────
   lint-test-build:
     name: Lint, Test & Build
     runs-on: ubuntu-latest
-    
+    needs: [tests]  # Wait for tests to pass first
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
