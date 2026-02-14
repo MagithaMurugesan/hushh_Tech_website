@@ -158,16 +158,8 @@ const StatusIndicator: React.FC<{ status: ProductFetchStatus }> = ({ status }) =
     );
   }
 
-  // idle — empty circle
-  return (
-    <Box
-      w="18px"
-      h="18px"
-      borderRadius="full"
-      border="1.5px solid"
-      borderColor={COLORS.border}
-    />
-  );
+  // idle — no icon shown (avoids radio-button confusion)
+  return null;
 };
 
 // =====================================================
@@ -192,7 +184,7 @@ const ProductCard: React.FC<{
       case 'pending': return 'Generating report...';
       case 'unavailable': return unavailableMessage || 'Not available';
       case 'error': return errorMessage || 'Failed to fetch';
-      default: return 'Waiting to connect...';
+      default: return 'Auto-fetched on connect';
     }
   }, [status, mainValue, unavailableMessage, errorMessage]);
 
