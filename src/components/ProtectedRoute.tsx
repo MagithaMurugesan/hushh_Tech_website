@@ -57,7 +57,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
       if (!onboardingData || !onboardingData.is_completed) {
         if (!isOnOnboardingPage) {
-          navigate('/onboarding/financial-link', { replace: true });
+          navigate('/onboarding/step-1', { replace: true });
           return;
         }
       }
