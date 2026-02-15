@@ -120,10 +120,11 @@ export const usePlaidLinkHook = (userId: string, userEmail?: string): UsePlaidLi
       receivedRedirectUri.current = window.location.href;
       sessionStorage.removeItem('plaid_oauth_pending');
     } else if (hasOAuthPending) {
-      // Stale flag without oauth_state_id — clear it and start fresh
+      // Stale flag without oauth_state_id — clear everything and start fresh
       console.log('[Plaid] ⚠️ Stale OAuth pending flag found (no oauth_state_id). Clearing and starting fresh.');
       sessionStorage.removeItem('plaid_oauth_pending');
-      // Do NOT set isOAuthRedirect — let normal flow proceed
+      sessionStorage.removeItem('plaid_link_token');
+      // Do NOT set isOAuthRedirect — let normal flow create a fresh link token
     }
   }, []);
 
