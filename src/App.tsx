@@ -50,7 +50,7 @@ import PrivacyControlsPage from './pages/hushh-user-profile/privacy';
 import PublicHushhProfilePage from './pages/hushhid';
 import PublicInvestorProfilePage from './pages/investor/PublicInvestorProfile';
 import HushhIDHeroDemo from './pages/hushhid-hero-demo';
-// Financial Link removed from onboarding flow
+import FinancialLinkPage from './pages/onboarding/FinancialLink';
 import OnboardingStep1 from './pages/onboarding/Step1';
 import OnboardingStep2 from './pages/onboarding/Step2';
 import OnboardingStep3 from './pages/onboarding/Step3';
@@ -223,6 +223,12 @@ function App() {
             <Route path="/auth/callback" element={<AuthCallback />} />
             {/* Investor Onboarding Guide - Public landing page */}
             <Route path="/investor-guide" element={<InvestorGuidePage />} />
+            {/* Financial Link — mandatory pre-step before onboarding */}
+            <Route path="/onboarding/financial-link" element={
+              <ProtectedRoute>
+                <FinancialLinkPage />
+              </ProtectedRoute>
+            } />
             <Route path="/onboarding/step-1" element={
               <ProtectedRoute>
                 <OnboardingStep1 />
