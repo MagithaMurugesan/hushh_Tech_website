@@ -96,18 +96,30 @@ export const usePlaidLinkHook = (userId: string, userEmail?: string): UsePlaidLi
   // =====================================================
   // OAuth Redirect Detection
   // When banks like Chase use OAuth, the browser redirects away and back.
-  // We detect this by checking for oauth_state_id in the URL.
+  // We detect this by checking for:
+  // 1. oauth_state_id in the URL (standard Plaid OAuth redirect)
+  // 2. plaid_oauth_pending flag in sessionStorage (set before OAuth opens)
   // =====================================================
 
   const isOAuthRedirect = useRef(false);
   const receivedRedirectUri = useRef<string | undefined>(undefined);
 
   useEffect(() => {
+    console.log('[Plaid] 🔍 Mount URL:', window.location.href);
+
     const params = new URLSearchParams(window.location.search);
-    if (params.get('oauth_state_id')) {
-      console.log('[Plaid] 🔄 OAuth redirect detected! oauth_state_id:', params.get('oauth_state_id'));
+    const hasOAuthStateId = !!params.get('oauth_state_id');
+    const hasOAuthPending = sessionStorage.getItem('plaid_oauth_pending') === 'true';
+
+    if (hasOAuthStateId || hasOAuthPending) {
+      console.log('[Plaid] 🔄 OAuth redirect detected!', {
+        oauth_state_id: params.get('oauth_state_id'),
+        oauth_pending_flag: hasOAuthPending,
+      });
       isOAuthRedirect.current = true;
       receivedRedirectUri.current = window.location.href;
+      // Clear the flag
+      sessionStorage.removeItem('plaid_oauth_pending');
     }
   }, []);
 
@@ -352,6 +364,12 @@ export const usePlaidLinkHook = (userId: string, userEmail?: string): UsePlaidLi
 
   const handlePlaidEvent: PlaidLinkOnEvent = useCallback((eventName, metadata) => {
     console.log(`[Plaid] 📡 Event: ${eventName}`, metadata);
+
+    // When OAuth opens, set a flag so we can detect the redirect back
+    if (eventName === 'OPEN_OAUTH') {
+      console.log('[Plaid] 🔑 Setting OAuth pending flag in sessionStorage');
+      sessionStorage.setItem('plaid_oauth_pending', 'true');
+    }
   }, []);
 
   // =====================================================
