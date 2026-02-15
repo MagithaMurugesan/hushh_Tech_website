@@ -1,8 +1,8 @@
 /**
- * usePlaidLink — Clean Plaid Link hook
+ * usePlaidLink — Plaid Link hook with OAuth support
  * 
- * Simple flow: Create token → Open Link → Exchange → Fetch data
- * No OAuth complexity. Works with non-OAuth banks (First Platypus, etc.)
+ * Flow: Create token → Open Link → Exchange → Fetch data
+ * OAuth: Detects oauth_state_id in URL → resumes session automatically
  */
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { usePlaidLink as usePlaidLinkSDK, PlaidLinkOnSuccess, PlaidLinkOnExit, PlaidLinkOnEvent } from 'react-plaid-link';
@@ -62,20 +62,47 @@ export const usePlaidLinkHook = (userId: string, userEmail?: string): UsePlaidLi
   const accessTokenRef = useRef<string | null>(null);
   const assetPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const initializedRef = useRef(false);
+  const isOAuthResumeRef = useRef(false);
 
-  // Step 1: Create link token
+  // Detect OAuth redirect: URL has ?oauth_state_id=...
+  const getOAuthState = useCallback(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('oauth_state_id');
+  }, []);
+
+  // Get the redirect URI (current page without query params)
+  const getRedirectUri = useCallback(() => {
+    return `${window.location.origin}${window.location.pathname}`;
+  }, []);
+
+  // Step 1: Create link token (with OAuth support)
   const initToken = useCallback(async () => {
     if (!userId) return;
     setState(s => ({ ...s, step: 'creating_token', error: null }));
 
     try {
-      console.log('[Plaid] Creating link token...');
-      const { link_token } = await createLinkToken(userId, userEmail);
-      setState(s => ({ ...s, step: 'ready', linkToken: link_token }));
+      const oauthStateId = getOAuthState();
+      const redirectUri = getRedirectUri();
+
+      if (oauthStateId) {
+        // OAuth RESUME — returning from bank website
+        const receivedRedirectUri = window.location.href;
+        console.log('[Plaid] 🔄 OAuth resume detected:', { oauthStateId, receivedRedirectUri });
+        isOAuthResumeRef.current = true;
+
+        const { link_token } = await createLinkToken(userId, userEmail, undefined, receivedRedirectUri);
+        setState(s => ({ ...s, step: 'ready', linkToken: link_token }));
+      } else {
+        // Normal flow — include redirect_uri for OAuth banks
+        console.log('[Plaid] Creating link token with redirect_uri:', redirectUri);
+        const { link_token } = await createLinkToken(userId, userEmail, redirectUri);
+        setState(s => ({ ...s, step: 'ready', linkToken: link_token }));
+      }
     } catch (err: any) {
+      console.error('[Plaid] ❌ Token creation failed:', err);
       setState(s => ({ ...s, step: 'error', error: err.message || 'Failed to initialize' }));
     }
-  }, [userId, userEmail]);
+  }, [userId, userEmail, getOAuthState, getRedirectUri]);
 
   // Auto-init once
   useEffect(() => {
@@ -187,13 +214,27 @@ export const usePlaidLinkHook = (userId: string, userEmail?: string): UsePlaidLi
   // Cleanup
   useEffect(() => () => { if (assetPollRef.current) clearInterval(assetPollRef.current); }, []);
 
-  // Plaid SDK
+  // Plaid SDK — receivedRedirectUri tells SDK this is an OAuth resume
   const { open, ready } = usePlaidLinkSDK({
     token: state.linkToken,
     onSuccess: handleSuccess,
     onExit: handleExit,
     onEvent: handleEvent,
+    receivedRedirectUri: isOAuthResumeRef.current ? window.location.href : undefined,
   });
+
+  // Auto-open on OAuth resume: when token is ready and it's an OAuth return
+  useEffect(() => {
+    if (ready && isOAuthResumeRef.current && state.step === 'ready') {
+      console.log('[Plaid] 🔄 Auto-opening Plaid Link for OAuth resume...');
+      setState(s => ({ ...s, step: 'linking' }));
+      open();
+      // Clean up the oauth_state_id from URL without reload
+      const cleanUrl = `${window.location.origin}${window.location.pathname}`;
+      window.history.replaceState({}, '', cleanUrl);
+      isOAuthResumeRef.current = false;
+    }
+  }, [ready, state.step, open]);
 
   // Public API
   const openPlaidLink = useCallback(() => {

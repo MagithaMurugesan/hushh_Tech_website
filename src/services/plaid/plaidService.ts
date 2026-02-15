@@ -61,13 +61,22 @@ const getHeaders = (token?: string) => ({
 // API Calls
 // =====================================================
 
-/** Create a Plaid Link token */
-export const createLinkToken = async (userId: string, userEmail?: string) => {
+/** Create a Plaid Link token (supports OAuth redirect/resume) */
+export const createLinkToken = async (
+  userId: string,
+  userEmail?: string,
+  redirectUri?: string,
+  receivedRedirectUri?: string,
+) => {
   const token = await getUserAccessToken();
+  const body: Record<string, any> = { userId, userEmail };
+  if (redirectUri) body.redirectUri = redirectUri;
+  if (receivedRedirectUri) body.receivedRedirectUri = receivedRedirectUri;
+
   const res = await fetch(`${SUPABASE_URL}/create-link-token`, {
     method: 'POST',
     headers: getHeaders(token),
-    body: JSON.stringify({ userId, userEmail }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
