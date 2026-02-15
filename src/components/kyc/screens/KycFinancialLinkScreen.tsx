@@ -35,9 +35,9 @@ import type { FinancialVerificationResult } from '../../../types/kyc';
 // =====================================================
 
 const COLORS = {
-  primary: '#6366F1',
-  primaryHover: '#5558E0',
-  primaryGradient: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
+  primary: '#2B8CEE',
+  primaryHover: '#2580D8',
+  primaryGradient: 'linear-gradient(135deg, #2B8CEE 0%, #1A6FCC 100%)',
   bg: '#FFFFFF',
   textPrimary: '#000000',
   textSecondary: '#8E8E93',
@@ -575,38 +575,64 @@ const KycFinancialLinkScreen: React.FC<KycFinancialLinkScreenProps> = ({
         zIndex={10}
       >
         <Box maxW="390px" mx="auto" w="100%">
-        {/* Primary Button */}
-        <Button
-          w="100%"
-          size="lg"
-          bg={buttonBg}
-          color="white"
-          borderRadius="14px"
-          h="52px"
-          fontSize="16px"
-          fontWeight="600"
-          isDisabled={isInitializing || isProcessing}
-          isLoading={isInitializing || isProcessing}
-          loadingText={buttonText}
-          _hover={{
-            bg: buttonHoverBg,
-            transform: 'scale(0.99)',
-          }}
-          _active={{
-            transform: 'scale(0.97)',
-          }}
-          _disabled={{
-            bg: COLORS.border,
-            color: COLORS.textTertiary,
-            cursor: 'not-allowed',
-          }}
-          transition="all 0.15s ease"
-          onClick={handleButtonClick}
-          aria-label={buttonText}
-          tabIndex={0}
-        >
-          {buttonText}
-        </Button>
+        {/* "Continue to KYC" — ONLY visible after Plaid completes with data */}
+        {plaid.step === 'done' && plaid.canProceed && (
+          <Button
+            w="100%"
+            size="lg"
+            bg={COLORS.primary}
+            color="white"
+            borderRadius="14px"
+            h="52px"
+            fontSize="16px"
+            fontWeight="600"
+            _hover={{
+              bg: COLORS.primaryHover,
+              transform: 'scale(0.99)',
+            }}
+            _active={{ transform: 'scale(0.97)' }}
+            transition="all 0.15s ease"
+            onClick={handleButtonClick}
+            aria-label="Continue to KYC Step 1"
+            tabIndex={0}
+            animation={`${fadeIn} 0.4s ease both`}
+          >
+            Continue to KYC →
+          </Button>
+        )}
+
+        {/* Link / Retry / Loading button — shown when NOT done+canProceed */}
+        {!(plaid.step === 'done' && plaid.canProceed) && (
+          <Button
+            w="100%"
+            size="lg"
+            bg={buttonBg}
+            color="white"
+            borderRadius="14px"
+            h="52px"
+            fontSize="16px"
+            fontWeight="600"
+            isDisabled={isInitializing || isProcessing}
+            isLoading={isInitializing || isProcessing}
+            loadingText={buttonText}
+            _hover={{
+              bg: buttonHoverBg,
+              transform: 'scale(0.99)',
+            }}
+            _active={{ transform: 'scale(0.97)' }}
+            _disabled={{
+              bg: COLORS.border,
+              color: COLORS.textTertiary,
+              cursor: 'not-allowed',
+            }}
+            transition="all 0.15s ease"
+            onClick={handleButtonClick}
+            aria-label={buttonText}
+            tabIndex={0}
+          >
+            {buttonText}
+          </Button>
+        )}
 
         {/* Secondary action — link different account */}
         {(plaid.step === 'done' || plaid.step === 'error') && (
