@@ -115,18 +115,10 @@ export const usePlaidLinkHook = (userId: string, userEmail?: string): UsePlaidLi
   // Step 1: Create Link Token
   // =====================================================
 
-  /** Get the OAuth redirect URI (current page without query params) */
-  const getRedirectUri = useCallback(() => {
-    const url = new URL(window.location.href);
-    url.search = '';
-    url.hash = '';
-    return url.toString();
-  }, []);
-
   const initializeLinkToken = useCallback(async () => {
     if (!userId) return;
 
-    // If returning from OAuth, we need the stored link token from sessionStorage
+    // If returning from OAuth redirect, restore the stored link token
     if (isOAuthRedirect.current) {
       const storedToken = sessionStorage.getItem('plaid_link_token');
       if (storedToken) {
@@ -143,11 +135,14 @@ export const usePlaidLinkHook = (userId: string, userEmail?: string): UsePlaidLi
     setState((prev) => ({ ...prev, step: 'creating_token', error: null }));
 
     try {
-      const redirectUri = getRedirectUri();
-      console.log('[Plaid] Creating link token with redirectUri:', redirectUri);
-      const response = await createLinkToken(userId, userEmail, redirectUri);
+      // NOTE: We do NOT pass redirect_uri here. This means OAuth banks
+      // will use Plaid's popup-based OAuth flow (no page redirect).
+      // To enable redirect-based OAuth, register a redirect URI in
+      // Plaid Dashboard → API → Allowed redirect URIs, then pass it here.
+      console.log('[Plaid] Creating link token (no redirect_uri — popup OAuth mode)');
+      const response = await createLinkToken(userId, userEmail);
 
-      // Store link token for OAuth redirect recovery
+      // Store link token for OAuth redirect recovery (just in case)
       sessionStorage.setItem('plaid_link_token', response.link_token);
 
       setState((prev) => ({
@@ -162,7 +157,7 @@ export const usePlaidLinkHook = (userId: string, userEmail?: string): UsePlaidLi
         error: err.message || 'Failed to initialize bank connection',
       }));
     }
-  }, [userId, userEmail, getRedirectUri]);
+  }, [userId, userEmail]);
 
   // Auto-initialize on mount — only once per hook instance
   useEffect(() => {
