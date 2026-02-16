@@ -68,28 +68,22 @@ function OnboardingStep8() {
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const isFooterVisible = useFooterVisibility();
 
-  // Location data from Edge Function
+  // Location data
   const [countries, setCountries] = useState<Country[]>([]);
   const [states, setStates] = useState<State[]>([]);
   const [cities, setCities] = useState<City[]>([]);
   const [loadingCountries, setLoadingCountries] = useState(true);
   const [loadingStates, setLoadingStates] = useState(false);
   const [loadingCities, setLoadingCities] = useState(false);
-  
-  // FIXED: Store pending GPS data in STATE (not refs) so useEffect can detect changes
-  const [pendingGpsData, setPendingGpsData] = useState<{
-    countryCode?: string;
-    stateCode?: string;
-    stateName?: string;
-    city?: string;
-    postalCode?: string;
-    addressLine1?: string;
-    addressLine2?: string;
-  } | null>(null);
-  
-  // Track if initial data loading is complete (for disabling continue button)
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
-  const [countriesLoaded, setCountriesLoaded] = useState(false);
+
+  // Refs to store pending GPS/inference values (applied when dropdowns load)
+  const pendingGpsCountry = useRef<string | null>(null);
+  const pendingGpsState = useRef<string | null>(null);
+  const pendingGpsCity = useRef<string | null>(null);
+
+  // Abort controllers for cleanup
+  const inferenceAbortController = useRef<AbortController | null>(null);
+  const gpsAbortController = useRef<AbortController | null>(null);
 
   // Scroll to top on component mount
   useEffect(() => {
@@ -101,9 +95,8 @@ function OnboardingStep8() {
     setLoadingCountries(true);
     const allCountries = getAllCountries();
     setCountries(allCountries);
-    setCountriesLoaded(true);
     setLoadingCountries(false);
-    console.log('[Step10] Countries loaded:', allCountries.length);
+    console.log('[Step8] Countries loaded:', allCountries.length);
   }, []);
 
   // Load states when country changes (async API call)
@@ -121,7 +114,7 @@ function OnboardingStep8() {
         const statesList = await getStatesOfCountry(country);
         if (!cancelled) {
           setStates(statesList);
-          console.log('[Step10] States loaded for', country, ':', statesList.length);
+          console.log('[Step8] States loaded for', country, ':', statesList.length);
         }
       } catch (err) {
         console.error('Error loading states:', err);
@@ -150,7 +143,7 @@ function OnboardingStep8() {
         const citiesList = await getCitiesOfState(country, stateName);
         if (!cancelled) {
           setCities(citiesList);
-          console.log('[Step10] Cities loaded for', stateName, ':', citiesList.length);
+          console.log('[Step8] Cities loaded for', stateName, ':', citiesList.length);
         }
       } catch (err) {
         console.error('Error loading cities:', err);
@@ -173,7 +166,7 @@ function OnboardingStep8() {
       const countryCode = pendingGpsCountry.current;
       const countryExists = countries.some(c => c.isoCode === countryCode);
       if (countryExists) {
-        console.log('[Step10] Applying pending GPS country:', countryCode);
+        console.log('[Step8] Applying pending GPS country:', countryCode);
         setCountry(countryCode);
       }
       pendingGpsCountry.current = null;
@@ -189,7 +182,7 @@ function OnboardingStep8() {
         // Use isoCode if it matches, otherwise use name
         const matchingState = states.find(s => s.isoCode === stateCode || s.name === stateCode);
         if (matchingState) {
-          console.log('[Step10] Applying pending GPS state:', matchingState.isoCode);
+          console.log('[Step8] Applying pending GPS state:', matchingState.isoCode);
           setState(matchingState.isoCode);
         }
       }
@@ -203,7 +196,7 @@ function OnboardingStep8() {
       const cityName = pendingGpsCity.current;
       const cityExists = cities.some(c => c.name === cityName);
       if (cityExists) {
-        console.log('[Step10] Applying pending GPS city:', cityName);
+        console.log('[Step8] Applying pending GPS city:', cityName);
         setCity(cityName);
       }
       pendingGpsCity.current = null;
@@ -213,24 +206,14 @@ function OnboardingStep8() {
   // AI Address Inference state
   const [isInferringAddress, setIsInferringAddress] = useState(false);
   const [inferenceMessage, setInferenceMessage] = useState<string | null>(null);
-  const inferenceAbortController = useRef<AbortController | null>(null);
-  const gpsAbortController = useRef<AbortController | null>(null);
-
-  // Refs to store pending GPS values (to apply after dropdowns load)
-  const pendingGpsCountry = useRef<string | null>(null);
-  const pendingGpsState = useRef<string | null>(null);
-  const pendingGpsCity = useRef<string | null>(null);
-  const pendingGpsZip = useRef<string | null>(null);
-  const pendingGpsAddress1 = useRef<string | null>(null);
-  const pendingGpsAddress2 = useRef<string | null>(null);
 
   // Lightweight Address Inference API URL
   const ADDRESS_INFERENCE_API = 'https://ibsisfnjxeowvdtvgzff.supabase.co/functions/v1/hushh-address-inference';
 
-  // Real-time GPS detection function for Step 10
+  // Real-time GPS detection function
   const detectAndApplyGPS = useCallback(async (uid: string) => {
     if (!navigator.geolocation) {
-      console.log('[Step10] Geolocation not available');
+      console.log('[Step8] Geolocation not available');
       return null;
     }
 
@@ -247,7 +230,7 @@ function OnboardingStep8() {
       });
 
       const { latitude, longitude } = position.coords;
-      console.log(`[Step10] Real-time GPS: ${latitude}, ${longitude}`);
+      console.log(`[Step8] Real-time GPS: ${latitude}, ${longitude}`);
 
       gpsAbortController.current = new AbortController();
 
@@ -266,7 +249,7 @@ function OnboardingStep8() {
 
       if (result.success && result.data) {
         const gpsData = result.data;
-        console.log('[Step10] Real-time GPS data:', gpsData);
+        console.log('[Step8] Real-time GPS data:', gpsData);
 
         // Update cache for consistency
         if (config.supabaseClient) {
@@ -292,7 +275,7 @@ function OnboardingStep8() {
       return null;
     } catch (error) {
       if ((error as Error).name !== 'AbortError') {
-        console.log('[Step10] GPS detection failed:', error);
+        console.log('[Step8] GPS detection failed:', error);
       }
       setInferenceMessage(null);
       return null;
@@ -311,7 +294,7 @@ function OnboardingStep8() {
     postalCode?: string;
     formattedAddress?: string;
   }) => {
-    console.log('[Step10] Applying GPS data to form:', gpsData);
+    console.log('[Step8] Applying GPS data to form:', gpsData);
     
     // Set postal code immediately (no dropdown dependency)
     if (gpsData.postalCode) {
@@ -346,11 +329,11 @@ function OnboardingStep8() {
       
       if (parts.length >= 1) {
         setAddressLine1(parts[0]);
-        console.log('[Step10] GPS Address Line 1:', parts[0]);
+        console.log('[Step8] GPS Address Line 1:', parts[0]);
       }
       if (parts.length >= 2) {
         setAddressLine2(parts.slice(1).join(', '));
-        console.log('[Step10] GPS Address Line 2:', parts.slice(1).join(', '));
+        console.log('[Step8] GPS Address Line 2:', parts.slice(1).join(', '));
       }
     }
     
@@ -368,16 +351,16 @@ function OnboardingStep8() {
     // State: Store in ref for later application when states load
     if (gpsData.stateCode) {
       pendingGpsState.current = gpsData.stateCode;
-      console.log('[Step10] Stored pending GPS state:', gpsData.stateCode);
+      console.log('[Step8] Stored pending GPS state:', gpsData.stateCode);
     } else if (gpsData.state) {
       pendingGpsState.current = gpsData.state;
-      console.log('[Step10] Stored pending GPS state (name):', gpsData.state);
+      console.log('[Step8] Stored pending GPS state (name):', gpsData.state);
     }
     
     // City: Store in ref for later application when cities load
     if (gpsData.city) {
       pendingGpsCity.current = gpsData.city;
-      console.log('[Step10] Stored pending GPS city:', gpsData.city);
+      console.log('[Step8] Stored pending GPS city:', gpsData.city);
     }
   }, []);
 
@@ -408,7 +391,7 @@ function OnboardingStep8() {
       }
 
       // 2. For new users: Always detect GPS in REAL-TIME (not cached data)
-      console.log('[Step10] Detecting location in real-time...');
+      console.log('[Step8] Detecting location in real-time...');
       const gpsData = await detectAndApplyGPS(user.id);
       
       if (gpsData) {
@@ -433,7 +416,7 @@ function OnboardingStep8() {
           countryCode?: string;
           zipCode?: string;
         };
-        console.log('[Step10] Found cached enriched profile address:', addr);
+        console.log('[Step8] Found cached enriched profile address:', addr);
         
         // Pre-fill from enriched profile
         if (addr.line1) setAddressLine1(addr.line1);
@@ -453,13 +436,13 @@ function OnboardingStep8() {
       // 4. Fallback: Use residence_country from Step 6 if GPS data not available
       if (onboardingData?.residence_country) {
         const countryCode = mapCountryToIsoCode(onboardingData.residence_country);
-        console.log('[Step10] Using residence_country as fallback:', countryCode);
+        console.log('[Step8] Using residence_country as fallback:', countryCode);
         setCountry(countryCode);
       }
 
       // 5. No cached data - use lightweight address inference API if we have name
       if (onboardingData?.legal_first_name && onboardingData?.legal_last_name) {
-        console.log('[Step10] No cached profile, calling lightweight address inference API...');
+        console.log('[Step8] No cached profile, calling lightweight address inference API...');
         
         const fullName = `${onboardingData.legal_first_name} ${onboardingData.legal_last_name}`;
         const userEmail = user.email || '';
@@ -486,7 +469,7 @@ function OnboardingStep8() {
           const result = await response.json();
 
           if (result.success && result.data) {
-            console.log('[Step10] Address inference success:', result.data);
+            console.log('[Step8] Address inference success:', result.data);
             setInferenceMessage(`✅ Found: ${result.data.address?.city || result.data.address?.country || 'Location detected'}`);
             
             const addr = result.data.address;
@@ -507,22 +490,29 @@ function OnboardingStep8() {
                 onConflict: 'user_id'
               });
 
-            // Pre-fill address from API result
+            // Pre-fill address from API result using ref-based pending pattern
             if (addr) {
-              // Set country first (triggers state dropdown loading)
+              if (addr.zipCode) setZipCode(addr.zipCode);
+
+              // Country: set directly + store in ref for safety
               if (addr.countryCode) {
+                pendingGpsCountry.current = addr.countryCode;
                 setCountry(addr.countryCode);
               } else if (addr.country) {
                 const countryCode = mapCountryToIsoCode(addr.country);
+                pendingGpsCountry.current = countryCode;
                 setCountry(countryCode);
               }
-              
-              // Delay setting state/city to allow dropdowns to load
-              setTimeout(() => {
-                if (addr.state) setState(addr.state);
-                if (addr.city) setCity(addr.city);
-                if (addr.zipCode) setZipCode(addr.zipCode);
-              }, 500);
+
+              // State & City: store in refs, applied when dropdowns load
+              if (addr.state) {
+                pendingGpsState.current = addr.state;
+                console.log('[Step8] Stored pending inference state:', addr.state);
+              }
+              if (addr.city) {
+                pendingGpsCity.current = addr.city;
+                console.log('[Step8] Stored pending inference city:', addr.city);
+              }
             }
             
             // Clear message after 2 seconds
@@ -530,14 +520,14 @@ function OnboardingStep8() {
               setInferenceMessage(null);
             }, 2000);
           } else {
-            console.log('[Step10] Address inference returned no data');
+            console.log('[Step8] Address inference returned no data');
             setInferenceMessage(null);
           }
         } catch (err) {
           if ((err as Error).name === 'AbortError') {
-            console.log('[Step10] Address inference aborted');
+            console.log('[Step8] Address inference aborted');
           } else {
-            console.error('[Step10] Address inference error:', err);
+            console.error('[Step8] Address inference error:', err);
           }
           setInferenceMessage(null);
           // Silently fail - user can enter manually
@@ -549,10 +539,13 @@ function OnboardingStep8() {
 
     loadData();
     
-    // Cleanup: abort any pending request on unmount
+    // Cleanup: abort any pending requests on unmount
     return () => {
       if (inferenceAbortController.current) {
         inferenceAbortController.current.abort();
+      }
+      if (gpsAbortController.current) {
+        gpsAbortController.current.abort();
       }
     };
   }, []);
