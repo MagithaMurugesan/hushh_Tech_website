@@ -58,16 +58,25 @@ export default function OnboardingStep1() {
       }
       setUserId(user.id);
 
-      // Gate: redirect to financial-link if not yet verified
-      const { data: financialData } = await config.supabaseClient
-        .from('user_financial_data')
-        .select('status')
-        .eq('user_id', user.id)
-        .single();
+      // Check if user intentionally skipped financial verification
+      const hasSkipped = sessionStorage.getItem('financial_link_skipped') === 'true';
 
-      if (!financialData || (financialData.status !== 'complete' && financialData.status !== 'partial')) {
-        navigate('/onboarding/financial-link', { replace: true });
-        return;
+      if (hasSkipped) {
+        // Clear the flag and allow access
+        sessionStorage.removeItem('financial_link_skipped');
+        console.log('[Step1] User skipped financial verification - allowing access');
+      } else {
+        // Gate: redirect to financial-link if not yet verified
+        const { data: financialData } = await config.supabaseClient
+          .from('user_financial_data')
+          .select('status')
+          .eq('user_id', user.id)
+          .single();
+
+        if (!financialData || (financialData.status !== 'complete' && financialData.status !== 'partial')) {
+          navigate('/onboarding/financial-link', { replace: true });
+          return;
+        }
       }
 
       // Check if user already has onboarding data

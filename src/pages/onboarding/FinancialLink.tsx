@@ -86,6 +86,9 @@ export default function OnboardingFinancialLink() {
 
   // Skip option — let user proceed without linking bank
   const handleSkip = () => {
+    // Set skip flag so Step 1 knows this was intentional
+    sessionStorage.setItem('financial_link_skipped', 'true');
+    console.log('[FinancialLink] User skipped financial verification');
     navigate('/onboarding/step-1');
   };
 
