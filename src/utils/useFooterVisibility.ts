@@ -9,7 +9,16 @@ import { useState, useEffect } from 'react';
 export function useFooterVisibility(): boolean {
   const [isFooterVisible, setIsFooterVisible] = useState(false);
 
+  // On onboarding pages, always keep CTA visible — never hide it
+  const isOnboarding = typeof window !== 'undefined' && window.location.pathname.startsWith('/onboarding');
+
   useEffect(() => {
+    // Skip footer detection on onboarding pages — CTA must always be sticky
+    if (isOnboarding) {
+      setIsFooterVisible(false);
+      return;
+    }
+
     // Find the main footer element (it has id="main-footer" or class containing "footer")
     const findFooter = (): Element | null => {
       // Try to find footer by ID first
@@ -68,7 +77,7 @@ export function useFooterVisibility(): boolean {
     return () => {
       clearTimeout(timeoutId);
     };
-  }, []);
+  }, [isOnboarding]);
 
   return isFooterVisible;
 }
