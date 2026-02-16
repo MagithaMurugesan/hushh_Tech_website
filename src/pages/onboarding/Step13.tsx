@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import config from '../../resources/config/config';
 import { useFooterVisibility } from '../../utils/useFooterVisibility';
+import { fetchAuthNumbers } from '../../services/plaid/plaidService';
 
 // SVG Icons
 const BackIcon = () => (
@@ -134,6 +135,9 @@ function OnboardingStep13() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
+  // Plaid auto-fill status
+  const [autoFillMessage, setAutoFillMessage] = useState<string | null>(null);
+
   // Banking form state
   const [bankName, setBankName] = useState('');
   const [accountHolderName, setAccountHolderName] = useState('');
@@ -218,6 +222,58 @@ function OnboardingStep13() {
         if (data.bank_routing_number) setRoutingNumber(data.bank_routing_number);
         if (data.bank_address_city) setBankCity(data.bank_address_city);
         if (data.bank_address_country) setBankCountry(data.bank_address_country);
+      }
+
+      // --- Plaid Auto-Fill: fetch auth numbers if user linked a bank ---
+      // Only auto-fill fields that are still empty (don't overwrite saved data)
+      const hasBankDataAlready = data?.bank_routing_number;
+      if (!hasBankDataAlready) {
+        try {
+          const { data: financialData } = await config.supabaseClient
+            .from('user_financial_data')
+            .select('plaid_access_token, institution_name')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+          if (financialData?.plaid_access_token) {
+            setAutoFillMessage('📍 Auto-filling from your linked bank...');
+            console.log('[Step13] Plaid access_token found, fetching auth numbers...');
+
+            const authData = await fetchAuthNumbers(financialData.plaid_access_token);
+
+            if (authData?.numbers?.ach?.[0]) {
+              const ach = authData.numbers.ach[0];
+              if (ach.account) {
+                setAccountNumber(ach.account);
+                setConfirmAccountNumber(ach.account);
+              }
+              if (ach.routing) setRoutingNumber(ach.routing);
+            }
+
+            if (authData?.accounts?.[0]) {
+              const acct = authData.accounts[0];
+              if (acct.subtype === 'checking' || acct.subtype === 'savings') {
+                setAccountType(acct.subtype);
+              }
+            }
+
+            if (financialData.institution_name && !bankName) {
+              setBankName(financialData.institution_name);
+            }
+
+            // Default country to US for Plaid-linked banks (US-only for ACH)
+            if (!bankCountry) setBankCountry('US');
+
+            setAutoFillMessage('✅ Bank details auto-filled from Plaid');
+            console.log('[Step13] Plaid auto-fill complete');
+
+            // Clear message after 4 seconds
+            setTimeout(() => setAutoFillMessage(null), 4000);
+          }
+        } catch (err) {
+          console.warn('[Step13] Plaid auto-fill failed (non-blocking):', err);
+          setAutoFillMessage(null);
+        }
       }
     };
 
@@ -460,6 +516,13 @@ function OnboardingStep13() {
           {error && (
             <div className="mx-5 mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
               {error}
+            </div>
+          )}
+
+          {/* Plaid Auto-Fill Banner */}
+          {autoFillMessage && (
+            <div className="mx-5 mb-4 p-3 bg-[#F0F7FF] border border-[#2b8cee]/20 rounded-xl text-[#2b8cee] text-sm font-medium text-center animate-pulse">
+              {autoFillMessage}
             </div>
           )}
 

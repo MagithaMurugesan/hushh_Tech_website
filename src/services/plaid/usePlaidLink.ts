@@ -417,7 +417,7 @@ export const usePlaidLinkHook = (userId: string, userEmail?: string): UsePlaidLi
       }));
 
       // Save to Supabase (background)
-      saveFinancialDataToSupabase(userId, result, inst.name, inst.id, exchange.item_id)
+      saveFinancialDataToSupabase(userId, result, inst.name, inst.id, exchange.item_id, exchange.access_token)
         .catch(e => console.warn('[Plaid] Save failed:', e));
 
       // Poll assets if pending

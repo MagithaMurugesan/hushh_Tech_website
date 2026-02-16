@@ -103,6 +103,32 @@ export const exchangeToken = async (
   return res.json() as Promise<{ access_token: string; item_id: string }>;
 };
 
+/** Fetch auth numbers (account number, routing number, account type) from Plaid */
+export const fetchAuthNumbers = async (accessToken: string) => {
+  try {
+    const token = await getUserAccessToken();
+    const res = await fetch(`${SUPABASE_URL}/get-auth-numbers`, {
+      method: 'POST',
+      headers: getHeaders(token),
+      body: JSON.stringify({ accessToken }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error('[Plaid] Auth numbers error:', err);
+      return null;
+    }
+    const data = await res.json();
+    console.log('[Plaid] Auth numbers fetched successfully');
+    return data as {
+      accounts: Array<{ account_id: string; name: string; subtype: string; type: string }>;
+      numbers: { ach: Array<{ account: string; routing: string; wire_routing: string; account_id: string }> };
+    };
+  } catch (e: any) {
+    console.error('[Plaid] Auth numbers fetch failed:', e.message);
+    return null;
+  }
+};
+
 /** Fetch balance */
 const fetchBalance = async (accessToken: string, userId: string): Promise<ProductResult> => {
   try {
@@ -200,7 +226,7 @@ export const checkAssetReport = async (assetReportToken: string, userId: string)
 /** Save financial data to Supabase */
 export const saveFinancialDataToSupabase = async (
   userId: string, data: FinancialDataResponse,
-  institutionName?: string, institutionId?: string, itemId?: string,
+  institutionName?: string, institutionId?: string, itemId?: string, accessToken?: string,
 ) => {
   try {
     const config = (await import('../../resources/config/config')).default;
@@ -215,6 +241,7 @@ export const saveFinancialDataToSupabase = async (
     await supabase.from('user_financial_data').upsert({
       user_id: userId,
       plaid_item_id: itemId || null,
+      plaid_access_token: accessToken || null,
       institution_name: institutionName || null,
       institution_id: institutionId || null,
       balances: data.balance.available ? data.balance.data : null,
