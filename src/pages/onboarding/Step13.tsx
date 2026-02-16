@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import config from '../../resources/config/config';
 import { useFooterVisibility } from '../../utils/useFooterVisibility';
@@ -137,6 +137,27 @@ function OnboardingStep13() {
   
   // Plaid auto-fill status
   const [autoFillMessage, setAutoFillMessage] = useState<string | null>(null);
+  const [isAutoFilling, setIsAutoFilling] = useState(false);
+
+  // Fix 2: Timeout ref for cleanup on unmount
+  const autoFillTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMountedRef = useRef(true);
+
+  // Fix 1: Track which fields user has manually edited (prevents overwrite)
+  const userModifiedFields = useRef(new Set<string>());
+
+  // Fix 3: Multiple accounts from Plaid
+  interface PlaidAccount {
+    accountId: string;
+    name: string;
+    mask: string; // last 4 digits
+    subtype: string;
+    achAccount: string;
+    achRouting: string;
+  }
+  const [plaidAccounts, setPlaidAccounts] = useState<PlaidAccount[]>([]);
+  const [selectedAccountIdx, setSelectedAccountIdx] = useState(0);
+  const [plaidInstitutionName, setPlaidInstitutionName] = useState('');
 
   // Banking form state
   const [bankName, setBankName] = useState('');
@@ -182,6 +203,30 @@ function OnboardingStep13() {
   const totalInvestment = calculateTotalInvestment();
   const hasAnyUnits = shareUnits.class_a_units > 0 || shareUnits.class_b_units > 0 || shareUnits.class_c_units > 0;
 
+  // Fix 2: Cleanup on unmount — clear timeouts, mark unmounted
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (autoFillTimeoutRef.current) clearTimeout(autoFillTimeoutRef.current);
+    };
+  }, []);
+
+  // Fix 3: Apply selected account from multi-account picker
+  const applyAccountSelection = useCallback((account: PlaidAccount) => {
+    if (!userModifiedFields.current.has('accountNumber')) {
+      setAccountNumber(account.achAccount);
+      setConfirmAccountNumber(account.achAccount);
+    }
+    if (!userModifiedFields.current.has('routingNumber')) {
+      setRoutingNumber(account.achRouting);
+    }
+    if (!userModifiedFields.current.has('accountType')) {
+      const subtype = account.subtype as 'checking' | 'savings';
+      if (subtype === 'checking' || subtype === 'savings') setAccountType(subtype);
+    }
+  }, []);
+
   // Load existing data
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -205,6 +250,10 @@ function OnboardingStep13() {
         .eq('user_id', user.id)
         .single();
 
+      // Track what DB already has so we know what's "pre-filled" vs "empty"
+      let dbHasBankName = false;
+      let dbHasCountry = false;
+
       if (data) {
         setShareUnits({
           class_a_units: data.class_a_units || 0,
@@ -216,12 +265,12 @@ function OnboardingStep13() {
           setAccountHolderName(`${data.legal_first_name} ${data.legal_last_name}`);
         }
         
-        if (data.bank_name) setBankName(data.bank_name);
+        if (data.bank_name) { setBankName(data.bank_name); dbHasBankName = true; }
         if (data.bank_account_holder_name) setAccountHolderName(data.bank_account_holder_name);
         if (data.bank_account_type) setAccountType(data.bank_account_type as 'checking' | 'savings');
         if (data.bank_routing_number) setRoutingNumber(data.bank_routing_number);
         if (data.bank_address_city) setBankCity(data.bank_address_city);
-        if (data.bank_address_country) setBankCountry(data.bank_address_country);
+        if (data.bank_address_country) { setBankCountry(data.bank_address_country); dbHasCountry = true; }
       }
 
       // --- Plaid Auto-Fill: fetch auth numbers if user linked a bank ---
@@ -236,43 +285,74 @@ function OnboardingStep13() {
             .maybeSingle();
 
           if (financialData?.plaid_access_token) {
+            if (!isMountedRef.current) return;
+            setIsAutoFilling(true);
             setAutoFillMessage('📍 Auto-filling from your linked bank...');
             console.log('[Step13] Plaid access_token found, fetching auth numbers...');
 
             const authData = await fetchAuthNumbers(financialData.plaid_access_token);
+            if (!isMountedRef.current) return;
 
-            if (authData?.numbers?.ach?.[0]) {
-              const ach = authData.numbers.ach[0];
-              if (ach.account) {
-                setAccountNumber(ach.account);
-                setConfirmAccountNumber(ach.account);
+            // Fix 3: Build multi-account list
+            const achNumbers = authData?.numbers?.ach || [];
+            const accounts = authData?.accounts || [];
+
+            if (achNumbers.length > 0) {
+              const mappedAccounts: PlaidAccount[] = achNumbers.map((ach: any) => {
+                const matchedAccount = accounts.find((a: any) => a.account_id === ach.account_id) as any;
+                return {
+                  accountId: ach.account_id || '',
+                  name: matchedAccount?.name || matchedAccount?.official_name || 'Account',
+                  mask: matchedAccount?.mask || (ach.account ? ach.account.slice(-4) : '****'),
+                  subtype: matchedAccount?.subtype || 'checking',
+                  achAccount: ach.account || '',
+                  achRouting: ach.routing || '',
+                };
+              });
+
+              setPlaidAccounts(mappedAccounts);
+              if (financialData.institution_name) setPlaidInstitutionName(financialData.institution_name);
+
+              // Auto-select first account — only fill fields user hasn't touched
+              const firstAccount = mappedAccounts[0];
+              setSelectedAccountIdx(0);
+
+              if (!userModifiedFields.current.has('accountNumber') && firstAccount.achAccount) {
+                setAccountNumber(firstAccount.achAccount);
+                setConfirmAccountNumber(firstAccount.achAccount);
               }
-              if (ach.routing) setRoutingNumber(ach.routing);
+              if (!userModifiedFields.current.has('routingNumber') && firstAccount.achRouting) {
+                setRoutingNumber(firstAccount.achRouting);
+              }
+              if (!userModifiedFields.current.has('accountType')) {
+                const subtype = firstAccount.subtype as 'checking' | 'savings';
+                if (subtype === 'checking' || subtype === 'savings') setAccountType(subtype);
+              }
             }
 
-            if (authData?.accounts?.[0]) {
-              const acct = authData.accounts[0];
-              if (acct.subtype === 'checking' || acct.subtype === 'savings') {
-                setAccountType(acct.subtype);
-              }
-            }
-
-            if (financialData.institution_name && !bankName) {
+            // Fill bank name & country only if not already set from DB or user
+            if (financialData.institution_name && !dbHasBankName && !userModifiedFields.current.has('bankName')) {
               setBankName(financialData.institution_name);
             }
+            if (!dbHasCountry && !userModifiedFields.current.has('bankCountry')) {
+              setBankCountry('US'); // ACH = US-only
+            }
 
-            // Default country to US for Plaid-linked banks (US-only for ACH)
-            if (!bankCountry) setBankCountry('US');
-
+            setIsAutoFilling(false);
             setAutoFillMessage('✅ Bank details auto-filled from Plaid');
             console.log('[Step13] Plaid auto-fill complete');
 
-            // Clear message after 4 seconds
-            setTimeout(() => setAutoFillMessage(null), 4000);
+            // Fix 2: Use ref for timeout cleanup
+            autoFillTimeoutRef.current = setTimeout(() => {
+              if (isMountedRef.current) setAutoFillMessage(null);
+            }, 4000);
           }
         } catch (err) {
           console.warn('[Step13] Plaid auto-fill failed (non-blocking):', err);
-          setAutoFillMessage(null);
+          if (isMountedRef.current) {
+            setAutoFillMessage(null);
+            setIsAutoFilling(false);
+          }
         }
       }
     };
@@ -526,6 +606,61 @@ function OnboardingStep13() {
             </div>
           )}
 
+          {/* Fix 3: Multi-Account Selector — only shown if Plaid returned 2+ accounts */}
+          {plaidAccounts.length > 1 && (
+            <div className="mx-5 mb-5">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                <p className="text-xs font-bold tracking-widest text-slate-500 uppercase mb-3">
+                  {plaidInstitutionName ? `${plaidInstitutionName} — ` : ''}SELECT ACCOUNT
+                </p>
+                <div className="space-y-2">
+                  {plaidAccounts.map((acct, idx) => {
+                    const isSelected = idx === selectedAccountIdx;
+                    return (
+                      <button
+                        key={acct.accountId || idx}
+                        type="button"
+                        onClick={() => {
+                          setSelectedAccountIdx(idx);
+                          // Clear user modifications for auto-fillable fields so the new account applies
+                          userModifiedFields.current.delete('accountNumber');
+                          userModifiedFields.current.delete('confirmAccountNumber');
+                          userModifiedFields.current.delete('routingNumber');
+                          userModifiedFields.current.delete('accountType');
+                          applyAccountSelection(acct);
+                        }}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left ${
+                          isSelected
+                            ? 'border-[#2b8cee] bg-[#F0F7FF] ring-1 ring-[#2b8cee]/30'
+                            : 'border-slate-200 bg-white hover:bg-slate-50'
+                        }`}
+                        aria-label={`Select ${acct.name} ending in ${acct.mask}`}
+                      >
+                        {/* Radio indicator */}
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                          isSelected ? 'border-[#2b8cee]' : 'border-slate-300'
+                        }`}>
+                          {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-[#2b8cee]" />}
+                        </div>
+                        {/* Account info */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-slate-900 truncate">{acct.name}</p>
+                          <p className="text-xs text-slate-500">
+                            {acct.subtype.charAt(0).toUpperCase() + acct.subtype.slice(1)} · ····{acct.mask}
+                          </p>
+                        </div>
+                        {/* Selected check */}
+                        {isSelected && (
+                          <span className="text-[#2b8cee] text-sm font-bold">✓</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Investment Amount Card */}
           {hasAnyUnits && (
             <div className="mx-5 mb-6">
@@ -575,7 +710,7 @@ function OnboardingStep13() {
               <input
                 type="text"
                 value={bankName}
-                onChange={(e) => setBankName(e.target.value)}
+                onChange={(e) => { userModifiedFields.current.add('bankName'); setBankName(e.target.value); }}
                 onBlur={() => handleBlur('bankName')}
                 placeholder="e.g. Chase Bank"
                 className={`w-full rounded-xl border bg-white px-4 py-3.5 text-base font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 transition-all ${
@@ -655,7 +790,7 @@ function OnboardingStep13() {
                 type="text"
                 inputMode="numeric"
                 value={accountNumber}
-                onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ''))}
+                onChange={(e) => { userModifiedFields.current.add('accountNumber'); setAccountNumber(e.target.value.replace(/\D/g, '')); }}
                 onBlur={() => handleBlur('accountNumber')}
                 placeholder="000000000"
                 className={`w-full rounded-xl border bg-white px-4 py-3.5 text-base font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 transition-all ${
@@ -681,7 +816,7 @@ function OnboardingStep13() {
                 type="text"
                 inputMode="numeric"
                 value={confirmAccountNumber}
-                onChange={(e) => setConfirmAccountNumber(e.target.value.replace(/\D/g, ''))}
+                onChange={(e) => { userModifiedFields.current.add('confirmAccountNumber'); setConfirmAccountNumber(e.target.value.replace(/\D/g, '')); }}
                 onBlur={() => handleBlur('confirmAccountNumber')}
                 placeholder="000000000"
                 className={`w-full rounded-xl border bg-white px-4 py-3.5 text-base font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 transition-all ${
@@ -707,6 +842,7 @@ function OnboardingStep13() {
                 <select
                   value={bankCountry}
                   onChange={(e) => {
+                    userModifiedFields.current.add('bankCountry');
                     setBankCountry(e.target.value);
                     handleBlur('bankCountry');
                   }}
@@ -744,7 +880,7 @@ function OnboardingStep13() {
                 type="text"
                 inputMode="numeric"
                 value={routingNumber}
-                onChange={(e) => setRoutingNumber(e.target.value.replace(/\D/g, '').slice(0, bankCountry === 'US' ? 9 : 15))}
+                onChange={(e) => { userModifiedFields.current.add('routingNumber'); setRoutingNumber(e.target.value.replace(/\D/g, '').slice(0, bankCountry === 'US' ? 9 : 15)); }}
                 onBlur={() => handleBlur('routingNumber')}
                 placeholder={bankCountry === 'US' ? '000000000' : 'Enter routing number'}
                 maxLength={bankCountry === 'US' ? 9 : 15}
