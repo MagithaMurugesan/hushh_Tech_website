@@ -11,6 +11,17 @@ import './i18n'
 import initDevToolsGuard from './utils/devtools-guard'
 initDevToolsGuard()
 
+// ─── App Version ────────────────────────────────────────────────────────────
+// Expose version globally so team can check via DevTools console:
+//   Type: __HUSHH_VERSION__  →  { version, built }
+// This survives production minification (unlike console.log which is stripped)
+;(window as any).__HUSHH_VERSION__ = {
+  version: __APP_VERSION__,
+  built: __BUILD_TIMESTAMP__,
+}
+// Also update the HTML meta tag dynamically
+document.querySelector('meta[name="app-version"]')?.setAttribute('content', __APP_VERSION__)
+
 // Import DM Sans font weights
 import "@fontsource/dm-sans/400.css";
 import "@fontsource/dm-sans/500.css";
