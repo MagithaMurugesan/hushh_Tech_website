@@ -1,6 +1,7 @@
 import React, { useEffect, useState, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import config from '../../resources/config/config';
+import { upsertOnboardingData } from '../../services/onboarding/upsertOnboardingData';
 import { useFooterVisibility } from '../../utils/useFooterVisibility';
 
 // Back arrow icon
@@ -310,14 +311,11 @@ export default function OnboardingStep1() {
         updateData.recurring_amount = null;
       }
 
-      // Save share unit selections to database
-      const { error: saveError } = await config.supabaseClient
-        .from('onboarding_data')
-        .update(updateData)
-        .eq('user_id', userId);
+      // Save share unit selections to database (upsert: creates row if missing)
+      const { error: saveError } = await upsertOnboardingData(userId, updateData);
 
       if (saveError) {
-        setError('Failed to save investment details');
+        setError(saveError.message || 'Failed to save investment details');
         return;
       }
 
