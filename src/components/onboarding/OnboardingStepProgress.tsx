@@ -25,14 +25,9 @@ export function OnboardingStepProgress({
         <div className="pointer-events-none absolute -left-8 -bottom-10 h-14 w-14 rounded-full bg-cyan-300/14 blur-2xl" />
 
         <div className="relative">
-          <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
-            <p className="min-w-0 flex-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500 sm:text-[10px]">
-              {heading}
-            </p>
-            <span className="shrink-0 rounded-full border border-[#2b8cee]/20 bg-[#2b8cee]/10 px-2 py-0.5 text-[9px] font-bold text-[#1f6cc7] sm:text-[10px]">
-              {progressPercentage}% complete
-            </span>
-          </div>
+          <p className="min-w-0 text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500 sm:text-[10px]">
+            {heading}
+          </p>
 
           <Progress
             value={progressPercentage}
@@ -44,20 +39,13 @@ export function OnboardingStepProgress({
             aria-label={`${progressPercentage} percent complete`}
           />
 
-          <div className="mt-2 flex items-center gap-0.5 sm:gap-1" aria-hidden="true">
-            {Array.from({ length: safeTotal }, (_, index) => {
-              const stepNumber = index + 1;
-              const isComplete = stepNumber <= safeStep;
-
-              return (
-                <span
-                  key={stepNumber}
-                  className={`h-[3px] flex-1 rounded-full transition-all duration-300 sm:h-1 ${
-                    isComplete ? 'bg-[#2b8cee]' : 'bg-slate-200/90'
-                  }`}
-                />
-              );
-            })}
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <span className="text-[10px] font-bold text-[#1f6cc7] sm:text-xs">
+              {progressPercentage}% complete
+            </span>
+            <span className="text-[10px] font-semibold text-slate-500 sm:text-xs">
+              Step {safeStep}/{safeTotal}
+            </span>
           </div>
         </div>
       </div>
