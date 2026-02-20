@@ -9,7 +9,8 @@ import Select, {
 import ReactCountryFlag from 'react-country-flag';
 import config from '../../resources/config/config';
 import { upsertOnboardingData } from '../../services/onboarding/upsertOnboardingData';
-import type { AccountStructure } from '../../types/onboarding';
+import type { UIAccountType } from '../../types/onboarding';
+import { ACCOUNT_TYPE_OPTIONS } from '../../types/onboarding';
 import { useFooterVisibility } from '../../utils/useFooterVisibility';
 import { locationService } from '../../services/location';
 import { OnboardingStepProgress } from '../../components/onboarding/OnboardingStepProgress';
@@ -56,13 +57,6 @@ const PHONE_DIAL_CODES: DialCodeOption[] = [
   { code: '+234', country: 'Nigeria', iso: 'NG' },
   { code: '+20', country: 'Egypt', iso: 'EG' },
   { code: '+90', country: 'Turkey', iso: 'TR' },
-];
-
-const ACCOUNT_STRUCTURE_OPTIONS: Array<{ value: AccountStructure; label: string }> = [
-  { value: 'individual', label: 'Individual' },
-  { value: 'joint', label: 'Joint' },
-  { value: 'retirement', label: 'Retirement' },
-  { value: 'trust', label: 'Trust' },
 ];
 
 const DialCodeOptionRow = ({ option }: { option: DialCodeOption }) => (
@@ -157,78 +151,15 @@ const dialCodeSelectStyles: StylesConfig<DialCodeOption, false> = {
   }),
 };
 
-interface AccountTypeOption {
-  value: AccountStructure;
-  label: string;
-}
-
-const accountTypeSelectStyles: StylesConfig<AccountTypeOption, false> = {
-  control: (base, state) => ({
-    ...base,
-    minHeight: 54,
-    borderRadius: 12,
-    borderColor: state.isFocused ? '#3A63B8' : '#E2E8F0',
-    boxShadow: state.isFocused ? '0 0 0 2px rgba(58,99,184,0.22)' : '0 1px 2px rgba(15,23,42,0.06)',
-    '&:hover': {
-      borderColor: state.isFocused ? '#3A63B8' : '#CBD5E1',
-    },
-  }),
-  valueContainer: (base) => ({
-    ...base,
-    padding: '6px 12px',
-  }),
-  singleValue: (base) => ({
-    ...base,
-    margin: 0,
-    color: '#0F172A',
-    fontWeight: 500,
-  }),
-  placeholder: (base) => ({
-    ...base,
-    margin: 0,
-    color: '#94A3B8',
-    fontWeight: 500,
-  }),
-  indicatorSeparator: () => ({ display: 'none' }),
-  dropdownIndicator: (base, state) => ({
-    ...base,
-    color: '#64748B',
-    transform: state.selectProps.menuIsOpen ? 'rotate(180deg)' : undefined,
-    transition: 'transform 0.16s ease',
-    ':hover': { color: '#334155' },
-  }),
-  menu: (base) => ({
-    ...base,
-    overflow: 'hidden',
-    borderRadius: 12,
-    border: '1px solid #E2E8F0',
-    boxShadow: '0 12px 28px rgba(15,23,42,0.16)',
-    maxWidth: 'calc(100vw - 24px)',
-    zIndex: 60,
-  }),
-  menuPortal: (base) => ({
-    ...base,
-    zIndex: 80,
-  }),
-  menuList: (base) => ({
-    ...base,
-    maxHeight: 220,
-    paddingTop: 4,
-    paddingBottom: 4,
-  }),
-  option: (base, state) => ({
-    ...base,
-    padding: '10px 12px',
-    backgroundColor: state.isSelected ? '#EAF2FF' : state.isFocused ? '#F8FAFC' : '#FFFFFF',
-    color: '#0F172A',
-    cursor: 'pointer',
-  }),
+/** Maps UIAccountType → legacy account_structure value for backward compatibility */
+const toAccountStructure = (accountType: UIAccountType): 'individual' | 'other' => {
+  return accountType === 'individual' ? 'individual' : 'other';
 };
 
 export default function OnboardingStep5() {
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string | null>(null);
-  const [selectedStructure, setSelectedStructure] = useState<AccountStructure | null>(null);
+  const [selectedAccountType, setSelectedAccountType] = useState<UIAccountType | null>(null);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [countryCode, setCountryCode] = useState('+1');
   const [selectedDialCountryIso, setSelectedDialCountryIso] = useState('US');
@@ -237,14 +168,13 @@ export default function OnboardingStep5() {
   const isFooterVisible = useFooterVisibility();
 
   useEffect(() => {
-    // Scroll to top on component mount
     window.scrollTo(0, 0);
   }, []);
 
   useEffect(() => {
     const getCurrentUser = async () => {
       if (!config.supabaseClient) return;
-      
+
       const { data: { user } } = await config.supabaseClient.auth.getUser();
       if (!user) {
         navigate('/login');
@@ -255,13 +185,20 @@ export default function OnboardingStep5() {
       // Load existing data if any
       const { data: onboardingData } = await config.supabaseClient
         .from('onboarding_data')
-        // Select * to remain compatible across schema revisions (gps_location_data columns may not exist).
         .select('*')
         .eq('user_id', user.id)
         .maybeSingle();
 
-      if (onboardingData?.account_structure) {
-        setSelectedStructure(onboardingData.account_structure as AccountStructure);
+      // Restore account type — prefer account_type, fall back to account_structure
+      if (onboardingData?.account_type) {
+        const validTypes: UIAccountType[] = ['individual', 'joint', 'retirement', 'trust'];
+        const saved = onboardingData.account_type as string;
+        if (validTypes.includes(saved as UIAccountType)) {
+          setSelectedAccountType(saved as UIAccountType);
+        }
+      } else if (onboardingData?.account_structure === 'individual') {
+        // Backward compat: old data only has account_structure
+        setSelectedAccountType('individual');
       }
 
       if (onboardingData?.phone_number) {
@@ -332,7 +269,7 @@ export default function OnboardingStep5() {
   };
 
   const isValidPhone = phoneNumber.length >= 8 && phoneNumber.length <= 15;
-  const canContinue = Boolean(selectedStructure) && isValidPhone;
+  const canContinue = Boolean(selectedAccountType) && isValidPhone;
 
   const dialCodeOptions = useMemo(() => {
     if (countryCode && !PHONE_DIAL_CODES.some((c) => c.code === countryCode)) {
@@ -351,25 +288,16 @@ export default function OnboardingStep5() {
     return codeMatch ?? null;
   }, [countryCode, dialCodeOptions, selectedDialCountryIso]);
 
-  const accountStructureOptions = useMemo<AccountTypeOption[]>(() => {
-    if (selectedStructure === 'other') {
-      return [...ACCOUNT_STRUCTURE_OPTIONS, { value: 'other' as AccountStructure, label: 'Other (legacy)' }];
-    }
-    return ACCOUNT_STRUCTURE_OPTIONS;
-  }, [selectedStructure]);
-
-  const selectedAccountTypeOption = useMemo(() => {
-    if (!selectedStructure) return null;
-    return accountStructureOptions.find((option) => option.value === selectedStructure) ?? null;
-  }, [accountStructureOptions, selectedStructure]);
-
   const handleContinue = async () => {
-    if (!selectedStructure || !userId || !config.supabaseClient || !isValidPhone) return;
+    if (!selectedAccountType || !userId || !config.supabaseClient || !isValidPhone) return;
 
     setIsLoading(true);
     try {
       await upsertOnboardingData(userId, {
-        account_structure: selectedStructure,
+        // Primary field — used by the profile page to display account type
+        account_type: selectedAccountType,
+        // Backward-compatible field — keeps legacy consumers working
+        account_structure: toAccountStructure(selectedAccountType),
         phone_number: phoneNumber,
         phone_country_code: countryCode,
         current_step: 5,
@@ -418,89 +346,96 @@ export default function OnboardingStep5() {
             </p>
           </div>
 
-          <form className="space-y-8">
-            <div className="space-y-2">
-              <label className="block text-base font-semibold text-slate-900">
-                Account type
-              </label>
-              <Select<AccountTypeOption, false>
-                inputId="account-type"
-                className="w-full"
-                options={accountStructureOptions}
-                value={selectedAccountTypeOption}
-                onChange={(selected) => setSelectedStructure(selected?.value ?? null)}
-                isSearchable={false}
-                placeholder="Select account type"
-                styles={accountTypeSelectStyles}
-                menuPlacement="auto"
-                menuPosition="fixed"
-                maxMenuHeight={220}
-                menuShouldScrollIntoView={false}
-                menuPortalTarget={typeof window !== 'undefined' ? document.body : undefined}
-                noOptionsMessage={() => 'No account types found'}
-              />
-            </div>
+          {/* Account Type Selection — radio button list saves to account_type */}
+          <h2 className="text-slate-900 text-base font-bold mb-3">Account type</h2>
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
+            {ACCOUNT_TYPE_OPTIONS.map((option, index) => {
+              const isSelected = selectedAccountType === option.value;
+              const isLast = index === ACCOUNT_TYPE_OPTIONS.length - 1;
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <label className="block text-base font-semibold text-slate-900">
-                  Phone number
-                </label>
-                {isAutoDetectingDialCode && (
-                  <span className="text-xs font-semibold text-slate-400">
-                    Detecting code...
-                  </span>
-                )}
+              return (
+                <button
+                  key={option.value}
+                  onClick={() => setSelectedAccountType(option.value)}
+                  className={`w-full flex items-center justify-between p-5 hover:bg-slate-50 transition-colors ${
+                    !isLast ? 'border-b border-gray-100' : ''
+                  }`}
+                  aria-label={`Select ${option.label} account`}
+                  role="radio"
+                  aria-checked={isSelected}
+                >
+                  <span className="text-slate-900 text-base font-medium">{option.label}</span>
+                  <div
+                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                      isSelected
+                        ? 'border-[#2b8cee] bg-[#2b8cee]'
+                        : 'border-slate-300 bg-white'
+                    }`}
+                  >
+                    {isSelected && (
+                      <div className="w-2.5 h-2.5 rounded-full bg-white" />
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Phone Number */}
+          <div className="mt-8">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <h2 className="text-slate-900 text-base font-bold">Phone number</h2>
+              {isAutoDetectingDialCode && (
+                <span className="text-xs font-semibold text-slate-400">Detecting code...</span>
+              )}
+            </div>
+            <p className="text-slate-500 text-sm leading-relaxed mb-4">
+              We&apos;ll use this to verify your identity when needed.
+            </p>
+
+            <div className="flex w-full gap-3">
+              <div className="relative min-w-[124px] flex-[0.9]">
+                <Select<DialCodeOption, false>
+                  inputId="phone-country-code"
+                  className="w-full"
+                  options={dialCodeOptions}
+                  value={selectedDialOption}
+                  onChange={(selected) => {
+                    if (!selected) return;
+                    setSelectedDialCountryIso(selected.iso);
+                    setCountryCode(selected.code);
+                  }}
+                  isSearchable
+                  placeholder="Country"
+                  styles={dialCodeSelectStyles}
+                  components={{
+                    Option: DialCodeOptionComponent,
+                    SingleValue: DialCodeSingleValueComponent,
+                  }}
+                  menuPlacement="auto"
+                  menuPosition="fixed"
+                  maxMenuHeight={220}
+                  menuShouldScrollIntoView={false}
+                  menuPortalTarget={typeof window !== 'undefined' ? document.body : undefined}
+                  noOptionsMessage={() => 'No countries found'}
+                />
               </div>
 
-              <p className="mb-3 text-sm text-slate-500">
-                We&apos;ll use this to verify your identity when needed.
-              </p>
-
-              <div className="flex w-full gap-3">
-                <div className="relative min-w-[124px] flex-[0.9]">
-                  <Select<DialCodeOption, false>
-                    inputId="phone-country-code"
-                    className="w-full"
-                    options={dialCodeOptions}
-                    value={selectedDialOption}
-                    onChange={(selected) => {
-                      if (!selected) return;
-                      setSelectedDialCountryIso(selected.iso);
-                      setCountryCode(selected.code);
-                    }}
-                    isSearchable
-                    placeholder="Country"
-                    styles={dialCodeSelectStyles}
-                    components={{
-                      Option: DialCodeOptionComponent,
-                      SingleValue: DialCodeSingleValueComponent,
-                    }}
-                    menuPlacement="auto"
-                    menuPosition="fixed"
-                    maxMenuHeight={220}
-                    menuShouldScrollIntoView={false}
-                    menuPortalTarget={typeof window !== 'undefined' ? document.body : undefined}
-                    noOptionsMessage={() => 'No countries found'}
-                  />
-                </div>
-
-                <div className="relative flex-1">
-                  <input
-                    type="tel"
-                    value={formatPhoneNumber(phoneNumber)}
-                    onChange={handlePhoneChange}
-                    placeholder="(000) 000-0000"
-                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-slate-900 placeholder:text-slate-400 shadow-sm outline-none transition-all duration-200 focus:border-transparent focus:ring-2 focus:ring-[#3A63B8]"
-                  />
-                </div>
+              <div className="relative flex-1">
+                <input
+                  type="tel"
+                  value={formatPhoneNumber(phoneNumber)}
+                  onChange={handlePhoneChange}
+                  placeholder="(000) 000-0000"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3.5 text-slate-900 placeholder:text-slate-400 shadow-sm outline-none transition-all duration-200 focus:border-transparent focus:ring-2 focus:ring-[#3A63B8]"
+                />
               </div>
-
-              <p className="pt-1 text-xs text-slate-500">
-                Standard message and data rates may apply.
-              </p>
             </div>
-          </form>
+
+            <p className="pt-1 text-xs text-slate-500">
+              Standard message and data rates may apply.
+            </p>
+          </div>
         </main>
 
         {/* Fixed Footer - Hidden when main footer is visible */}
@@ -509,7 +444,6 @@ export default function OnboardingStep5() {
             className="fixed bottom-0 left-0 right-0 z-50 w-full max-w-[500px] mx-auto border-t border-slate-100 bg-white/90 backdrop-blur-md px-4 sm:px-6 pt-4 sm:pt-5 pb-[calc(env(safe-area-inset-bottom)+16px)] shadow-[0_-4px_20px_rgba(0,0,0,0.04)]"
             data-onboarding-footer
           >
-            {/* Buttons */}
             <div className="flex flex-col gap-3 sm:gap-4">
               {/* Continue Button */}
               <button
@@ -531,4 +465,3 @@ export default function OnboardingStep5() {
     </div>
   );
 }
-
