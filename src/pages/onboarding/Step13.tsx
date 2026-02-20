@@ -195,6 +195,7 @@ function OnboardingStep13() {
   const [bankCity, setBankCity] = useState('');
   const [bankCountry, setBankCountry] = useState('');
   const [accountType, setAccountType] = useState<'checking' | 'savings'>('checking');
+  const [selectedOnboardingAccountType, setSelectedOnboardingAccountType] = useState('');
   
   // Touched state for showing validation errors only after user interaction
   const [touched, setTouched] = useState({
@@ -229,6 +230,12 @@ function OnboardingStep13() {
 
   const totalInvestment = calculateTotalInvestment();
   const hasAnyUnits = shareUnits.class_a_units > 0 || shareUnits.class_b_units > 0 || shareUnits.class_c_units > 0;
+
+  const formattedOnboardingAccountType = selectedOnboardingAccountType
+    ? selectedOnboardingAccountType
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (char) => char.toUpperCase())
+    : 'Not selected';
 
   // Cleanup on unmount — clear timeouts, mark unmounted
   useEffect(() => {
@@ -423,6 +430,7 @@ function OnboardingStep13() {
         .from('onboarding_data')
         .select(`
           class_a_units, class_b_units, class_c_units,
+          account_type,
           legal_first_name, legal_last_name,
           bank_name, bank_account_holder_name, bank_account_type,
           bank_routing_number, bank_address_city, bank_address_country
@@ -448,6 +456,7 @@ function OnboardingStep13() {
         if (data.bank_name) { setBankName(data.bank_name); dbHasBankName = true; }
         if (data.bank_account_holder_name) setAccountHolderName(data.bank_account_holder_name);
         if (data.bank_account_type) setAccountType(data.bank_account_type as 'checking' | 'savings');
+        if (data.account_type) setSelectedOnboardingAccountType(String(data.account_type));
         if (data.bank_routing_number) setRoutingNumber(data.bank_routing_number);
         if (data.bank_address_city) setBankCity(data.bank_address_city);
         if (data.bank_address_country) { setBankCountry(data.bank_address_country); dbHasCountry = true; }
@@ -852,31 +861,14 @@ function OnboardingStep13() {
 
             {/* Account Type */}
             <div className="space-y-2">
-              <label className="block text-sm font-bold text-slate-900">Account Type*</label>
-              <div className="flex rounded-xl bg-slate-100 p-1">
-                <button
-                  type="button"
-                  onClick={() => setAccountType('checking')}
-                  className={`flex-1 rounded-lg py-2.5 text-sm font-bold transition-all ${
-                    accountType === 'checking'
-                      ? 'bg-white text-[#2b8cee] shadow-sm border border-slate-100'
-                      : 'bg-transparent text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  Checking
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAccountType('savings')}
-                  className={`flex-1 rounded-lg py-2.5 text-sm font-bold transition-all ${
-                    accountType === 'savings'
-                      ? 'bg-white text-[#2b8cee] shadow-sm border border-slate-100'
-                      : 'bg-transparent text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  Savings
-                </button>
-              </div>
+              <label className="block text-sm font-bold text-slate-900">Account Type</label>
+              <input
+                type="text"
+                value={formattedOnboardingAccountType}
+                readOnly
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-base font-semibold text-slate-900 focus:outline-none"
+                aria-label="Selected account type from step 5"
+              />
             </div>
 
             {/* Account Number */}
