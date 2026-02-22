@@ -23,6 +23,8 @@ export interface FinancialDataResponse {
   assets: ProductResult;
   investments: ProductResult;
   identity: ProductResult;
+  authNumbers: ProductResult;
+  identityMatch: ProductResult;
   summary: {
     products_available: number;
     products_total: number;
@@ -231,28 +233,44 @@ export const fetchIdentityMatch = async (
   }
 };
 
-/** Fetch all 4 products in parallel */
+/** Wrap fetchAuthNumbers as a ProductResult */
+const fetchAuth = async (accessToken: string): Promise<ProductResult> => {
+  try {
+    const data = await fetchAuthNumbers(accessToken);
+    if (!data) return { available: false, data: null, error: null, reason: 'not_supported' };
+    return { available: true, data, error: null, reason: null };
+  } catch (e: any) {
+    return { available: false, data: null, error: e.message, reason: 'error' };
+  }
+};
+
+/** Fetch all 6 products in parallel */
 export const fetchAllFinancialData = async (
   accessToken: string, userId: string,
 ): Promise<FinancialDataResponse> => {
-  const [b, a, i, id] = await Promise.allSettled([
+  const [b, a, i, id, auth, idMatch] = await Promise.allSettled([
     fetchBalance(accessToken, userId),
     fetchAssets(accessToken, userId),
     fetchInvestments(accessToken, userId),
     fetchIdentity(accessToken),
+    fetchAuth(accessToken),
+    fetchIdentityMatch(accessToken),
   ]);
 
-  const balance = b.status === 'fulfilled' ? b.value : { available: false, data: null, error: 'Network error', reason: 'error' as const };
-  const assets = a.status === 'fulfilled' ? a.value : { available: false, data: null, error: 'Network error', reason: 'error' as const };
-  const investments = i.status === 'fulfilled' ? i.value : { available: false, data: null, error: 'Network error', reason: 'error' as const };
-  const identity = id.status === 'fulfilled' ? id.value : { available: false, data: null, error: 'Network error', reason: 'error' as const };
+  const errResult = { available: false, data: null, error: 'Network error', reason: 'error' as const };
+  const balance = b.status === 'fulfilled' ? b.value : errResult;
+  const assets = a.status === 'fulfilled' ? a.value : errResult;
+  const investments = i.status === 'fulfilled' ? i.value : errResult;
+  const identity = id.status === 'fulfilled' ? id.value : errResult;
+  const authNumbers = auth.status === 'fulfilled' ? auth.value : errResult;
+  const identityMatch = idMatch.status === 'fulfilled' ? idMatch.value : errResult;
 
-  const count = [balance, assets, investments, identity].filter(r => r.available).length;
+  const count = [balance, assets, investments, identity, authNumbers, identityMatch].filter(r => r.available).length;
 
   return {
-    status: count === 4 ? 'complete' : count > 0 ? 'partial' : 'failed',
-    balance, assets, investments, identity,
-    summary: { products_available: count, products_total: 4, can_proceed: count >= 1 },
+    status: count >= 4 ? 'complete' : count > 0 ? 'partial' : 'failed',
+    balance, assets, investments, identity, authNumbers, identityMatch,
+    summary: { products_available: count, products_total: 6, can_proceed: count >= 1 },
   };
 };
 
@@ -282,6 +300,8 @@ export const saveFinancialDataToSupabase = async (
     if (data.assets.error) errors.assets = data.assets.error;
     if (data.investments.error) errors.investments = data.investments.error;
     if (data.identity?.error) errors.identity = data.identity.error;
+    if (data.authNumbers?.error) errors.auth = data.authNumbers.error;
+    if (data.identityMatch?.error) errors.identity_match = data.identityMatch.error;
 
     await supabase.from('user_financial_data').upsert({
       user_id: userId,
@@ -294,11 +314,15 @@ export const saveFinancialDataToSupabase = async (
       asset_report_token: data.assets.data?.asset_report_token || null,
       investments: data.investments.available ? data.investments.data : null,
       identity_data: data.identity?.available ? data.identity.data : null,
+      auth_numbers: data.authNumbers?.available ? data.authNumbers.data : null,
+      identity_match: data.identityMatch?.available ? data.identityMatch.data : null,
       available_products: {
         balance: data.balance.available,
         assets: data.assets.available,
         investments: data.investments.available,
         identity: data.identity?.available || false,
+        auth: data.authNumbers?.available || false,
+        identity_match: data.identityMatch?.available || false,
       },
       status: data.status,
       fetch_errors: Object.keys(errors).length > 0 ? errors : null,

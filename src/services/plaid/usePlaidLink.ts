@@ -202,6 +202,18 @@ const loadFromDatabase = async (userId: string): Promise<PlaidLinkState | null> 
             error: data.fetch_errors?.identity || null,
             reason: data.fetch_errors?.identity ? 'error' as const : null,
           },
+          authNumbers: {
+            available: available.auth || false,
+            data: data.auth_numbers || null,
+            error: data.fetch_errors?.auth || null,
+            reason: data.fetch_errors?.auth ? 'error' as const : null,
+          },
+          identityMatch: {
+            available: available.identity_match || false,
+            data: data.identity_match || null,
+            error: data.fetch_errors?.identity_match || null,
+            reason: data.fetch_errors?.identity_match ? 'error' as const : null,
+          },
           summary: {
             products_available: productsAvailable,
             products_total: 3,
