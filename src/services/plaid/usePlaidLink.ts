@@ -14,6 +14,7 @@ import {
   checkAssetReport,
   getProductStatus,
   saveFinancialDataToSupabase,
+  signalPrepare,
   type FinancialDataResponse,
   type ProductFetchStatus,
 } from './plaidService';
@@ -194,6 +195,12 @@ const loadFromDatabase = async (userId: string): Promise<PlaidLinkState | null> 
             data: data.investments || null,
             error: data.fetch_errors?.investments || null,
             reason: data.fetch_errors?.investments ? 'error' as const : null,
+          },
+          identity: {
+            available: available.identity || false,
+            data: data.identity_data || null,
+            error: data.fetch_errors?.identity || null,
+            reason: data.fetch_errors?.identity ? 'error' as const : null,
           },
           summary: {
             products_available: productsAvailable,
@@ -415,6 +422,11 @@ export const usePlaidLinkHook = (userId: string, userEmail?: string): UsePlaidLi
       const exchange = await exchangeToken(publicToken, userId, inst.name, inst.id);
       console.log('[Plaid] ✅ Exchange done:', { item_id: exchange.item_id });
       accessTokenRef.current = exchange.access_token;
+
+      // Signal: opt-in to data collection (background, non-blocking)
+      signalPrepare(exchange.access_token)
+        .then(r => console.log('[Plaid] Signal prepare:', r.success ? '✅ done' : '⚠️ skipped'))
+        .catch(() => {});
 
       setState(s => ({ ...s, step: 'fetching' }));
 
