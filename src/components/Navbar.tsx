@@ -353,187 +353,152 @@ export default function Navbar() {
       {/* Spacer for fixed header (ticker ~48px + nav ~64px = 112px) */}
       <div className="h-28" />
 
-      {/* Mobile Drawer Menu */}
+      {/* iOS Native Side Menu */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-[1000]"
-          style={{ background: "rgba(11, 17, 32, 0.30)" }}
+          className="fixed inset-0 z-[1000] transition-opacity duration-300"
+          style={{ background: "rgba(0, 0, 0, 0.25)" }}
           onClick={toggleDrawer}
         >
           <div
             ref={drawerRef}
-            className="fixed top-0 left-0 h-full bg-white"
-            style={{ width: "min(88vw, 360px)" }}
+            className="fixed inset-0 bg-[#F2F2F7] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex flex-col h-full px-6 pt-5 pb-4">
-              <div className="flex items-center justify-between h-14">
+            <div className="flex flex-col min-h-full max-w-md mx-auto w-full px-4 pb-10">
+              {/* Header: Menu title + Close button */}
+              <div className="flex items-center justify-between pt-14 pb-4 px-0">
+                <h2 className="text-[34px] font-bold text-black tracking-tight leading-none">
+                  {t('nav.menu', 'Menu')}
+                </h2>
                 <button
                   onClick={toggleDrawer}
-                  className="w-11 h-11 flex items-center justify-center text-[#0B1120] focus:outline-none"
+                  className="w-[30px] h-[30px] flex items-center justify-center rounded-full bg-[#E3E3E8] text-[#8E8E93] active:bg-[#D1D1D6] transition-colors"
+                  aria-label="Close menu"
                 >
-                  <FiX size={22} />
+                  <FiX size={18} strokeWidth={3} />
                 </button>
               </div>
 
-              <div 
-                ref={scrollContainerRef}
-                onScroll={handleMenuScroll}
-                className="flex-1 overflow-y-auto relative"
-              >
-                <div className="space-y-3">
-                  {[
-                    { path: "/", label: t('nav.home') },
-                    { path: "/about/leadership", label: t('nav.ourPhilosophy') },
-                    { path: "/discover-fund-a", label: t('nav.fundA') },
-                    { path: "/community", label: t('nav.community') },
-                    { path: "/a2a-playground", label: t('nav.kycStudio') },
-                  ].map(({ path, label }) => {
-                    const active = isActive(path);
-                    return (
-                      <button
-                        key={path}
-                        onClick={() => handleLinkClick(path)}
-                        className="relative w-full text-left"
-                      >
-                        <div className="flex items-center h-14 text-[22px] leading-[1.2] text-[#0B1120] font-medium active:bg-[rgba(0,169,224,0.06)] transition-colors duration-150 px-0">
-                          {active && (
-                            <span className="absolute left-[-12px] h-[18px] w-[2px] bg-[#135bec] rounded-full top-1/2 -translate-y-1/2" />
-                          )}
-                          <span className={active ? "font-semibold text-[#135bec]" : ""}>{label}</span>
-                        </div>
-                      </button>
-                    );
-                  })}
-
-                  <div className="my-4 h-px bg-[#E5E7EB]" />
-
-                  {[
-                    { path: "/contact", label: t('nav.contact') },
-                    { path: "/faq", label: t('nav.faq') },
-                  ].map(({ path, label }) => {
-                    const active = isActive(path);
-                    return (
-                      <button
-                        key={path}
-                        onClick={() => handleLinkClick(path)}
-                        className="relative w-full text-left"
-                      >
-                        <div className="flex items-center h-14 text-[22px] leading-[1.2] text-[#0B1120] font-medium active:bg-[rgba(0,169,224,0.06)] transition-colors duration-150 px-0">
-                          {active && (
-                            <span className="absolute left-[-12px] h-[18px] w-[2px] bg-[#135bec] rounded-full top-1/2 -translate-y-1/2" />
-                          )}
-                          <span className={active ? "font-semibold text-[#135bec]" : ""}>{label}</span>
-                        </div>
-                      </button>
-                    );
-                  })}
-
-                  {/* Career Dropdown */}
-                  <div className="relative w-full text-left">
-                    <button
-                      onClick={() => setMobileCareerDropdownOpen(!mobileCareerDropdownOpen)}
-                      className="flex items-center h-14 text-[22px] leading-[1.2] text-[#0B1120] font-medium active:bg-[rgba(0,169,224,0.06)] transition-colors duration-150 w-full text-left"
-                    >
-                      <span className={(isActive("/career") || isActive("/benefits")) ? "font-semibold text-[#135bec]" : ""}>
-                        {t('nav.joinUs')}
-                      </span>
-                      <FiChevronDown
-                        className={`ml-2 text-[#6B7280] transition-transform duration-200 ${
-                          mobileCareerDropdownOpen ? "rotate-180" : ""
-                        }`}
-                        size={18}
-                      />
-                    </button>
+              {/* Section 1: Primary Navigation */}
+              <div className="bg-white rounded-[10px] overflow-hidden mb-5 shadow-sm">
+                {[
+                  { path: "/", label: t('nav.home'), icon: "🏠", bg: "#007AFF" },
+                  { path: "/about/leadership", label: t('nav.ourPhilosophy'), icon: "📖", bg: "#34C759" },
+                  { path: "/discover-fund-a", label: t('nav.fundA'), icon: "📊", bg: "#5856D6" },
+                  { path: "/community", label: t('nav.community'), icon: "👥", bg: "#FF9500" },
+                  { path: "/a2a-playground", label: t('nav.kycStudio'), icon: "🛡️", bg: "#FF2D55" },
+                ].map(({ path, label, icon, bg }, idx, arr) => (
+                  <button
+                    key={path}
+                    onClick={() => handleLinkClick(path)}
+                    className="flex items-center w-full min-h-[44px] py-2.5 pr-4 pl-4 active:bg-[#E5E5EA] transition-colors relative"
+                  >
                     <div
-                      className={`pl-4 transition-all duration-200 overflow-hidden ${
-                        mobileCareerDropdownOpen ? "max-h-28 opacity-100" : "max-h-0 opacity-0"
-                      }`}
+                      className="w-[29px] h-[29px] rounded-[7px] flex items-center justify-center mr-3 shrink-0 text-[15px]"
+                      style={{ backgroundColor: bg }}
                     >
-                      <div className="border-t border-[#E5E7EB] pt-3 space-y-2">
-                        {[
-                          { path: "/career", label: t('nav.careers') },
-                          { path: "/benefits", label: t('nav.benefits') },
-                        ].map(({ path, label }) => {
-                          const active = isActive(path);
-                          return (
-                            <button
-                              key={path}
-                              onClick={() => handleLinkClick(path)}
-                              className="w-full text-left"
-                            >
-                              <div className="flex items-center h-12 text-[18px] text-[#475569] font-medium active:bg-[rgba(0,169,224,0.06)] rounded-md px-1">
-                                <span className={active ? "font-semibold text-[#135bec]" : ""}>{label}</span>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <span className="text-white text-[14px]">{icon}</span>
                     </div>
-                  </div>
-
-                  {isAuthenticated && (
-                    <>
-                      <div className="my-4 h-px bg-[#E5E7EB]" />
-                      <button
-                        onClick={() => handleLinkClick("/hushh-user-profile")}
-                        className="w-full text-left"
-                      >
-                        <div className="flex items-center h-14 text-[22px] leading-[1.2] text-[#0B1120] font-medium active:bg-[rgba(0,169,224,0.06)] transition-colors duration-150 px-0">
-                          <FiUser className="mr-3" />
-                          {t('nav.viewProfile')}
-                        </div>
-                      </button>
-                      <button
-                        onClick={() => {
-                          setIsOpen(false);
-                          onDeleteModalOpen();
-                        }}
-                        className="w-full text-left"
-                      >
-                        <div className="flex items-center h-14 text-[22px] leading-[1.2] text-red-600 font-medium active:bg-red-50 transition-colors duration-150 px-0">
-                          <FiTrash2 className="mr-3" />
-                          {t('nav.deleteAccount')}
-                        </div>
-                      </button>
-                    </>
-                  )}
-                </div>
-
-                {/* Scroll Indicator - Animated Down Arrow */}
-                {showScrollIndicator && (
-                  <div className="sticky bottom-0 left-0 right-0 flex justify-center pb-2 pt-4 pointer-events-none bg-gradient-to-t from-white via-white/90 to-transparent">
-                    <div className="scroll-indicator-arrow flex flex-col items-center gap-1">
-                      <span className="text-[10px] font-medium text-[#6B7280] uppercase tracking-wider">Scroll</span>
-                      <FiChevronDown className="w-5 h-5 text-[#0B1120]" />
-                    </div>
-                  </div>
-                )}
+                    <span className={`text-[17px] flex-grow text-left leading-none ${isActive(path) ? 'font-semibold text-[#007AFF]' : 'text-black'}`}>
+                      {label}
+                    </span>
+                    <svg className="w-[7px] h-[12px] text-[#C7C7CC] shrink-0" viewBox="0 0 7 12" fill="none">
+                      <path d="M1 1L6 6L1 11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    {/* Separator line (skip last item) */}
+                    {idx < arr.length - 1 && (
+                      <div className="absolute bottom-0 right-0 h-[0.5px] bg-[#C6C6C8]" style={{ width: 'calc(100% - 56px)', marginLeft: '56px' }} />
+                    )}
+                  </button>
+                ))}
               </div>
 
-              {/* Bottom CTA */}
-              <div className="mt-4 -mx-6 px-6 pt-3 pb-4 bg-white sticky bottom-0">
-                <div className="relative h-px w-full bg-[#E5E7EB] mb-4">
-                  <span
-                    aria-hidden
-                    className="absolute left-0 top-1/2 h-[2px] w-4 -translate-y-1/2 bg-[#135bec]"
-                  />
-                </div>
-                {!isAuthenticated ? (
+              {/* Section 2: Contact & FAQ */}
+              <div className="bg-white rounded-[10px] overflow-hidden mb-5 shadow-sm">
+                {[
+                  { path: "/contact", label: t('nav.contact'), icon: "✉️", bg: "#8E8E93" },
+                  { path: "/faq", label: t('nav.faq'), icon: "❓", bg: "#8E8E93" },
+                ].map(({ path, label, icon, bg }, idx, arr) => (
                   <button
-                    onClick={() => handleLinkClick("/Login")}
-                    className="w-full h-[54px] rounded-full text-[17px] font-semibold tracking-[0.01em] text-white bg-[#135bec] shadow-lg shadow-[#135bec]/30 transition-transform duration-150 active:scale-[0.985]"
+                    key={path}
+                    onClick={() => handleLinkClick(path)}
+                    className="flex items-center w-full min-h-[44px] py-2.5 pr-4 pl-4 active:bg-[#E5E5EA] transition-colors relative"
                   >
-                    {t('nav.login')}
+                    <div
+                      className="w-[29px] h-[29px] rounded-[7px] flex items-center justify-center mr-3 shrink-0"
+                      style={{ backgroundColor: bg }}
+                    >
+                      <span className="text-white text-[14px]">{icon}</span>
+                    </div>
+                    <span className={`text-[17px] flex-grow text-left leading-none ${isActive(path) ? 'font-semibold text-[#007AFF]' : 'text-black'}`}>
+                      {label}
+                    </span>
+                    <svg className="w-[7px] h-[12px] text-[#C7C7CC] shrink-0" viewBox="0 0 7 12" fill="none">
+                      <path d="M1 1L6 6L1 11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    {idx < arr.length - 1 && (
+                      <div className="absolute bottom-0 right-0 h-[0.5px] bg-[#C6C6C8]" style={{ width: 'calc(100% - 56px)', marginLeft: '56px' }} />
+                    )}
                   </button>
-                ) : (
+                ))}
+              </div>
+
+              {/* Section 3: Profile & Account (only when authenticated) */}
+              {isAuthenticated && (
+                <div className="bg-white rounded-[10px] overflow-hidden mb-5 shadow-sm">
+                  <button
+                    onClick={() => handleLinkClick("/hushh-user-profile")}
+                    className="flex items-center w-full min-h-[44px] py-2.5 pr-4 pl-4 active:bg-[#E5E5EA] transition-colors relative"
+                  >
+                    <div className="w-[29px] h-[29px] rounded-[7px] bg-[#007AFF] flex items-center justify-center mr-3 shrink-0">
+                      <FiUser className="text-white" size={16} />
+                    </div>
+                    <span className="text-[17px] text-black flex-grow text-left leading-none">
+                      {t('nav.viewProfile')}
+                    </span>
+                    <svg className="w-[7px] h-[12px] text-[#C7C7CC] shrink-0" viewBox="0 0 7 12" fill="none">
+                      <path d="M1 1L6 6L1 11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    <div className="absolute bottom-0 right-0 h-[0.5px] bg-[#C6C6C8]" style={{ width: 'calc(100% - 56px)', marginLeft: '56px' }} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsOpen(false);
+                      onDeleteModalOpen();
+                    }}
+                    className="flex items-center w-full min-h-[44px] py-2.5 pr-4 pl-4 active:bg-[#E5E5EA] transition-colors"
+                  >
+                    <span className="text-[17px] text-[#FF3B30] flex-grow text-left leading-none pl-0">
+                      {t('nav.deleteAccount')}
+                    </span>
+                  </button>
+                </div>
+              )}
+
+              {/* Spacer to push logout to bottom */}
+              <div className="flex-grow" />
+
+              {/* Log Out / Login Button */}
+              <div className="mt-auto pt-2 pb-6 flex flex-col items-center">
+                {isAuthenticated ? (
                   <button
                     onClick={handleLogout}
-                    className="w-full h-[54px] rounded-full text-[17px] font-semibold tracking-[0.01em] text-[#0B1120] border border-[#E5E7EB] bg-white transition-colors duration-150 active:bg-[#F9FAFB]"
+                    className="w-full h-[50px] rounded-[12px] bg-white text-[#007AFF] font-semibold text-[17px] active:scale-[0.98] active:opacity-90 transition-all flex items-center justify-center shadow-sm"
                   >
                     {t('nav.logout')}
                   </button>
+                ) : (
+                  <button
+                    onClick={() => handleLinkClick("/Login")}
+                    className="w-full h-[50px] rounded-[12px] bg-[#007AFF] text-white font-semibold text-[17px] active:scale-[0.98] active:opacity-90 transition-all flex items-center justify-center shadow-sm"
+                  >
+                    {t('nav.login')}
+                  </button>
                 )}
+                <p className="text-center text-[13px] text-[#8E8E93] font-normal mt-4">
+                  Version 2.4.0 (Build 302)
+                </p>
               </div>
             </div>
           </div>
