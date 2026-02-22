@@ -233,7 +233,7 @@ export default function OnboardingStep4() {
             <span className="text-[17px] leading-none pb-[2px]">Back</span>
           </button>
           <h1 className="text-[17px] font-semibold text-black absolute left-1/2 transform -translate-x-1/2">
-            Verification
+            Setup
           </h1>
           <button onClick={handleSkip} className="text-[#007AFF] font-medium text-[17px]">Skip</button>
         </nav>

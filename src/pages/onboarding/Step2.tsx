@@ -125,16 +125,16 @@ export default function OnboardingStep2() {
         {/* ─── Progress Bar ─── */}
         <div className="mb-6">
           <div className="flex justify-between items-center mb-2">
-            <span className="text-xs font-semibold tracking-wide text-[#3C3C4399] uppercase">
+            <span className="text-[13px] font-medium tracking-wide text-[#8E8E93] uppercase">
               Onboarding Progress
             </span>
-            <span className="text-xs font-medium text-[#3C3C4399]">
+            <span className="text-[13px] font-medium text-[#8E8E93]">
               Step {CURRENT_STEP}/{TOTAL_STEPS}
             </span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-1.5">
+          <div className="w-full bg-gray-200 rounded-full h-1">
             <div
-              className="bg-[#007AFF] h-1.5 rounded-full transition-all duration-500"
+              className="bg-[#007AFF] h-1 rounded-full transition-all duration-500"
               style={{ width: `${PROGRESS_PCT}%` }}
             />
           </div>
@@ -144,7 +144,7 @@ export default function OnboardingStep2() {
         </div>
 
         {/* ─── Title ─── */}
-        <h1 className="text-[28px] leading-[34px] font-bold text-black mb-8 tracking-tight">
+        <h1 className="text-[34px] leading-[41px] font-bold text-black mb-8 tracking-tight">
           How did you hear about Hushh Fund&nbsp;A?
         </h1>
 
@@ -206,27 +206,24 @@ export default function OnboardingStep2() {
           style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' }}
           data-onboarding-footer
         >
-          <div className="max-w-md mx-auto">
-            {/* Next Button */}
+          <div className="max-w-md mx-auto flex gap-3">
+            <button
+              onClick={handleSkip}
+              className="flex-1 h-[50px] rounded-xl bg-gray-100 text-[#007AFF] font-semibold text-[17px] active:bg-gray-200 transition-colors flex items-center justify-center"
+            >
+              Skip
+            </button>
             <button
               onClick={handleContinue}
               disabled={!selectedSource || isLoading}
               data-onboarding-cta
-              className={`w-full font-semibold text-[17px] h-12 rounded-xl shadow-sm transition-all flex items-center justify-center ${
-                !selectedSource || isLoading
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-[#007AFF] text-white active:opacity-90 active:scale-[0.98]'
+              className={`flex-[2] h-[50px] rounded-xl font-semibold text-[17px] shadow-sm active:scale-[0.98] transition-all flex items-center justify-center ${
+                selectedSource && !isLoading
+                  ? 'bg-[#007AFF] text-white'
+                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
               }`}
             >
-              {isLoading ? 'Saving...' : 'Next'}
-            </button>
-
-            {/* Skip Button */}
-            <button
-              onClick={handleSkip}
-              className="w-full mt-4 text-[#007AFF] font-medium text-[17px] h-12 flex items-center justify-center hover:opacity-70 transition-opacity"
-            >
-              Skip
+              {isLoading ? 'Saving...' : 'Continue'}
             </button>
           </div>
         </div>

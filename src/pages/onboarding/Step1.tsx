@@ -279,7 +279,7 @@ export default function OnboardingStep1() {
           <span className="material-symbols-outlined text-3xl -mr-1" style={{ fontVariationSettings: "'FILL' 0, 'wght' 400" }}>chevron_left</span>
           <span className="text-[17px] leading-none pb-[2px]">Back</span>
         </button>
-        <h1 className="text-[17px] font-semibold text-black absolute left-1/2 transform -translate-x-1/2">Onboarding</h1>
+        <span className="font-semibold text-[17px] text-black">Setup</span>
         <button onClick={() => navigate('/dashboard')} className="text-[#007AFF] text-[17px] font-normal active:opacity-50 transition-opacity">
           Skip
         </button>
