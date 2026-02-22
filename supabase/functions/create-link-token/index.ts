@@ -30,6 +30,7 @@ Deno.serve(async (req) => {
       client_name: 'Hushh',
       products: ['auth'],
       required_if_supported_products: ['identity'],
+      additional_consented_products: ['signal'],
       country_codes: ['US'],
       language: 'en',
     };

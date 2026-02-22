@@ -339,6 +339,126 @@ export const getProductStatus = (product: ProductResult): ProductFetchStatus => 
 };
 
 // =====================================================
+// Signal — ACH Transaction Risk Assessment
+// =====================================================
+
+/** Prepare an Item for Signal Transaction Scores (call after token exchange) */
+export const signalPrepare = async (accessToken: string) => {
+  try {
+    const token = await getUserAccessToken();
+    const res = await fetch(`${SUPABASE_URL}/signal-prepare`, {
+      method: 'POST', headers: getHeaders(token),
+      body: JSON.stringify({ accessToken }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.warn('[Plaid] Signal prepare failed:', err.error);
+      return { success: false, error: err.error };
+    }
+    console.log('[Plaid] ✅ Signal prepared for Item');
+    return { success: true, ...(await res.json()) };
+  } catch (e: any) {
+    console.warn('[Plaid] Signal prepare error:', e.message);
+    return { success: false, error: e.message };
+  }
+};
+
+/** Evaluate ACH transaction return risk */
+export const signalEvaluate = async (params: {
+  accessToken: string;
+  accountId: string;
+  clientTransactionId: string;
+  amount: number;
+  clientUserId?: string;
+  isRecurring?: boolean;
+  defaultPaymentMethod?: 'SAME_DAY_ACH' | 'STANDARD_ACH' | 'MULTIPLE_PAYMENT_METHODS';
+  rulesetKey?: string;
+  user?: { name?: { given_name?: string; family_name?: string }; phone_number?: string; email_address?: string; address?: any };
+  device?: { ip_address?: string; user_agent?: string };
+}) => {
+  const token = await getUserAccessToken();
+  const res = await fetch(`${SUPABASE_URL}/signal-evaluate`, {
+    method: 'POST', headers: getHeaders(token),
+    body: JSON.stringify({
+      accessToken: params.accessToken,
+      account_id: params.accountId,
+      client_transaction_id: params.clientTransactionId,
+      amount: params.amount,
+      client_user_id: params.clientUserId,
+      is_recurring: params.isRecurring,
+      default_payment_method: params.defaultPaymentMethod,
+      ruleset_key: params.rulesetKey,
+      user: params.user,
+      device: params.device,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Signal evaluate failed');
+  }
+  return res.json() as Promise<{
+    scores: {
+      customer_initiated_return_risk: { score: number; risk_tier: number };
+      bank_initiated_return_risk: { score: number; risk_tier: number };
+    };
+    core_attributes: Record<string, any>;
+    ruleset?: { ruleset_key: string; result: 'ACCEPT' | 'REROUTE' | 'REVIEW'; triggered_rule_details?: any };
+    warnings: any[];
+    request_id: string;
+  }>;
+};
+
+/** Report whether you initiated an ACH transaction */
+export const signalDecisionReport = async (params: {
+  clientTransactionId: string;
+  initiated: boolean;
+  decisionOutcome?: 'APPROVE' | 'REVIEW' | 'REJECT' | 'TAKE_OTHER_RISK_MEASURES' | 'NOT_EVALUATED';
+  paymentMethod?: 'SAME_DAY_ACH' | 'STANDARD_ACH' | 'MULTIPLE_PAYMENT_METHODS';
+  daysFundsOnHold?: number;
+  amountInstantlyAvailable?: number;
+}) => {
+  const token = await getUserAccessToken();
+  const res = await fetch(`${SUPABASE_URL}/signal-decision-report`, {
+    method: 'POST', headers: getHeaders(token),
+    body: JSON.stringify({
+      client_transaction_id: params.clientTransactionId,
+      initiated: params.initiated,
+      decision_outcome: params.decisionOutcome,
+      payment_method: params.paymentMethod,
+      days_funds_on_hold: params.daysFundsOnHold,
+      amount_instantly_available: params.amountInstantlyAvailable,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Signal decision report failed');
+  }
+  return res.json() as Promise<{ request_id: string }>;
+};
+
+/** Report a return for an ACH transaction */
+export const signalReturnReport = async (params: {
+  clientTransactionId: string;
+  returnCode: string;
+  returnedAt?: string;
+}) => {
+  const token = await getUserAccessToken();
+  const res = await fetch(`${SUPABASE_URL}/signal-return-report`, {
+    method: 'POST', headers: getHeaders(token),
+    body: JSON.stringify({
+      client_transaction_id: params.clientTransactionId,
+      return_code: params.returnCode,
+      returned_at: params.returnedAt,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Signal return report failed');
+  }
+  return res.json() as Promise<{ request_id: string }>;
+};
+
+// =====================================================
 // Sandbox Testing — Bypass Plaid Link UI
 // =====================================================
 
