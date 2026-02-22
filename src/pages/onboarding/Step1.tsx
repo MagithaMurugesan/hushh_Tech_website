@@ -253,7 +253,7 @@ export default function OnboardingStep1() {
     }
   };
 
-  const handleBack = () => navigate('/dashboard');
+  const handleBack = () => navigate('/onboarding/financial-link');
 
   /* ─── Frequency buttons config ─── */
   const freqOptions: { value: RecurringFrequency; label: string }[] = [

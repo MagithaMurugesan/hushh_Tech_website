@@ -62,11 +62,8 @@ export default function OnboardingFinancialLink() {
           console.warn('[FinancialLink] Supabase query error (ignoring):', fetchError.message);
         }
 
-        // If already completed, skip to step 1
-        if (financialData?.status === 'complete' || financialData?.status === 'partial') {
-          navigate('/onboarding/step-1', { replace: true });
-          return;
-        }
+        // If already completed, still show the page (user may navigate back here)
+        // They can re-verify or tap Continue/Skip to proceed
       } catch (err) {
         // Table may not exist yet — continue anyway
         console.warn('[FinancialLink] Error checking financial data (ignoring):', err);
