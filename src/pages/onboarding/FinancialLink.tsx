@@ -81,6 +81,8 @@ export default function OnboardingFinancialLink() {
   // Handle financial verification complete → go to Step 1
   const handleContinue = (result: FinancialVerificationResult) => {
     console.log('[FinancialLink] Verification complete:', result);
+    // Set flag so Step 1 skips DB check (save runs in background, may not be done yet)
+    sessionStorage.setItem('financial_verification_complete', 'true');
     navigate('/onboarding/step-1', { replace: true });
   };
 

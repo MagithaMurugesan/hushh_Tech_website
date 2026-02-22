@@ -141,9 +141,10 @@ export default function OnboardingStep1() {
       setUserId(user.id);
 
       const hasSkipped = sessionStorage.getItem('financial_link_skipped') === 'true';
+      const hasCompleted = sessionStorage.getItem('financial_verification_complete') === 'true';
 
-      if (hasSkipped) {
-        console.log('[Step1] User skipped financial verification - allowing access');
+      if (hasSkipped || hasCompleted) {
+        console.log('[Step1] Financial verification bypassed via sessionStorage flag');
       } else {
         const { data: financialData, error: finError } = await config.supabaseClient
           .from('user_financial_data')
@@ -302,6 +303,7 @@ export default function OnboardingStep1() {
       }
 
       sessionStorage.removeItem('financial_link_skipped');
+      sessionStorage.removeItem('financial_verification_complete');
       navigate('/onboarding/step-2');
     } catch (error) {
       console.error('Error:', error);
