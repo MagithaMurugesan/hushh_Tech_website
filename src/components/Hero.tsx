@@ -296,54 +296,52 @@ export default function Hero() {
             to invest in exceptional businesses for long-term value creation.
           </Text>
 
-          {/* AI + Human Hybrid Card */}
-          <Box
-            w="100%" bg="rgba(255,255,255,0.6)" backdropFilter="blur(25px)"
-            sx={{ WebkitBackdropFilter: "blur(25px)" }}
-            border="1px solid rgba(0,0,0,0.04)" borderRadius="22px"
-            p={6} boxShadow="0 4px 24px -1px rgba(0,0,0,0.05)"
-            position="relative" overflow="hidden"
-            display="flex" flexDir="column" alignItems="center" justifyContent="center"
-            textAlign="center" h="240px" my={4}
-          >
+          {/* AI + Human — Two iOS widget cards */}
+          <Flex w="100%" gap={3} my={4}>
+            {/* AI Card */}
             <Box
-              position="absolute" top={0} left={0} right={0} h="160px"
-              bgGradient="linear(to-b, rgba(0,122,255,0.04), transparent)"
-              borderTopRadius="22px" pointerEvents="none"
-            />
-            <Flex
-              w="56px" h="56px" borderRadius="full"
-              bgGradient="linear(135deg, #007AFF 0%, #5AC8FA 100%)"
-              align="center" justify="center" mb={5} zIndex={1}
-              boxShadow="0 6px 16px rgba(0,122,255,0.35)"
-              position="relative"
+              flex="1" bg="white" borderRadius="16px"
+              p={4} pb={5}
+              border="0.5px solid" borderColor="rgba(0,0,0,0.06)"
+              boxShadow="0 1px 3px rgba(0,0,0,0.04)"
             >
-              {/* iOS glass highlight */}
               <Box
-                position="absolute" top="2px" left="6px" right="6px" h="22px"
-                borderRadius="full"
-                bgGradient="linear(to-b, rgba(255,255,255,0.45), rgba(255,255,255,0))"
-                pointerEvents="none"
+                w="8px" h="8px" borderRadius="full"
+                bg={IOS.blue} mb={3}
               />
-              <Text
-                fontSize="28px" lineHeight="1" color="white"
-                className="material-symbols-outlined"
-                sx={{ fontVariationSettings: "'FILL' 1, 'wght' 500" }}
+              <Text fontSize="22px" fontWeight="700" color={IOS.text}
+                lineHeight="26px" letterSpacing="-0.02em"
+                fontFamily={IOS.fontDisplay} mb={1}
               >
-                auto_awesome
+                AI-Powered
               </Text>
-            </Flex>
-            <Text fontSize="20px" fontWeight="600" color={IOS.text} mb={2} zIndex={1}
-              fontFamily={IOS.fontDisplay} letterSpacing="-0.02em"
+              <Text fontSize="13px" lineHeight="18px" color={IOS.subtext}>
+                Institutional grade analytics and real-time signals.
+              </Text>
+            </Box>
+
+            {/* Human Card */}
+            <Box
+              flex="1" bg="white" borderRadius="16px"
+              p={4} pb={5}
+              border="0.5px solid" borderColor="rgba(0,0,0,0.06)"
+              boxShadow="0 1px 3px rgba(0,0,0,0.04)"
             >
-              AI + Human Hybrid
-            </Text>
-            <Text fontSize="15px" color={IOS.subtext} lineHeight="20px" maxW="260px" zIndex={1}
-              letterSpacing="-0.01em"
-            >
-              Institutional AI with seasoned human oversight for generational wealth.
-            </Text>
-          </Box>
+              <Box
+                w="8px" h="8px" borderRadius="full"
+                bg="#34C759" mb={3}
+              />
+              <Text fontSize="22px" fontWeight="700" color={IOS.text}
+                lineHeight="26px" letterSpacing="-0.02em"
+                fontFamily={IOS.fontDisplay} mb={1}
+              >
+                Human-Led
+              </Text>
+              <Text fontSize="13px" lineHeight="18px" color={IOS.subtext}>
+                Seasoned expert oversight for generational wealth.
+              </Text>
+            </Box>
+          </Flex>
 
           {/* CTAs */}
           <Box w="100%" mt={2} mb={2}>
