@@ -234,7 +234,7 @@ export default function OnboardingStep4() {
           </button>
           <h1 className="text-[17px] font-semibold text-black absolute left-1/2 transform -translate-x-1/2">
             Setup
-          </h1>
+          </span>
           <button onClick={handleSkip} className="text-[#007AFF] font-medium text-[17px]">Skip</button>
         </nav>
 
@@ -242,19 +242,19 @@ export default function OnboardingStep4() {
           {/* ─── Progress Bar ─── */}
           <div className="mb-6">
             <div className="flex justify-between items-center mb-2">
-              <span className="text-xs font-semibold tracking-wide text-[#3C3C4399] uppercase">Onboarding Progress</span>
-              <span className="text-xs font-medium text-[#3C3C4399]">Step {CURRENT_STEP}/{TOTAL_STEPS}</span>
+              <span className="text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide">Onboarding Progress</span>
+              <span className="text-[13px] text-[#8E8E93]">Step {CURRENT_STEP}/{TOTAL_STEPS}</span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-1.5">
-              <div className="bg-[#007AFF] h-1.5 rounded-full transition-all duration-500" style={{ width: `${PROGRESS_PCT}%` }} />
+            <div className="w-full bg-gray-200 rounded-full h-1 overflow-hidden">
+              <div className="bg-[#007AFF] h-1 rounded-full transition-all duration-500" style={{ width: `${PROGRESS_PCT}%` }} />
             </div>
-            <p className="text-[#007AFF] text-xs font-medium mt-2">{PROGRESS_PCT}% complete</p>
+            <p className="mt-2 text-[13px] font-medium text-[#007AFF]">{PROGRESS_PCT}% complete</p>
           </div>
 
           {/* ─── Title ─── */}
           <h1 className="text-[34px] leading-[41px] font-bold text-black mb-2 tracking-tight">
             Confirm your residence
-          </h1>
+          </span>
           <p className="text-[17px] text-[#8E8E93] mb-8 leading-snug">
             We need to know where you live and pay taxes to open your investment account.
           </p>

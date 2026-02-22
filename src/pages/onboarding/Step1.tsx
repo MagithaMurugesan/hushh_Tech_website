@@ -288,17 +288,14 @@ export default function OnboardingStep1() {
       <main className="px-4 pt-4 max-w-md mx-auto">
         {/* ═══ Progress Bar ═══ */}
         <div className="mb-6">
-          <div className="flex justify-between items-end mb-2">
-            <span className="text-[13px] font-medium text-[#3C3C4399] uppercase tracking-wide">
-              Step 1 of {TOTAL_STEPS}
-            </span>
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide">Onboarding Progress</span>
+            <span className="text-[13px] text-[#8E8E93]">Step 1/{TOTAL_STEPS}</span>
           </div>
-          <div className="flex gap-1 h-1">
-            <div className="bg-[#007AFF] h-full w-full rounded-full" />
-            {Array.from({ length: TOTAL_STEPS - 1 }).map((_, i) => (
-              <div key={i} className="bg-gray-300 h-full w-full rounded-full" />
-            ))}
+          <div className="h-1 w-full bg-gray-200 rounded-full overflow-hidden">
+            <div className="h-full bg-[#007AFF] rounded-full transition-all duration-500" style={{ width: `${Math.round((1 / TOTAL_STEPS) * 100)}%` }} />
           </div>
+          <p className="mt-2 text-[13px] font-medium text-[#007AFF]">{Math.round((1 / TOTAL_STEPS) * 100)}% complete</p>
         </div>
 
         {/* ═══ Title Block ═══ */}

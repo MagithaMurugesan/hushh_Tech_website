@@ -214,21 +214,23 @@ export default function OnboardingStep5() {
           </span>
           <span className="text-[17px] leading-none pb-[2px]">Back</span>
         </button>
+        <span className="font-semibold text-[17px] text-black">Setup</span>
         <button onClick={handleSkip} className="text-[#007AFF] font-normal text-[17px] active:opacity-50 transition-opacity">
           Skip
         </button>
       </nav>
 
-      <main className="flex-1 flex flex-col max-w-md mx-auto w-full px-4 pt-6 pb-48">
+      <main className="flex-1 flex flex-col max-w-md mx-auto w-full px-4 pt-4 pb-48">
         {/* ─── Progress Bar ─── */}
-        <div className="mb-8">
-          <div className="h-1 w-full bg-gray-200 rounded-full overflow-hidden mb-2">
+        <div className="mb-6">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide">Onboarding Progress</span>
+            <span className="text-[13px] text-[#8E8E93]">Step {CURRENT_STEP}/{TOTAL_STEPS}</span>
+          </div>
+          <div className="h-1 w-full bg-gray-200 rounded-full overflow-hidden">
             <div className="h-full bg-[#007AFF] rounded-full transition-all duration-500" style={{ width: `${PROGRESS_PCT}%` }} />
           </div>
-          <div className="flex justify-between items-center text-xs font-medium text-[#8E8E93] uppercase tracking-wide">
-            <span>{PROGRESS_PCT}% complete</span>
-            <span>Step {CURRENT_STEP} of {TOTAL_STEPS}</span>
-          </div>
+          <p className="mt-2 text-[13px] font-medium text-[#007AFF]">{PROGRESS_PCT}% complete</p>
         </div>
 
         {/* ─── Title ─── */}
