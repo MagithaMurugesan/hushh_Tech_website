@@ -17,7 +17,7 @@ export default function HomePage() {
   const { session, primaryCTA, onNavigate } = useHomeLogic();
 
   return (
-    <div className="bg-white font-sans antialiased text-black min-h-screen flex flex-col relative">
+    <div data-page="home" className="bg-white font-sans antialiased text-black min-h-screen flex flex-col relative">
       {/* ═══ Header ═══ */}
       <HushhTechHeader
         fixed={false}

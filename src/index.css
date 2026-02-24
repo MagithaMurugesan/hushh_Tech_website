@@ -1,4 +1,4 @@
-/* Google Fonts import must be first */
+/* Google Fonts — DM Sans kept for onboarding/utility classes */
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap");
 
 @tailwind base;
@@ -6,35 +6,22 @@
 @tailwind utilities;
 
 :root {
-  --font-main: "DM Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-main: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 html,
 body {
   margin: 0;
   padding: 0;
-  font-family: var(--font-main) !important;
-  font-weight: 300;
+  font-family: var(--font-main);
+  font-weight: 400;
   line-height: 1.5;
 }
 
-/* Enhanced typography for headings */
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-  font-family: var(--font-main);
-  font-weight: 400;
-  letter-spacing: -0.01em;
-}
-
-/* Apply DM Sans to all elements */
-* {
-  font-family: var(--font-main) !important;
-  font-weight: 300;
-}
+/*
+ * Headings — no forced font-family here.
+ * Tailwind classes (font-serif / font-sans) control the font per element.
+ */
 
 /* Material Symbols Icons - Override font-family for icon fonts */
 .material-symbols-outlined {
@@ -592,6 +579,16 @@ body.onboarding-page-scroll {
     padding-bottom: calc(var(--onboarding-footer-space) + 0.05rem) !important;
     scroll-padding-bottom: calc(var(--onboarding-footer-space) + 0.05rem);
   }
+}
+
+/* Home page font overrides — Inter body + Playfair Display headings */
+[data-page="home"],
+[data-page="home"] *:not(.material-symbols-outlined) {
+  font-family: "Inter", sans-serif !important;
+}
+[data-page="home"] .font-serif,
+[data-page="home"] .font-serif * {
+  font-family: "Playfair Display", serif !important;
 }
 
 /* Global responsive safety */
