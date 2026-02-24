@@ -1,154 +1,374 @@
 /**
- * Step 1 — All UI / Presentation
- * Share class selection, recurring investment, iOS-styled layout
+ * Step 1 — Fund A Allocation Tier
+ * Matches the refined HTML design. Logic stays in logic.ts.
+ * Uses HushhTechBackHeader + HushhTechCta reusable components.
  */
-import { useStep1Logic, SHARE_CLASSES, TOTAL_STEPS, FREQ_OPTIONS, AMOUNT_PRESETS, formatCurrency } from './logic';
-import { useNavigate } from 'react-router-dom';
+import {
+  useStep1Logic,
+  SHARE_CLASSES,
+  TOTAL_STEPS,
+  FREQ_OPTIONS,
+  AMOUNT_PRESETS,
+  formatCurrency,
+} from "./logic";
+import HushhTechBackHeader from "../../../components/hushh-tech-back-header/HushhTechBackHeader";
+import HushhTechCta, {
+  HushhTechCtaVariant,
+} from "../../../components/hushh-tech-cta/HushhTechCta";
+
+/** Icons for each share class */
+const CLASS_ICONS: Record<string, string> = {
+  class_a: "account_balance_wallet",
+  class_b: "account_balance",
+  class_c: "savings",
+};
+
+/** Tier descriptions */
+const TIER_LABELS: Record<string, string> = {
+  ultra: "ultra high net worth",
+  premium: "high net worth",
+  standard: "accredited investor",
+};
+
+const CURRENT_STEP = 1;
+const PROGRESS_PCT = Math.round((CURRENT_STEP / TOTAL_STEPS) * 100);
 
 export default function OnboardingStep1() {
-  const navigate = useNavigate();
   const {
-    units, frequency, investmentDay, selectedAmount, customAmount, customAmountError,
-    error, isLoading, isFooterVisible, totalInvestment, hasSelection,
-    handleUnitChange, handleAmountClick, handleCustomAmountChange,
-    setFrequency, setInvestmentDay, handleNext, handleBack,
+    units,
+    frequency,
+    investmentDay,
+    selectedAmount,
+    customAmount,
+    customAmountError,
+    error,
+    isLoading,
+    hasSelection,
+    handleUnitChange,
+    handleAmountClick,
+    handleCustomAmountChange,
+    setFrequency,
+    setInvestmentDay,
+    handleNext,
+    handleBack,
   } = useStep1Logic();
 
   return (
-    <div className="bg-white min-h-[100dvh] pb-52" style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Inter', sans-serif", WebkitFontSmoothing: 'antialiased' }}>
-      {/* iOS Navigation Bar */}
-      <nav className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#C6C6C8]/30 flex items-end justify-between px-4 pb-2" style={{ paddingTop: 'calc(env(safe-area-inset-top, 12px) + 4px)', minHeight: '48px' }}>
-        <button onClick={handleBack} className="text-[#007AFF] flex items-center -ml-2 active:opacity-50 transition-opacity" aria-label="Go back">
-          <span className="material-symbols-outlined text-3xl -mr-1" style={{ fontVariationSettings: "'FILL' 0, 'wght' 400" }}>chevron_left</span>
-          <span className="text-[17px] leading-none pb-[2px]">Back</span>
-        </button>
-        <span className="font-semibold text-[17px] text-black">Setup</span>
-        <button onClick={() => navigate('/dashboard')} className="text-[#007AFF] text-[17px] font-normal active:opacity-50 transition-opacity">Skip</button>
-      </nav>
+    <div className="bg-white text-gray-900 min-h-screen antialiased flex flex-col selection:bg-black selection:text-white">
+      {/* ═══ Header ═══ */}
+      <HushhTechBackHeader onBackClick={handleBack} rightLabel="FAQs" />
 
-      <main className="px-4 pt-4 max-w-md mx-auto">
-        {/* Progress Bar */}
-        <div className="mb-6">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide">Onboarding Progress</span>
-            <span className="text-[13px] text-[#8E8E93]">Step 1/{TOTAL_STEPS}</span>
+      <main className="px-6 flex-grow max-w-md mx-auto w-full pb-48">
+        {/* ── Progress Bar ── */}
+        <div className="py-4">
+          <div className="flex justify-between text-[10px] font-medium tracking-wide text-gray-400 mb-3 lowercase">
+            <span>step {CURRENT_STEP}/{TOTAL_STEPS}</span>
+            <span>{PROGRESS_PCT}% complete</span>
           </div>
-          <div className="h-1 w-full bg-gray-200 rounded-full overflow-hidden">
-            <div className="h-full bg-[#007AFF] rounded-full transition-all duration-500" style={{ width: `${Math.round((1 / TOTAL_STEPS) * 100)}%` }} />
+          <div className="h-0.5 w-full bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-black transition-all duration-500"
+              style={{ width: `${PROGRESS_PCT}%` }}
+            />
           </div>
-          <p className="mt-2 text-[13px] font-medium text-[#007AFF]">{Math.round((1 / TOTAL_STEPS) * 100)}% complete</p>
         </div>
 
-        {/* Title Block */}
-        <div className="mb-6">
-          <h2 className="text-[13px] font-semibold text-[#3C3C4399] uppercase tracking-wider mb-1">Institutional Series</h2>
-          <h1 className="text-[34px] leading-tight font-bold tracking-tight text-black">
-            Hushh Fund A<br /><span className="text-[#007AFF]">Multi-Strategy Alpha</span>
+        {/* ── Title Section ── */}
+        <section className="py-8">
+          <h3 className="text-[11px] tracking-wide text-gray-400 lowercase mb-4 font-normal">
+            institutional series
+          </h3>
+          <h1
+            className="text-[2.75rem] leading-[1.1] font-normal text-black tracking-tight lowercase"
+            style={{ fontFamily: "'Playfair Display', serif" }}
+          >
+            hushh fund a <br />
+            <span className="text-gray-400 font-normal opacity-60">
+              multi-strategy alpha
+            </span>
           </h1>
-          <p className="mt-2 text-[17px] leading-snug text-[#3C3C4399]">Select unit allocation for each share class. Our inaugural fund leverages AI-driven value investing.</p>
-        </div>
+        </section>
 
-        {/* Error */}
-        {error && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
-
-        {/* Share Class Cards */}
-        <div className="space-y-4 mb-8">
+        {/* ── Share Class Rows ── */}
+        <section className="mt-4 mb-12 space-y-2">
           {SHARE_CLASSES.map((sc) => {
-            const count = units[sc.id];
-            const isSelected = count > 0;
+            const count = units[sc.id] || 0;
+            const isActive = count > 0;
             return (
-              <div key={sc.id} className={`bg-white rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.05)] ${isSelected ? 'ring-2 ring-[#007AFF]/40' : ''}`}>
-                <div className="p-4 border-b border-[#C6C6C8]/20">
-                  <div className="flex justify-between items-start mb-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-[17px] font-semibold text-black">{sc.name}</h3>
-                      {sc.tierLabel && <span className={`${sc.tierBg} ${sc.tierText} text-[11px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide`}>{sc.tierLabel}</span>}
-                    </div>
-                    <div className="text-right">
-                      <div className="text-[17px] font-semibold text-black">{sc.displayPrice}</div>
-                      <div className="text-[11px] text-[#3C3C4399] uppercase">Per Unit</div>
-                    </div>
+              <div
+                key={sc.id}
+                className="group py-5 border-b border-gray-100 flex items-center justify-between"
+              >
+                {/* Left: icon + name + tier */}
+                <div className="flex items-start gap-4">
+                  <div
+                    className={`w-12 h-12 rounded-full border border-gray-200 flex items-center justify-center shrink-0 ${
+                      isActive ? "bg-gray-50" : "bg-white"
+                    }`}
+                  >
+                    <span
+                      className="material-symbols-outlined text-gray-400 text-xl"
+                      style={{ fontVariationSettings: "'wght' 200" }}
+                    >
+                      {CLASS_ICONS[sc.id] || "wallet"}
+                    </span>
                   </div>
-                  <p className="text-[15px] text-[#3C3C4399] leading-snug pr-8">{sc.description}</p>
+                  <div>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <h2 className="text-base font-medium text-black lowercase">
+                        {sc.name.toLowerCase()}
+                      </h2>
+                      {sc.id === "class_a" && (
+                        <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-[10px] font-medium lowercase rounded-sm">
+                          recommended
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-400 lowercase leading-relaxed">
+                      {TIER_LABELS[sc.tier] || sc.description}
+                    </p>
+                  </div>
                 </div>
-                <div className="px-4 py-3 flex justify-between items-center">
-                  <span className="text-[15px] font-medium text-[#3C3C4399] uppercase tracking-wide">Units</span>
-                  <div className="flex items-center gap-4">
-                    <button onClick={() => handleUnitChange(sc.id, -1)} disabled={count === 0} className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center text-gray-400 disabled:opacity-50 transition active:bg-gray-100" aria-label={`Decrease ${sc.name} units`}>
-                      <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 0, 'wght' 400" }}>remove</span>
+
+                {/* Right: price + stepper */}
+                <div className="flex flex-col items-end gap-1">
+                  <div className="text-right mb-1">
+                    <span
+                      className={`text-sm font-sans ${
+                        isActive ? "text-black font-semibold" : "text-gray-500 font-medium"
+                      }`}
+                    >
+                      {sc.displayPrice}
+                    </span>{" "}
+                    <span className="text-[10px] text-gray-400 lowercase">
+                      /unit
+                    </span>
+                  </div>
+                  <div
+                    className={`flex items-center gap-3 rounded-full px-2 py-1 ${
+                      isActive
+                        ? "bg-gray-50"
+                        : "opacity-40 group-hover:opacity-100 transition-opacity"
+                    }`}
+                  >
+                    <button
+                      onClick={() => handleUnitChange(sc.id, -1)}
+                      className="w-5 h-5 flex items-center justify-center rounded-full text-gray-400 hover:text-black transition"
+                      aria-label={`Decrease ${sc.name}`}
+                    >
+                      <span className="material-symbols-outlined text-sm">
+                        remove
+                      </span>
                     </button>
-                    <span className="text-[20px] font-medium w-4 text-center text-black">{count}</span>
-                    <button onClick={() => handleUnitChange(sc.id, 1)} className="w-8 h-8 rounded-full border border-[#007AFF] text-[#007AFF] flex items-center justify-center transition active:bg-blue-50" aria-label={`Increase ${sc.name} units`}>
-                      <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 0, 'wght' 400" }}>add</span>
+                    <span
+                      className={`font-mono text-sm w-3 text-center ${
+                        isActive ? "text-black" : "text-gray-400"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                    <button
+                      onClick={() => handleUnitChange(sc.id, 1)}
+                      className="w-5 h-5 flex items-center justify-center rounded-full text-black hover:bg-gray-200 transition"
+                      aria-label={`Increase ${sc.name}`}
+                    >
+                      <span className="material-symbols-outlined text-sm">
+                        add
+                      </span>
                     </button>
                   </div>
                 </div>
               </div>
             );
           })}
-        </div>
+        </section>
 
-        {/* Recurring Investment */}
-        <div className="mb-4">
-          <div className="text-center mb-4 px-4">
-            <h3 className="text-[20px] font-semibold text-black">Recurring Investment</h3>
-            <p className="text-[15px] text-[#3C3C4399] mt-1">Configure automated contributions to streamline future capital calls.</p>
+        {/* ── Recurring Investment ── */}
+        <section className="mb-32">
+          <div className="flex items-center justify-between mb-8">
+            <h3
+              className="text-xl text-black lowercase font-normal"
+              style={{ fontFamily: "'Playfair Display', serif" }}
+            >
+              recurring investment
+            </h3>
+            {/* Simple toggle visual (non-functional placeholder — logic handles state) */}
+            <div className="relative inline-block w-10 align-middle select-none transition duration-200 ease-in">
+              <input
+                className="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer border-gray-200 checked:right-0 checked:border-black transition-all duration-300"
+                id="recurring-toggle"
+                type="checkbox"
+                defaultChecked
+              />
+              <label
+                className="toggle-label block overflow-hidden h-5 rounded-full bg-gray-100 cursor-pointer transition-colors duration-300"
+                htmlFor="recurring-toggle"
+              />
+            </div>
           </div>
-          <div className="bg-white rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
-            <div className="px-4 py-3 border-b border-[#C6C6C8]/20 flex justify-between items-center">
-              <span className="text-[13px] font-medium text-[#3C3C4399] uppercase tracking-wide">Frequency</span>
-              <span className="bg-gray-100 text-[#3C3C4399] text-[10px] font-bold px-1.5 py-0.5 rounded uppercase">Optional</span>
-            </div>
-            <div className="p-4 border-b border-[#C6C6C8]/20">
-              <div className="grid grid-cols-2 gap-3">
-                {FREQ_OPTIONS.map((opt) => (
-                  <button key={opt.value} onClick={() => setFrequency(opt.value)} className={`py-2.5 px-2 text-[15px] font-medium rounded-lg border text-center transition ${frequency === opt.value ? 'bg-blue-50 text-[#007AFF] border-[#007AFF]/20' : 'bg-white text-black border-gray-200 hover:bg-gray-50'}`}>{opt.label}</button>
-                ))}
-              </div>
-            </div>
-            <div className="px-4 py-4 border-b border-[#C6C6C8]/20">
-              <label className="text-[13px] font-medium text-[#3C3C4399] uppercase tracking-wide mb-2 block">Investment Day</label>
-              <div className="relative">
-                <select value={investmentDay} onChange={(e) => setInvestmentDay(e.target.value)} className="w-full appearance-none bg-white border border-gray-200 rounded-lg py-2.5 px-3 pr-8 text-[17px] text-black focus:outline-none focus:ring-1 focus:ring-[#007AFF] focus:border-[#007AFF]">
-                  <option>1st of the month</option><option>15th of the month</option><option>Last day of the month</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-[#3C3C4399]">
-                  <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 0, 'wght' 400" }}>expand_more</span>
+
+          <div className="space-y-0">
+            {/* Frequency */}
+            <div className="py-5 flex items-start justify-between group cursor-pointer border-b border-gray-50">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center shrink-0">
+                  <span
+                    className="material-symbols-outlined text-gray-500 text-lg"
+                    style={{ fontVariationSettings: "'wght' 200" }}
+                  >
+                    calendar_today
+                  </span>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-black lowercase mb-0.5">
+                    frequency
+                  </p>
+                  <p className="text-xs text-gray-400 lowercase">
+                    choose payment schedule
+                  </p>
                 </div>
               </div>
-            </div>
-            <div className="p-4">
-              <label className="text-[13px] font-medium text-[#3C3C4399] uppercase tracking-wide mb-3 block">Recurring Amount</label>
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                {AMOUNT_PRESETS.map((amt) => (
-                  <button key={amt} onClick={() => handleAmountClick(amt)} className={`py-2.5 px-2 text-[15px] font-medium rounded-lg border text-center transition ${selectedAmount === amt ? 'bg-blue-50 text-[#007AFF] border-[#007AFF]/20' : 'bg-white text-black border-gray-200 hover:bg-gray-50'}`}>${(amt / 1000).toLocaleString()}k</button>
-                ))}
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-xs font-medium text-black lowercase">
+                  {FREQ_OPTIONS.find((f) => f.value === frequency)?.label ||
+                    "once a month"}
+                </span>
+                <span className="material-symbols-outlined text-black text-lg">
+                  arrow_right_alt
+                </span>
               </div>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><span className="text-[#3C3C4399] text-[17px]">$</span></div>
-                <input type="text" inputMode="numeric" value={customAmount} onChange={handleCustomAmountChange} placeholder="Enter custom amount" className={`block w-full pl-7 pr-3 py-2.5 border rounded-lg bg-white text-black placeholder-gray-400 focus:outline-none focus:ring-1 text-[17px] ${customAmountError ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-[#007AFF] focus:border-[#007AFF]'}`} />
-              </div>
-              {customAmountError && <p className="text-red-500 text-[12px] mt-1.5 px-1">{customAmountError}</p>}
             </div>
-          </div>
-        </div>
-      </main>
 
-      {/* Fixed Footer */}
-      {!isFooterVisible && (
-        <footer className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-[#C6C6C8]/30 z-40 pt-4 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+16px)]">
-          <div className="max-w-md mx-auto">
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-[13px] font-bold text-[#3C3C4399] uppercase tracking-wide">Total Investment</span>
-              <span className="text-[22px] font-bold text-black">{formatCurrency(totalInvestment)}</span>
+            {/* Day */}
+            <div className="py-5 flex items-start justify-between group cursor-pointer border-b border-gray-50">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center shrink-0">
+                  <span
+                    className="material-symbols-outlined text-gray-500 text-lg"
+                    style={{ fontVariationSettings: "'wght' 200" }}
+                  >
+                    schedule
+                  </span>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-black lowercase mb-0.5">
+                    day
+                  </p>
+                  <p className="text-xs text-gray-400 lowercase">
+                    select debit date
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-xs font-medium text-black lowercase">
+                  {investmentDay.toLowerCase().replace("of the", "of")}
+                </span>
+                <span className="material-symbols-outlined text-black text-lg">
+                  arrow_right_alt
+                </span>
+              </div>
             </div>
-            <button onClick={handleNext} disabled={!hasSelection || isLoading || !!customAmountError} data-onboarding-cta className={`w-full font-semibold text-[17px] py-3.5 rounded-xl transition duration-200 shadow-md ${!hasSelection || isLoading || !!customAmountError ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-[#007AFF] hover:bg-blue-600 text-white active:scale-[0.98]'}`}>
-              {isLoading ? 'Saving...' : 'Next'}
-            </button>
-            <p className="text-[11px] text-center text-[#3C3C4399] mt-3">Minimum investment per unit • Units can be adjusted later</p>
+
+            {/* Amount */}
+            <div className="py-5">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center shrink-0">
+                  <span
+                    className="material-symbols-outlined text-gray-500 text-lg"
+                    style={{ fontVariationSettings: "'wght' 200" }}
+                  >
+                    payments
+                  </span>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-black lowercase mb-0.5">
+                    amount
+                  </p>
+                  <p className="text-xs text-gray-400 lowercase">
+                    investment per cycle
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 pl-14">
+                {AMOUNT_PRESETS.map((amt) => {
+                  const isSelected = selectedAmount === amt;
+                  return (
+                    <button
+                      key={amt}
+                      onClick={() => handleAmountClick(amt)}
+                      className={`flex-shrink-0 px-6 py-3 text-xs font-mono transition whitespace-nowrap lowercase ${
+                        isSelected
+                          ? "bg-black text-white shadow-md"
+                          : "bg-gray-50 text-gray-500 hover:bg-gray-100"
+                      }`}
+                    >
+                      {formatCurrency(amt)}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Custom amount input */}
+              <div className="pl-14 mt-3">
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+                    $
+                  </span>
+                  <input
+                    type="text"
+                    value={customAmount}
+                    onChange={handleCustomAmountChange}
+                    placeholder="Custom amount"
+                    className="w-full pl-7 pr-4 py-3 bg-gray-50 text-sm font-mono text-black placeholder:text-gray-300 outline-none focus:ring-1 focus:ring-black transition lowercase"
+                  />
+                </div>
+                {customAmountError && (
+                  <p className="text-xs text-red-500 mt-1">{customAmountError}</p>
+                )}
+              </div>
+            </div>
           </div>
-        </footer>
-      )}
+        </section>
+
+        {/* ── Error message ── */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 text-xs text-center">
+            {error}
+          </div>
+        )}
+
+        {/* ── CTAs — Continue & Skip ── */}
+        <section className="pb-12 space-y-3">
+          <HushhTechCta
+            variant={HushhTechCtaVariant.BLACK}
+            onClick={handleNext}
+            disabled={!hasSelection || isLoading}
+          >
+            {isLoading ? "Saving..." : "Continue"}
+          </HushhTechCta>
+
+          <HushhTechCta
+            variant={HushhTechCtaVariant.WHITE}
+            onClick={handleBack}
+          >
+            Skip
+          </HushhTechCta>
+        </section>
+
+        {/* ── Trust Badges ── */}
+        <section className="flex flex-col items-center justify-center text-center gap-2 pb-8">
+          <div className="flex items-center gap-2 opacity-60">
+            <div className="flex items-center gap-1">
+              <span className="material-symbols-outlined text-[10px] text-gray-500">
+                lock
+              </span>
+              <span className="text-[9px] text-gray-500 tracking-wide uppercase">
+                256 bit encryption
+              </span>
+            </div>
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
