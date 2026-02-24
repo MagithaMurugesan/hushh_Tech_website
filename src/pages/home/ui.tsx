@@ -29,8 +29,7 @@ export default function HomePage() {
         {/* Hero Section */}
         <div className="pt-10 pb-16">
           <h1
-            className="text-[3.25rem] leading-[1.1] text-black lowercase mb-6 tracking-tight"
-            style={{ fontFamily: '"Playfair Display", serif' }}
+            className="font-serif text-[3.25rem] leading-[1.1] text-black lowercase mb-6 tracking-tight"
           >
             investing in
             <br />
@@ -75,10 +74,7 @@ export default function HomePage() {
                 </span>
               </div>
               <div className="flex flex-col">
-                <span
-                  className="text-xl lowercase text-black"
-                  style={{ fontFamily: '"Playfair Display", serif' }}
-                >
+                <span className="font-serif text-xl lowercase text-black">
                   ai-powered
                 </span>
                 <span className="text-xs text-[#666666] font-light mt-1">
@@ -106,10 +102,7 @@ export default function HomePage() {
                 </span>
               </div>
               <div className="flex flex-col">
-                <span
-                  className="text-xl lowercase text-black"
-                  style={{ fontFamily: '"Playfair Display", serif' }}
-                >
+                <span className="font-serif text-xl lowercase text-black">
                   human-led
                 </span>
                 <span className="text-xs text-[#666666] font-light mt-1">
@@ -146,8 +139,7 @@ export default function HomePage() {
         {/* The Hushh Advantage */}
         <div className="mb-20">
           <h3
-            className="text-2xl text-black lowercase mb-10 text-center"
-            style={{ fontFamily: '"Playfair Display", serif' }}
+            className="font-serif text-2xl text-black lowercase mb-10 text-center"
           >
             the hushh advantage
           </h3>
@@ -182,8 +174,7 @@ export default function HomePage() {
           <div className="flex items-start justify-between mb-8">
             <div>
               <h2
-                className="text-3xl text-black lowercase mb-2"
-                style={{ fontFamily: '"Playfair Display", serif' }}
+                className="font-serif text-3xl text-black lowercase mb-2"
               >
                 fund a
               </h2>
@@ -195,10 +186,7 @@ export default function HomePage() {
               <p className="text-xs uppercase tracking-widest text-[#666666] mb-1">
                 target net irr
               </p>
-              <p
-                className="text-3xl"
-                style={{ fontFamily: '"Playfair Display", serif' }}
-              >
+              <p className="font-serif text-3xl">
                 18-23%
               </p>
             </div>
