@@ -103,9 +103,10 @@ const ContentWrapper = ({ children }: { children: ReactNode }) => {
   const isHushhUserProfile = location.pathname.startsWith('/hushh-user-profile');
   const isSignNda = location.pathname.startsWith('/sign-nda');
   const isInvestorProfile = location.pathname.startsWith('/investor-profile');
+  const isDiscoverFundA = location.pathname === '/discover-fund-a';
 
   return (
-    <div className={`${isHomePage || isAuthCallback || isUserRegistration || isOnboarding || isKycFlow || isA2APlayground || isInvestorGuide || isHushhAI || isHushhAgent || isKai || isStudio || isHushhUserProfile || isSignNda || isInvestorProfile ? '' : 'mt-20'}`}>
+    <div className={`${isHomePage || isAuthCallback || isUserRegistration || isOnboarding || isKycFlow || isA2APlayground || isInvestorGuide || isHushhAI || isHushhAgent || isKai || isStudio || isHushhUserProfile || isSignNda || isInvestorProfile || isDiscoverFundA ? '' : 'mt-20'}`}>
       {children}
     </div>
   );
@@ -121,12 +122,13 @@ const useLayoutVisibility = () => {
   const isStudio = location.pathname.startsWith('/studio');
   const isOnboarding = location.pathname.startsWith('/onboarding');
   const isProfile = location.pathname === '/profile';
+  const isFundA = location.pathname === '/discover-fund-a';
 
-  // Home + Onboarding + Profile use HushhTechHeader/Footer — hide old global nav/footer
+  // Home + Onboarding + Profile + Fund A use HushhTechHeader/Footer — hide old global nav/footer
   return {
-    showNavbar: !isHushhAI && !isHushhAgent && !isKai && !isStudio && !isHomePage && !isOnboarding && !isProfile,
-    showFooter: !isHushhAI && !isHushhAgent && !isKai && !isStudio && !isOnboarding && !isHomePage && !isProfile,
-    showMobileNav: !isHushhAI && !isHushhAgent && !isKai && !isStudio && !isOnboarding && !isHomePage && !isProfile,
+    showNavbar: !isHushhAI && !isHushhAgent && !isKai && !isStudio && !isHomePage && !isOnboarding && !isProfile && !isFundA,
+    showFooter: !isHushhAI && !isHushhAgent && !isKai && !isStudio && !isOnboarding && !isHomePage && !isProfile && !isFundA,
+    showMobileNav: !isHushhAI && !isHushhAgent && !isKai && !isStudio && !isOnboarding && !isHomePage && !isProfile && !isFundA,
   };
 };
 
