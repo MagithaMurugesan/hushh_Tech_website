@@ -65,7 +65,7 @@ const HushhUserProfilePage: React.FC = () => {
         </section>
 
         {/* ── NWS strip ── */}
-        <section className="mb-10 border-t border-b border-gray-200 py-4 flex justify-between items-center">
+        <section className="mb-10 border-t border-b border-gray-100 py-5 flex justify-between items-center">
           <span
             className="text-lg italic text-gray-400 lowercase"
             style={{ fontFamily: "'Playfair Display', serif" }}
@@ -75,8 +75,11 @@ const HushhUserProfilePage: React.FC = () => {
           {nwsResult ? (
             <NWSScoreBadge result={nwsResult} loading={nwsLoading} size="sm" />
           ) : (
-            <span className="font-mono text-xs text-gray-300 uppercase tracking-wider">
-              no data available
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-gray-200 bg-gray-50">
+              <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
+              <span className="text-[10px] tracking-[0.14em] uppercase text-gray-400 font-medium">
+                non-verified
+              </span>
             </span>
           )}
         </section>
