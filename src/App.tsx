@@ -108,9 +108,10 @@ const ContentWrapper = ({ children }: { children: ReactNode }) => {
   const isInvestorProfile = location.pathname.startsWith('/investor-profile');
   const isDiscoverFundA = location.pathname === '/discover-fund-a';
   const isCommunity = location.pathname.startsWith('/community');
+  const isDeleteAccount = location.pathname === '/delete-account';
 
   return (
-    <div className={`${isHomePage || isAuthCallback || isUserRegistration || isOnboarding || isKycFlow || isA2APlayground || isInvestorGuide || isHushhAI || isHushhAgent || isKai || isStudio || isHushhUserProfile || isSignNda || isInvestorProfile || isDiscoverFundA || isCommunity ? '' : 'mt-20'}`}>
+    <div className={`${isHomePage || isAuthCallback || isUserRegistration || isOnboarding || isKycFlow || isA2APlayground || isInvestorGuide || isHushhAI || isHushhAgent || isKai || isStudio || isHushhUserProfile || isSignNda || isInvestorProfile || isDiscoverFundA || isCommunity || isDeleteAccount ? '' : 'mt-20'}`}>
       {children}
     </div>
   );
@@ -128,9 +129,10 @@ const useLayoutVisibility = () => {
   const isProfile = location.pathname === '/profile';
   const isFundA = location.pathname === '/discover-fund-a';
   const isCommunity = location.pathname.startsWith('/community');
+  const isDeleteAccount = location.pathname === '/delete-account';
 
-  // Home + Onboarding + Profile + Fund A + Community use HushhTechHeader/Footer — hide old global nav/footer
-  const hideOld = isHushhAI || isHushhAgent || isKai || isStudio || isHomePage || isOnboarding || isProfile || isFundA || isCommunity;
+  // Home + Onboarding + Profile + Fund A + Community + Delete Account use HushhTechHeader/Footer — hide old global nav/footer
+  const hideOld = isHushhAI || isHushhAgent || isKai || isStudio || isHomePage || isOnboarding || isProfile || isFundA || isCommunity || isDeleteAccount;
   return {
     showNavbar: !hideOld,
     showFooter: !hideOld,

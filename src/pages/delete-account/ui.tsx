@@ -5,9 +5,9 @@
  * Logic stays in logic.ts — zero logic changes.
  */
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { useDeleteAccountLogic } from "./logic";
-import HushhTechBackHeader from "../../components/hushh-tech-back-header/HushhTechBackHeader";
+import HushhTechHeader from "../../components/hushh-tech-header/HushhTechHeader";
+import HushhTechFooter from "../../components/hushh-tech-footer/HushhTechFooter";
 import DeleteAccountModal from "../../components/DeleteAccountModal";
 import { Helmet } from "react-helmet";
 
@@ -67,7 +67,6 @@ const ACCORDION_SECTIONS = [
 ];
 
 const DeleteAccountPage: React.FC = () => {
-  const navigate = useNavigate();
   const {
     isOpen,
     onOpen,
@@ -105,12 +104,8 @@ const DeleteAccountPage: React.FC = () => {
               : ""
           }`}
         >
-          {/* ═══ Header ═══ */}
-          <HushhTechBackHeader
-            onBackClick={() => navigate(-1)}
-            rightType="label"
-            rightLabel="FAQs"
-          />
+          {/* ═══ Common Header ═══ */}
+          <HushhTechHeader />
 
           <main className="flex-1 px-6 pt-8 pb-12 flex flex-col max-w-lg mx-auto w-full">
             {/* ── Title Section ── */}
@@ -259,6 +254,9 @@ const DeleteAccountPage: React.FC = () => {
               </span>
             </div>
           </main>
+
+          {/* ═══ Common Footer with Navigation ═══ */}
+          <HushhTechFooter />
         </div>
 
         {/* ═══ Delete Account Modal ═══ */}
