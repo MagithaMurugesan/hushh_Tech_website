@@ -22,6 +22,7 @@ export function useStep7Logic() {
   const [lastName, setLastName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isPreFilledFromBank, setIsPreFilledFromBank] = useState(false);
   const isFooterVisible = useFooterVisibility();
 
   useEffect(() => { window.scrollTo(0, 0); }, []);
@@ -39,15 +40,59 @@ export function useStep7Logic() {
       const oauthFirst = meta.given_name || meta.first_name || (meta.full_name?.split(' ')[0]) || (meta.name?.split(' ')[0]) || '';
       const oauthLast = meta.family_name || meta.last_name || (meta.full_name?.split(' ').slice(1).join(' ')) || (meta.name?.split(' ').slice(1).join(' ')) || '';
 
-      // Check saved data — priority: DB > OAuth
+      // Check saved data — priority: DB > Plaid > OAuth
       const { data } = await config.supabaseClient
         .from('onboarding_data')
         .select('legal_first_name, legal_last_name')
         .eq('user_id', user.id)
         .maybeSingle();
 
-      setFirstName(data?.legal_first_name || oauthFirst);
-      setLastName(data?.legal_last_name || oauthLast);
+      // If DB has names, use them directly
+      if (data?.legal_first_name && data?.legal_last_name) {
+        setFirstName(data.legal_first_name);
+        setLastName(data.legal_last_name);
+        return;
+      }
+
+      // Try Plaid identity data for name pre-fill
+      try {
+        const { data: financialData } = await config.supabaseClient
+          .from('user_financial_data')
+          .select('identity_data')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (financialData?.identity_data) {
+          const identityData = financialData.identity_data as any;
+          const accounts = identityData?.accounts || [];
+          const owners = accounts[0]?.owners || [];
+          const owner = owners[0];
+
+          if (owner?.names?.length) {
+            // Plaid returns full name string like "John Michael Doe"
+            const fullName = String(owner.names[0]).trim();
+            if (fullName) {
+              const parts = fullName.split(/\s+/);
+              const plaidFirst = parts[0] || '';
+              const plaidLast = parts.slice(1).join(' ') || '';
+
+              if (plaidFirst && plaidLast) {
+                setFirstName(plaidFirst);
+                setLastName(plaidLast);
+                setIsPreFilledFromBank(true);
+                console.log('[Step7] Name pre-filled from Plaid identity:', plaidFirst, plaidLast.charAt(0) + '***');
+                return;
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[Step7] Plaid identity fetch failed (ignoring):', err);
+      }
+
+      // Fallback to OAuth metadata
+      setFirstName(oauthFirst);
+      setLastName(oauthLast);
     };
     loadData();
   }, [navigate]);
@@ -98,11 +143,13 @@ export function useStep7Logic() {
   const handleFirstNameChange = (value: string) => {
     setFirstName(value);
     if (error) setError(null);
+    if (isPreFilledFromBank) setIsPreFilledFromBank(false);
   };
 
   const handleLastNameChange = (value: string) => {
     setLastName(value);
     if (error) setError(null);
+    if (isPreFilledFromBank) setIsPreFilledFromBank(false);
   };
 
   return {
@@ -115,6 +162,7 @@ export function useStep7Logic() {
 
     // Derived
     isValid,
+    isPreFilledFromBank,
 
     // Handlers
     handleFirstNameChange,

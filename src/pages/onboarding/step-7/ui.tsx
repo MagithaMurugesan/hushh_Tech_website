@@ -22,6 +22,7 @@ export default function OnboardingStep7() {
     isLoading,
     error,
     isValid,
+    isPreFilledFromBank,
     handleFirstNameChange,
     handleLastNameChange,
     handleContinue,
@@ -154,6 +155,21 @@ export default function OnboardingStep7() {
             </div>
           </div>
         </section>
+
+        {/* Pre-filled from bank badge */}
+        {isPreFilledFromBank && (
+          <div className="flex items-center justify-center gap-1.5 mb-4">
+            <span
+              className="material-symbols-outlined text-green-600 text-xs"
+              style={{ fontVariationSettings: "'FILL' 1, 'wght' 400" }}
+            >
+              verified
+            </span>
+            <span className="text-[10px] text-green-700 font-medium lowercase">
+              pre-filled from your bank · tap to edit
+            </span>
+          </div>
+        )}
 
         {/* Helper text */}
         <p className="text-[11px] text-gray-400 text-center lowercase font-medium mb-8">
