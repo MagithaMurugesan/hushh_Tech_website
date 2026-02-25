@@ -1,51 +1,68 @@
 /**
- * Delete Account Page — Follows Step 1–8 design philosophy exactly.
- * Playfair Display headings, all lowercase, black/white/gray palette,
- * icon-circle rows, HushhTechBackHeader, HushhTechCta, glassmorphism modal.
+ * Delete Account Page — Matches the provided mockup exactly.
+ * Clean, minimal layout with collapsible accordion sections.
+ * Playfair Display heading, single CTA, expandable info rows.
  * Logic stays in logic.ts — zero logic changes.
  */
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDeleteAccountLogic } from "./logic";
 import HushhTechBackHeader from "../../components/hushh-tech-back-header/HushhTechBackHeader";
-import HushhTechCta, {
-  HushhTechCtaVariant,
-} from "../../components/hushh-tech-cta/HushhTechCta";
 import DeleteAccountModal from "../../components/DeleteAccountModal";
 import { Helmet } from "react-helmet";
 
-/* ── Data items for deletion list ── */
-const DELETION_ITEMS = [
-  { icon: "person", label: "account credentials & profile" },
-  { icon: "analytics", label: "investor profile & preferences" },
-  { icon: "checklist", label: "onboarding data & responses" },
-  { icon: "verified_user", label: "kyc verification data" },
-  { icon: "chat", label: "chat history with ai assistant" },
-  { icon: "folder", label: "uploaded documents & files" },
-  { icon: "shield", label: "privacy settings & data vault" },
-];
-
-/* ── Retention policy items ── */
-const RETENTION_ITEMS = [
+/* ── Accordion section data ── */
+const ACCORDION_SECTIONS = [
   {
-    icon: "bolt",
-    title: "immediate",
-    desc: "all personal data is deleted upon confirmation",
+    id: "how-to",
+    icon: "delete_forever",
+    title: "how to delete your account",
+    subtitle: "step-by-step process",
+    content: [
+      { step: "1", text: "click the 'permanently delete account' button above" },
+      { step: "2", text: "type DELETE in the confirmation field" },
+      { step: "3", text: "confirm your decision — this cannot be undone" },
+      { step: "4", text: "your account and all data will be permanently removed" },
+    ],
   },
   {
-    icon: "schedule",
-    title: "30 days",
-    desc: "encrypted backups are purged within 30 days",
+    id: "data-deleted",
+    icon: "folder_off",
+    title: "data that will be permanently deleted",
+    subtitle: "profile, history & preferences",
+    content: [
+      { step: "•", text: "account credentials & profile information" },
+      { step: "•", text: "investor profile & preferences" },
+      { step: "•", text: "onboarding data & responses" },
+      { step: "•", text: "kyc verification data" },
+      { step: "•", text: "chat history with ai assistant" },
+      { step: "•", text: "uploaded documents & files" },
+      { step: "•", text: "privacy settings & data vault" },
+    ],
   },
   {
-    icon: "gavel",
-    title: "7 years",
-    desc: "transaction records retained per financial regulations",
+    id: "retention",
+    icon: "history_toggle_off",
+    title: "data retention policy",
+    subtitle: "what we keep for compliance",
+    content: [
+      { step: "→", text: "all personal data is deleted immediately upon confirmation" },
+      { step: "→", text: "encrypted backups are purged within 30 days" },
+      { step: "→", text: "transaction records retained for 7 years per financial regulations" },
+      { step: "→", text: "anonymized aggregated analytics that cannot identify you may be kept" },
+    ],
   },
   {
-    icon: "analytics",
-    title: "anonymized",
-    desc: "aggregated analytics that cannot identify you may be kept",
+    id: "notice",
+    icon: "warning",
+    title: "important notice",
+    subtitle: "read before proceeding",
+    content: [
+      { step: "!", text: "this action is permanent and cannot be undone" },
+      { step: "!", text: "you will lose access to all hushh services immediately" },
+      { step: "!", text: "any active investments or pending transactions should be resolved first" },
+      { step: "!", text: "contact support@hushh.ai if you need help before deleting" },
+    ],
   },
 ];
 
@@ -61,6 +78,13 @@ const DeleteAccountPage: React.FC = () => {
     handleAccountDeleted,
     handleLoginRedirect,
   } = useDeleteAccountLogic();
+
+  /* Accordion expand/collapse state — purely UI, no business logic */
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const handleToggle = (id: string) => {
+    setExpandedId((prev) => (prev === id ? null : id));
+  };
 
   return (
     <>
@@ -84,261 +108,160 @@ const DeleteAccountPage: React.FC = () => {
           {/* ═══ Header ═══ */}
           <HushhTechBackHeader
             onBackClick={() => navigate(-1)}
-            rightType="hamburger"
+            rightType="label"
+            rightLabel="FAQs"
           />
 
-          <main className="px-6 flex-grow max-w-md mx-auto w-full pb-16">
+          <main className="flex-1 px-6 pt-8 pb-12 flex flex-col max-w-lg mx-auto w-full">
             {/* ── Title Section ── */}
-            <section className="py-8">
-              <h3 className="text-[11px] tracking-wide text-gray-500 lowercase mb-4 font-semibold">
-                account settings
-              </h3>
+            <div className="mb-12">
               <h1
-                className="text-[2.75rem] leading-[1.1] font-normal text-black tracking-tight lowercase"
+                className="text-4xl text-black mb-3 lowercase leading-tight"
                 style={{ fontFamily: "'Playfair Display', serif" }}
               >
-                delete your
-                <br />
-                <span className="text-gray-400 italic font-normal">
-                  account
-                </span>
+                {isLoading
+                  ? "checking session..."
+                  : isLoggedIn
+                  ? "ready to delete your account?"
+                  : "login to delete your account"}
               </h1>
-              <p className="text-sm text-gray-500 mt-4 leading-relaxed lowercase font-medium">
-                permanently remove your account and all associated data from our
-                systems.
-              </p>
-            </section>
 
-            {/* ── Session Status Row ── */}
-            <section className="mb-2">
               {isLoading ? (
-                <div className="flex items-center gap-4 py-5 border-b border-gray-200">
-                  <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-                    <div className="animate-spin h-5 w-5 border-2 border-gray-300 border-t-black rounded-full" />
-                  </div>
-                  <p className="text-sm font-medium text-gray-700 lowercase">
-                    checking session...
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin h-4 w-4 border-2 border-gray-300 border-t-black rounded-full" />
+                  <p className="text-gray-500 text-sm lowercase">
+                    verifying session...
                   </p>
                 </div>
-              ) : isLoggedIn ? (
-                <div className="flex items-center gap-4 py-5 border-b border-gray-200">
-                  <div className="w-10 h-10 rounded-full bg-green-50 border border-green-200 flex items-center justify-center shrink-0">
-                    <span
-                      className="material-symbols-outlined text-green-600 text-lg"
-                      style={{
-                        fontVariationSettings: "'FILL' 1, 'wght' 600",
-                      }}
-                    >
-                      check
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900 lowercase">
-                      logged in
-                    </p>
-                    {userEmail && (
-                      <p className="text-xs text-gray-500 lowercase font-medium">
-                        {userEmail}
-                      </p>
-                    )}
-                  </div>
-                </div>
+              ) : isLoggedIn && userEmail ? (
+                <p className="text-gray-500 text-sm font-normal lowercase">
+                  logged in as: {userEmail}
+                </p>
               ) : (
-                <div className="flex items-center gap-4 py-5 border-b border-gray-200">
-                  <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-                    <span
-                      className="material-symbols-outlined text-gray-700 text-lg"
-                      style={{ fontVariationSettings: "'wght' 400" }}
-                    >
-                      lock
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900 lowercase">
-                      login required
-                    </p>
-                    <p className="text-xs text-gray-500 lowercase font-medium">
-                      please login to delete your account
-                    </p>
-                  </div>
-                </div>
+                <p className="text-gray-500 text-sm font-normal lowercase">
+                  please login to proceed with account deletion
+                </p>
               )}
-            </section>
+            </div>
 
-            {/* ── What Gets Deleted ── */}
-            <section className="mb-8">
-              <h2
-                className="text-xl font-normal text-black tracking-tight lowercase mb-1 pt-6"
-                style={{ fontFamily: "'Playfair Display', serif" }}
-              >
-                data that will be deleted
-              </h2>
-              <p className="text-xs text-gray-500 lowercase font-medium mb-5">
-                the following data will be permanently removed
-              </p>
-
-              <div className="space-y-0">
-                {DELETION_ITEMS.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center gap-4 py-4 border-b border-gray-200"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-                      <span
-                        className="material-symbols-outlined text-gray-700 text-lg"
-                        style={{ fontVariationSettings: "'wght' 400" }}
-                      >
-                        {item.icon}
-                      </span>
-                    </div>
-                    <span className="text-sm text-gray-900 lowercase font-medium">
-                      {item.label}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* ── Retention Policy ── */}
-            <section className="mb-8">
-              <h2
-                className="text-xl font-normal text-black tracking-tight lowercase mb-1"
-                style={{ fontFamily: "'Playfair Display', serif" }}
-              >
-                retention policy
-              </h2>
-              <p className="text-xs text-gray-500 lowercase font-medium mb-5">
-                some data may be retained as required by law
-              </p>
-
-              <div className="space-y-0">
-                {RETENTION_ITEMS.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center gap-4 py-4 border-b border-gray-200"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-                      <span
-                        className="material-symbols-outlined text-gray-700 text-lg"
-                        style={{ fontVariationSettings: "'wght' 400" }}
-                      >
-                        {item.icon}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 lowercase mb-0.5">
-                        {item.title}
-                      </p>
-                      <p className="text-xs text-gray-500 lowercase font-medium">
-                        {item.desc}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* ── Need Help ── */}
-            <section className="mb-8">
-              <h2
-                className="text-xl font-normal text-black tracking-tight lowercase mb-1"
-                style={{ fontFamily: "'Playfair Display', serif" }}
-              >
-                need help?
-              </h2>
-              <p className="text-xs text-gray-500 lowercase font-medium mb-5">
-                if you're unable to access your account, contact us directly
-              </p>
-
-              <a
-                href="mailto:support@hushh.ai"
-                className="flex items-center gap-4 py-4 border-b border-gray-200 group"
-              >
-                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0 group-hover:bg-gray-200 transition-colors">
-                  <span
-                    className="material-symbols-outlined text-gray-700 text-lg"
-                    style={{ fontVariationSettings: "'wght' 400" }}
-                  >
-                    mail
-                  </span>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-900 lowercase">
-                    support@hushh.ai
-                  </p>
-                  <p className="text-xs text-gray-500 lowercase font-medium">
-                    general support
-                  </p>
-                </div>
-              </a>
-
-              <a
-                href="mailto:privacy@hushh.ai"
-                className="flex items-center gap-4 py-4 border-b border-gray-200 group"
-              >
-                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0 group-hover:bg-gray-200 transition-colors">
-                  <span
-                    className="material-symbols-outlined text-gray-700 text-lg"
-                    style={{ fontVariationSettings: "'wght' 400" }}
-                  >
-                    shield
-                  </span>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-900 lowercase">
-                    privacy@hushh.ai
-                  </p>
-                  <p className="text-xs text-gray-500 lowercase font-medium">
-                    privacy & data requests
-                  </p>
-                </div>
-              </a>
-            </section>
-
-            {/* ── CTAs ── */}
-            <section className="pb-12 space-y-3 mt-4">
+            {/* ── Primary CTA ── */}
+            <div className="mb-16">
               {isLoggedIn ? (
-                <HushhTechCta
-                  variant={HushhTechCtaVariant.BLACK}
+                <button
+                  type="button"
                   onClick={onOpen}
+                  className="w-full bg-black text-white h-14 font-medium text-sm flex items-center justify-center hover:bg-neutral-800 transition-colors active:scale-[0.99] shadow-[0_4px_20px_rgba(0,0,0,0.03)] lowercase"
                 >
-                  delete my account
-                </HushhTechCta>
+                  permanently delete account
+                </button>
               ) : (
-                <HushhTechCta
-                  variant={HushhTechCtaVariant.BLACK}
+                <button
+                  type="button"
                   onClick={handleLoginRedirect}
+                  className="w-full bg-black text-white h-14 font-medium text-sm flex items-center justify-center hover:bg-neutral-800 transition-colors active:scale-[0.99] shadow-[0_4px_20px_rgba(0,0,0,0.03)] lowercase"
                 >
                   login to continue
-                </HushhTechCta>
+                </button>
               )}
+            </div>
 
-              <HushhTechCta
-                variant={HushhTechCtaVariant.WHITE}
-                onClick={() => navigate("/")}
+            {/* ── Accordion Sections ── */}
+            <div className="space-y-0">
+              {ACCORDION_SECTIONS.map((section) => {
+                const isExpanded = expandedId === section.id;
+
+                return (
+                  <div key={section.id}>
+                    {/* Row trigger */}
+                    <button
+                      type="button"
+                      onClick={() => handleToggle(section.id)}
+                      className="group w-full py-5 border-b border-gray-200 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors -mx-2 px-2"
+                      aria-expanded={isExpanded}
+                      aria-controls={`accordion-${section.id}`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-white transition-colors shrink-0">
+                          <span
+                            className="material-symbols-outlined text-gray-500 text-[1.25rem]"
+                            style={{
+                              fontVariationSettings:
+                                "'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24",
+                            }}
+                          >
+                            {section.icon}
+                          </span>
+                        </div>
+                        <div className="flex flex-col text-left">
+                          <span className="text-sm font-medium text-black lowercase">
+                            {section.title}
+                          </span>
+                          <span className="text-xs text-gray-500 mt-0.5 lowercase">
+                            {section.subtitle}
+                          </span>
+                        </div>
+                      </div>
+                      <span
+                        className={`material-symbols-outlined text-gray-400 text-xl transition-transform duration-300 ${
+                          isExpanded ? "rotate-90" : ""
+                        }`}
+                      >
+                        arrow_forward
+                      </span>
+                    </button>
+
+                    {/* Expandable content */}
+                    <div
+                      id={`accordion-${section.id}`}
+                      className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                        isExpanded
+                          ? "max-h-[500px] opacity-100"
+                          : "max-h-0 opacity-0"
+                      }`}
+                    >
+                      <div className="py-4 pl-16 pr-4 space-y-3 border-b border-gray-100">
+                        {section.content.map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-start gap-3"
+                          >
+                            <span className="text-xs text-gray-400 font-semibold w-4 shrink-0 pt-0.5">
+                              {item.step}
+                            </span>
+                            <p className="text-sm text-gray-600 lowercase leading-relaxed">
+                              {item.text}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ── Spacer ── */}
+            <div className="flex-grow min-h-[4rem]" />
+
+            {/* ── Trust Badge ── */}
+            <div className="mt-auto pt-8 flex items-center justify-center gap-2 opacity-60">
+              <span
+                className="material-symbols-outlined text-[1.2rem] text-gray-500"
+                style={{
+                  fontVariationSettings:
+                    "'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24",
+                }}
               >
-                go to home
-              </HushhTechCta>
-            </section>
-
-            {/* ── Trust Badges ── */}
-            <section className="flex flex-col items-center justify-center text-center gap-2 pb-8">
-              <div className="flex items-center gap-1">
-                <span className="material-symbols-outlined text-[12px] text-gray-600">
-                  lock
-                </span>
-                <span className="text-[10px] text-gray-600 tracking-wide uppercase font-medium">
-                  256 bit encryption
-                </span>
-              </div>
-              <p className="text-[10px] text-gray-400 lowercase">
-                hushh technologies inc.
-              </p>
-            </section>
+                lock
+              </span>
+              <span className="text-[0.65rem] text-gray-500 tracking-wide font-medium uppercase">
+                256 bit encryption
+              </span>
+            </div>
           </main>
         </div>
 
-        {/* ═══ Delete Account Modal — Glassmorphism (matches Step 4 location modal) ═══ */}
+        {/* ═══ Delete Account Modal ═══ */}
         <DeleteAccountModal
           isOpen={isOpen}
           onClose={onClose}
