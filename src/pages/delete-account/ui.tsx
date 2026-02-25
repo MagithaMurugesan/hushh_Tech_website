@@ -1,35 +1,19 @@
-'use client';
-
-import React from 'react';
-import {
-  Box,
-  Container,
-  Heading,
-  Text,
-  VStack,
-  OrderedList,
-  ListItem,
-  UnorderedList,
-  Divider,
-  Link,
-  Button,
-  useColorModeValue,
-  Spinner,
-  Icon,
-} from '@chakra-ui/react';
-import { FiTrash2, FiLogIn } from 'react-icons/fi';
-import Navbar from '../../components/Navbar';
-import Footer from '../../components/Footer';
-import DeleteAccountModal from '../../components/DeleteAccountModal';
-import { Helmet } from 'react-helmet';
-import { useDeleteAccountLogic } from './logic';
+/**
+ * Delete Account Page — Aligned with onboarding step 1-8 design language.
+ * Uses Playfair Display headings, lowercase, HushhTechCta, same spacing.
+ */
+import React from "react";
+import { useNavigate } from "react-router-dom";
+import { useDeleteAccountLogic } from "./logic";
+import HushhTechBackHeader from "../../components/hushh-tech-back-header/HushhTechBackHeader";
+import HushhTechCta, {
+  HushhTechCtaVariant,
+} from "../../components/hushh-tech-cta/HushhTechCta";
+import DeleteAccountModal from "../../components/DeleteAccountModal";
+import { Helmet } from "react-helmet";
 
 const DeleteAccountPage: React.FC = () => {
-  const bgColor = useColorModeValue('#FAFAFA', '#0A0A0A');
-  const cardBg = useColorModeValue('white', '#1A1A1A');
-  const textColor = useColorModeValue('#1A1A1A', '#FAFAFA');
-  const mutedColor = useColorModeValue('#6B7280', '#9CA3AF');
-
+  const navigate = useNavigate();
   const {
     isOpen,
     onOpen,
@@ -51,252 +35,242 @@ const DeleteAccountPage: React.FC = () => {
         />
       </Helmet>
 
-      <Box bg={bgColor} minH="100vh">
-        <Navbar />
+      <div className="bg-white text-gray-900 min-h-screen antialiased flex flex-col selection:bg-black selection:text-white">
+        {/* ═══ Header ═══ */}
+        <HushhTechBackHeader
+          onBackClick={() => navigate(-1)}
+          rightType="hamburger"
+        />
 
-        <Container maxW="container.md" py={{ base: 8, md: 16 }} px={{ base: 4, md: 6 }}>
-          <VStack spacing={8} align="stretch">
-            {/* Header */}
-            <Box textAlign="center" mb={4}>
-              <Heading
-                as="h1"
-                fontSize={{ base: '2xl', md: '3xl' }}
-                fontWeight="600"
-                color={textColor}
-                mb={3}
-              >
-                Delete Your Hushh Account
-              </Heading>
-              <Text color={mutedColor} fontSize={{ base: 'md', md: 'lg' }}>
-                Hushh Technologies - Account Deletion Request
-              </Text>
-            </Box>
-
-            {/* CTA Card - Delete Account Action */}
-            <Box
-              bg={cardBg}
-              borderRadius="16px"
-              p={{ base: 6, md: 8 }}
-              boxShadow="sm"
-              border="2px solid"
-              borderColor={useColorModeValue('#DC2626', '#F87171')}
+        <main className="px-6 flex-grow max-w-md mx-auto w-full pb-16">
+          {/* ── Title Section ── */}
+          <section className="py-8">
+            <h1
+              className="text-[2.25rem] leading-[1.1] font-medium text-black tracking-tight lowercase"
+              style={{ fontFamily: "'Playfair Display', serif" }}
             >
-              <VStack spacing={5} align="center">
-                <Icon as={FiTrash2} boxSize={12} color="#DC2626" />
+              delete your <br />
+              <span className="text-gray-400">account</span>
+            </h1>
+            <p className="text-gray-500 text-sm font-light mt-3 lowercase leading-relaxed">
+              permanently remove your account and all associated data
+            </p>
+          </section>
 
-                {isLoading ? (
-                  <VStack spacing={3}>
-                    <Spinner size="lg" color="#DC2626" />
-                    <Text color={mutedColor}>Checking your session...</Text>
-                  </VStack>
-                ) : isLoggedIn ? (
-                  <>
-                    <VStack spacing={2}>
-                      <Heading as="h2" fontSize="xl" fontWeight="600" color={textColor}>
-                        Ready to Delete Your Account?
-                      </Heading>
-                      {userEmail && (
-                        <Text color={mutedColor} fontSize="sm">
-                          Logged in as: {userEmail}
-                        </Text>
-                      )}
-                    </VStack>
-                    <Text color={textColor} textAlign="center" maxW="400px">
-                      Click the button below to permanently delete your account and all associated data.
-                    </Text>
-                    <Button
-                      size="lg"
-                      bg="#DC2626"
-                      color="white"
-                      leftIcon={<FiTrash2 />}
-                      onClick={onOpen}
-                      borderRadius="12px"
-                      height="56px"
-                      px={8}
-                      fontSize="md"
-                      fontWeight="600"
-                      _hover={{ bg: '#B91C1C' }}
-                      _active={{ bg: '#991B1B' }}
+          {/* ── Action Card ── */}
+          <section className="mb-10 border border-red-200 bg-red-50/30 rounded-none p-6">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="w-6 h-6 border-2 border-gray-300 border-t-black rounded-full animate-spin" />
+                <span className="ml-3 text-sm text-gray-500 lowercase">
+                  checking session...
+                </span>
+              </div>
+            ) : isLoggedIn ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                    <span
+                      className="material-symbols-outlined text-red-600 text-lg"
+                      style={{ fontVariationSettings: "'wght' 400" }}
                     >
-                      Delete My Account
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <VStack spacing={2}>
-                      <Heading as="h2" fontSize="xl" fontWeight="600" color={textColor}>
-                        Login Required
-                      </Heading>
-                      <Text color={mutedColor} fontSize="sm">
-                        Please login to delete your account
-                      </Text>
-                    </VStack>
-                    <Text color={textColor} textAlign="center" maxW="400px">
-                      You need to be logged in to delete your account. Please login first to proceed.
-                    </Text>
-                    <Button
-                      size="lg"
-                      bg="#1A1A1A"
-                      color="white"
-                      leftIcon={<FiLogIn />}
-                      onClick={handleLoginRedirect}
-                      borderRadius="12px"
-                      height="56px"
-                      px={8}
-                      fontSize="md"
-                      fontWeight="600"
-                      _hover={{ bg: '#374151' }}
-                      _active={{ bg: '#4B5563' }}
-                    >
-                      Login to Delete Account
-                    </Button>
-                  </>
-                )}
-              </VStack>
-            </Box>
-
-            {/* Main Content Card */}
-            <Box
-              bg={cardBg}
-              borderRadius="16px"
-              p={{ base: 6, md: 8 }}
-              boxShadow="sm"
-            >
-              <VStack spacing={6} align="stretch">
-                {/* Introduction */}
-                <Box>
-                  <Text color={textColor} lineHeight="1.7">
-                    At Hushh, we respect your privacy and your right to control your personal data.
-                    This page explains how you can request the deletion of your Hushh account and
-                    what happens to your data when you do.
-                  </Text>
-                </Box>
-
-                <Divider />
-
-                {/* How to Delete */}
-                <Box>
-                  <Heading as="h2" fontSize="xl" fontWeight="600" color={textColor} mb={4}>
-                    How to Delete Your Account
-                  </Heading>
-                  <Text color={textColor} mb={4}>
-                    You can delete your Hushh account using the button above (if logged in) or from the app:
-                  </Text>
-                  <OrderedList spacing={3} pl={4} color={textColor}>
-                    <ListItem>Open the Hushh app on your device</ListItem>
-                    <ListItem>Tap the menu icon (hamburger menu) in the top navigation</ListItem>
-                    <ListItem>Select &quot;Delete Account&quot; from the menu options</ListItem>
-                    <ListItem>Read the warning message carefully</ListItem>
-                    <ListItem>Type &quot;DELETE&quot; to confirm your decision</ListItem>
-                    <ListItem>Tap the &quot;Delete Account&quot; button to permanently delete your account</ListItem>
-                  </OrderedList>
-                </Box>
-
-                <Divider />
-
-                {/* Data That Will Be Deleted */}
-                <Box>
-                  <Heading as="h2" fontSize="xl" fontWeight="600" color={textColor} mb={4}>
-                    Data That Will Be Permanently Deleted
-                  </Heading>
-                  <Text color={textColor} mb={4}>
-                    When you delete your account, the following data will be permanently removed from our systems:
-                  </Text>
-                  <UnorderedList spacing={2} pl={4} color={textColor}>
-                    <ListItem>Your account credentials and profile information</ListItem>
-                    <ListItem>Your investor profile and preferences</ListItem>
-                    <ListItem>Your onboarding data and responses</ListItem>
-                    <ListItem>Your KYC verification data</ListItem>
-                    <ListItem>Your privacy settings and preferences</ListItem>
-                    <ListItem>Your chat history with our AI assistant</ListItem>
-                    <ListItem>Any uploaded documents or files</ListItem>
-                    <ListItem>Your data vault contents</ListItem>
-                  </UnorderedList>
-                </Box>
-
-                <Divider />
-
-                {/* Data Retention */}
-                <Box>
-                  <Heading as="h2" fontSize="xl" fontWeight="600" color={textColor} mb={4}>
-                    Data Retention Policy
-                  </Heading>
-                  <Text color={textColor} mb={4}>
-                    Upon account deletion:
-                  </Text>
-                  <UnorderedList spacing={2} pl={4} color={textColor}>
-                    <ListItem>
-                      <strong>Immediate deletion:</strong> All personal data, profile information, and user-generated content is deleted immediately upon confirmation.
-                    </ListItem>
-                    <ListItem>
-                      <strong>Backup systems:</strong> Data may persist in encrypted backup systems for up to 30 days before being permanently purged.
-                    </ListItem>
-                    <ListItem>
-                      <strong>Legal requirements:</strong> Certain transaction records may be retained for up to 7 years as required by financial regulations and tax laws.
-                    </ListItem>
-                    <ListItem>
-                      <strong>Anonymized data:</strong> Aggregated, anonymized analytics data that cannot identify you may be retained for service improvement.
-                    </ListItem>
-                  </UnorderedList>
-                </Box>
-
-                <Divider />
-
-                {/* Alternative Contact */}
-                <Box>
-                  <Heading as="h2" fontSize="xl" fontWeight="600" color={textColor} mb={4}>
-                    Need Help?
-                  </Heading>
-                  <Text color={textColor} mb={4}>
-                    If you are unable to access your account or need assistance with account deletion, you can contact us directly:
-                  </Text>
-                  <UnorderedList spacing={2} pl={4} color={textColor}>
-                    <ListItem>
-                      Email: <Link href="mailto:support@hushh.ai" color="blue.500">support@hushh.ai</Link>
-                    </ListItem>
-                    <ListItem>
-                      Email: <Link href="mailto:privacy@hushh.ai" color="blue.500">privacy@hushh.ai</Link>
-                    </ListItem>
-                  </UnorderedList>
-                  <Text color={mutedColor} fontSize="sm" mt={4}>
-                    Please include &quot;Account Deletion Request&quot; in your email subject line along with the email address associated with your account.
-                  </Text>
-                </Box>
-
-                <Divider />
-
-                {/* Important Notice */}
-                <Box
-                  bg={useColorModeValue('#FEF2F2', '#2D1B1B')}
-                  p={4}
-                  borderRadius="12px"
-                  border="1px solid"
-                  borderColor={useColorModeValue('#FECACA', '#5C2828')}
+                      warning
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900 lowercase">
+                      ready to delete?
+                    </p>
+                    {userEmail && (
+                      <p className="text-xs text-gray-500 lowercase">
+                        logged in as {userEmail}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <p className="text-sm text-gray-600 leading-relaxed lowercase">
+                  this action is permanent and cannot be undone. all your data,
+                  investment info, and services will be removed.
+                </p>
+                <button
+                  type="button"
+                  onClick={onOpen}
+                  className="w-full h-[52px] bg-red-600 text-white text-sm font-medium lowercase flex items-center justify-center gap-2 active:scale-[0.98] transition-transform hover:bg-red-700"
                 >
-                  <Text color={useColorModeValue('#DC2626', '#F87171')} fontWeight="600" mb={2}>
-                    Important Notice
-                  </Text>
-                  <Text color={textColor} fontSize="sm">
-                    Account deletion is permanent and cannot be undone. Once deleted, you will lose access to all your data, investment information, and any services associated with your Hushh account. Please make sure to export any data you wish to keep before proceeding with deletion.
-                  </Text>
-                </Box>
-              </VStack>
-            </Box>
+                  <span className="material-symbols-outlined text-lg">
+                    delete_forever
+                  </span>
+                  delete my account
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                    <span
+                      className="material-symbols-outlined text-gray-600 text-lg"
+                      style={{ fontVariationSettings: "'wght' 400" }}
+                    >
+                      lock
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900 lowercase">
+                      login required
+                    </p>
+                    <p className="text-xs text-gray-500 lowercase">
+                      please login to delete your account
+                    </p>
+                  </div>
+                </div>
+                <HushhTechCta
+                  variant={HushhTechCtaVariant.BLACK}
+                  onClick={handleLoginRedirect}
+                >
+                  login to continue
+                </HushhTechCta>
+              </div>
+            )}
+          </section>
 
-            {/* Company Info */}
-            <Box textAlign="center" py={4}>
-              <Text color={mutedColor} fontSize="sm">
-                Hushh Technologies Inc.
-              </Text>
-              <Text color={mutedColor} fontSize="sm">
-                Your Data, Your Control, Your Profit
-              </Text>
-            </Box>
-          </VStack>
-        </Container>
+          {/* ── What Gets Deleted ── */}
+          <section className="mb-10">
+            <h2
+              className="text-xl font-medium text-black tracking-tight lowercase mb-5"
+              style={{ fontFamily: "'Playfair Display', serif" }}
+            >
+              data that will be deleted
+            </h2>
+            <div className="space-y-0">
+              {[
+                { icon: "person", label: "account credentials & profile" },
+                { icon: "analytics", label: "investor profile & preferences" },
+                { icon: "checklist", label: "onboarding data & responses" },
+                { icon: "verified_user", label: "kyc verification data" },
+                { icon: "chat", label: "chat history with ai assistant" },
+                { icon: "folder", label: "uploaded documents & files" },
+                { icon: "shield", label: "privacy settings & data vault" },
+              ].map((item, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center gap-4 py-3.5 border-b border-gray-100"
+                >
+                  <span
+                    className="material-symbols-outlined text-gray-400 text-lg"
+                    style={{ fontVariationSettings: "'wght' 300" }}
+                  >
+                    {item.icon}
+                  </span>
+                  <span className="text-sm text-gray-700 lowercase font-light">
+                    {item.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
 
-        <Footer />
-      </Box>
+          {/* ── Retention Policy ── */}
+          <section className="mb-10">
+            <h2
+              className="text-xl font-medium text-black tracking-tight lowercase mb-5"
+              style={{ fontFamily: "'Playfair Display', serif" }}
+            >
+              retention policy
+            </h2>
+            <div className="space-y-4">
+              {[
+                {
+                  title: "immediate",
+                  desc: "all personal data is deleted upon confirmation",
+                },
+                {
+                  title: "30 days",
+                  desc: "encrypted backups are purged within 30 days",
+                },
+                {
+                  title: "7 years",
+                  desc: "transaction records retained per financial regulations",
+                },
+                {
+                  title: "anonymized",
+                  desc: "aggregated analytics that cannot identify you may be kept",
+                },
+              ].map((item, idx) => (
+                <div key={idx} className="flex items-start gap-4">
+                  <span className="text-[10px] uppercase tracking-widest text-gray-400 font-semibold w-20 shrink-0 pt-0.5">
+                    {item.title}
+                  </span>
+                  <p className="text-sm text-gray-600 lowercase font-light leading-relaxed">
+                    {item.desc}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* ── Need Help ── */}
+          <section className="mb-10 border-t border-gray-100 pt-8">
+            <h2
+              className="text-xl font-medium text-black tracking-tight lowercase mb-4"
+              style={{ fontFamily: "'Playfair Display', serif" }}
+            >
+              need help?
+            </h2>
+            <p className="text-sm text-gray-500 lowercase font-light leading-relaxed mb-4">
+              if you're unable to access your account, contact us directly:
+            </p>
+            <div className="space-y-2">
+              <a
+                href="mailto:support@hushh.ai"
+                className="flex items-center gap-3 py-3 border-b border-gray-100 group"
+              >
+                <span className="material-symbols-outlined text-gray-400 text-lg">
+                  mail
+                </span>
+                <span className="text-sm text-gray-700 lowercase font-light group-hover:text-black transition-colors">
+                  support@hushh.ai
+                </span>
+              </a>
+              <a
+                href="mailto:privacy@hushh.ai"
+                className="flex items-center gap-3 py-3 border-b border-gray-100 group"
+              >
+                <span className="material-symbols-outlined text-gray-400 text-lg">
+                  shield
+                </span>
+                <span className="text-sm text-gray-700 lowercase font-light group-hover:text-black transition-colors">
+                  privacy@hushh.ai
+                </span>
+              </a>
+            </div>
+          </section>
+
+          {/* ── CTAs ── */}
+          <section className="pb-12 space-y-3">
+            <HushhTechCta
+              variant={HushhTechCtaVariant.WHITE}
+              onClick={() => navigate("/")}
+            >
+              go to home
+            </HushhTechCta>
+          </section>
+
+          {/* ── Trust Badges ── */}
+          <section className="flex flex-col items-center justify-center text-center gap-2 pb-8">
+            <div className="flex items-center gap-1">
+              <span className="material-symbols-outlined text-[12px] text-gray-400">
+                lock
+              </span>
+              <span className="text-[10px] text-gray-400 tracking-wide uppercase font-medium">
+                256 bit encryption
+              </span>
+            </div>
+            <p className="text-[10px] text-gray-400 lowercase">
+              hushh technologies inc.
+            </p>
+          </section>
+        </main>
+      </div>
 
       {/* Delete Account Modal */}
       <DeleteAccountModal
