@@ -280,49 +280,47 @@ export default function CodePage() {
   const messageCount = thread.filter((m) => m.role === 'user').length;
 
   return (
-    <div className="min-h-screen min-h-[100dvh] bg-[#0d1117] text-gray-100 flex flex-col antialiased">
+    <div className="min-h-screen min-h-[100dvh] bg-[#0d1117] text-gray-100 flex flex-col antialiased overflow-x-hidden w-full">
 
       {/* ═══ Header ═══ */}
-      <header className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex justify-between items-center border-b border-gray-800/60 sticky top-0 bg-[#0d1117]/95 backdrop-blur-md z-50">
-        <Link to="/hushh-agents" className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-purple-500/20 flex items-center justify-center">
-            <img src={HushhLogo} alt="Hushh" className="w-6 h-6 object-contain" />
+      <header className="px-2 sm:px-4 md:px-6 py-2.5 sm:py-4 flex justify-between items-center border-b border-gray-800/60 sticky top-0 bg-[#0d1117]/95 backdrop-blur-md z-50">
+        <Link to="/hushh-agents" className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-purple-500/20 flex items-center justify-center shrink-0">
+            <img src={HushhLogo} alt="Hushh" className="w-5 h-5 sm:w-6 sm:h-6 object-contain" />
           </div>
-          <div>
-            <span className="font-semibold text-sm text-white">Hushh Code</span>
-            <span className="text-[9px] text-purple-400 block uppercase tracking-widest">
-              {messageCount > 0 ? `${messageCount} messages · Context Active` : 'Agentic Intelligence'}
+          <div className="min-w-0">
+            <span className="font-semibold text-[13px] sm:text-sm text-white">Hushh Code</span>
+            <span className="text-[8px] sm:text-[9px] text-purple-400 block uppercase tracking-widest truncate">
+              {messageCount > 0 ? `${messageCount} msgs · Context Active` : 'Agentic Intelligence'}
             </span>
           </div>
         </Link>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           {/* History button */}
           <button
             onClick={() => setShowHistory(!showHistory)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gray-800/60 hover:bg-gray-700/60 transition-colors text-gray-400 hover:text-white text-xs"
+            className="flex items-center gap-1 p-2 sm:px-3 sm:py-2 rounded-lg bg-gray-800/60 hover:bg-gray-700/60 transition-colors text-gray-400 hover:text-white text-xs"
             aria-label="Chat History"
             title="Past conversations"
           >
-            <span className="material-symbols-outlined text-sm">history</span>
-            <span className="hidden md:inline">History</span>
+            <span className="material-symbols-outlined text-[16px]">history</span>
           </button>
           {/* New Conversation button */}
           <button
             onClick={handleNewConversation}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gray-800/60 hover:bg-gray-700/60 transition-colors text-gray-400 hover:text-white text-xs"
+            className="flex items-center gap-1 p-2 sm:px-3 sm:py-2 rounded-lg bg-gray-800/60 hover:bg-gray-700/60 transition-colors text-gray-400 hover:text-white text-xs"
             aria-label="New Conversation"
             title="Start fresh (clears context)"
           >
-            <span className="material-symbols-outlined text-sm">add</span>
-            <span className="hidden md:inline">New</span>
+            <span className="material-symbols-outlined text-[16px]">add</span>
           </button>
           <button
             onClick={() => navigate('/hushh-agents')}
             className="p-2 rounded-lg bg-gray-800/60 hover:bg-gray-700/60 transition-colors text-gray-400 hover:text-white"
             aria-label="Back to Agents"
           >
-            <span className="material-symbols-outlined text-lg">close</span>
+            <span className="material-symbols-outlined text-[16px] sm:text-lg">close</span>
           </button>
         </div>
       </header>
@@ -395,38 +393,38 @@ export default function CodePage() {
       )}
 
       {/* ═══ Main ═══ */}
-      <main className="flex-1 flex flex-col max-w-4xl mx-auto w-full px-3 sm:px-4 md:px-6 overflow-hidden">
+      <main className="flex-1 flex flex-col w-full max-w-4xl mx-auto px-2 sm:px-4 md:px-6 overflow-hidden min-w-0">
 
         {/* Mode & Language selectors (sticky below header) */}
-        <div className="sticky top-[57px] sm:top-[65px] z-40 bg-[#0d1117]/95 backdrop-blur-md py-2 sm:py-3 space-y-2 border-b border-gray-800/30">
+        <div className="sticky top-[49px] sm:top-[65px] z-40 bg-[#0d1117]/95 backdrop-blur-md py-2 sm:py-3 space-y-2 border-b border-gray-800/30">
           {/* Mode Selector */}
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
             {MODES.map((m) => (
               <button
                 key={m.id}
                 onClick={() => setMode(m.id)}
                 className={`
-                  flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all
+                  flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-medium whitespace-nowrap transition-all shrink-0
                   ${mode === m.id
                     ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
                     : 'bg-gray-800/40 text-gray-500 border border-gray-800 hover:text-gray-300 hover:border-gray-700'
                   }
                 `}
               >
-                <span className="material-symbols-outlined text-base">{m.icon}</span>
+                <span className="material-symbols-outlined text-[14px] sm:text-base">{m.icon}</span>
                 {m.label}
               </button>
             ))}
           </div>
 
           {/* Language Selector */}
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
             {LANGUAGES.map((lang) => (
               <button
                 key={lang.id}
                 onClick={() => setLanguage(lang.id)}
                 className={`
-                  px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all
+                  px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-mono font-bold transition-all shrink-0
                   ${language === lang.id
                     ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
                     : 'bg-gray-800/40 text-gray-600 border border-gray-800 hover:text-gray-400'
@@ -469,27 +467,27 @@ export default function CodePage() {
             <div
               key={msg.id}
               className={`
-                ${msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'}
+                ${msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'} min-w-0
               `}
             >
               <div
                 className={`
-                  max-w-[90%] md:max-w-[85%] rounded-2xl
+                  max-w-full sm:max-w-[90%] md:max-w-[85%] rounded-2xl min-w-0
                   ${msg.role === 'user'
-                    ? 'bg-purple-600/20 border border-purple-500/20 px-4 py-3'
+                    ? 'bg-purple-600/20 border border-purple-500/20 px-3 sm:px-4 py-2.5 sm:py-3'
                     : 'bg-gray-900/80 border border-gray-800 overflow-hidden'
                   }
                 `}
               >
                 {/* User Message */}
                 {msg.role === 'user' && (
-                  <div>
+                  <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1.5">
-                      <span className="text-[9px] uppercase tracking-wider text-purple-400/60 font-medium">
+                      <span className="text-[8px] sm:text-[9px] uppercase tracking-wider text-purple-400/60 font-medium">
                         You · {msg.mode} · {msg.language}
                       </span>
                     </div>
-                    <pre className="text-sm text-gray-200 font-mono whitespace-pre-wrap leading-relaxed">
+                    <pre className="text-[13px] sm:text-sm text-gray-200 font-mono whitespace-pre-wrap leading-relaxed break-words overflow-hidden">
                       {msg.content}
                     </pre>
                   </div>
@@ -525,28 +523,28 @@ export default function CodePage() {
 
                     {/* Code Block */}
                     {msg.code && (
-                      <div>
-                        <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-800 bg-gray-900/50">
-                          <div className="flex items-center gap-3">
-                            <div className="flex gap-1.5">
-                              <div className="w-2.5 h-2.5 rounded-full bg-red-500/60" />
-                              <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/60" />
-                              <div className="w-2.5 h-2.5 rounded-full bg-green-500/60" />
+                      <div className="min-w-0">
+                        <div className="flex items-center justify-between px-3 sm:px-4 py-2 border-b border-gray-800 bg-gray-900/50">
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <div className="flex gap-1 sm:gap-1.5">
+                              <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-red-500/60" />
+                              <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-yellow-500/60" />
+                              <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-green-500/60" />
                             </div>
-                            <span className="text-[10px] text-gray-600 font-mono">{language}</span>
+                            <span className="text-[9px] sm:text-[10px] text-gray-600 font-mono">{language}</span>
                           </div>
                           <button
                             onClick={() => handleCopy(msg.code!, msg.id)}
-                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-800 hover:bg-gray-700 text-[10px] text-gray-400 hover:text-white transition-colors"
+                            className="flex items-center gap-1 px-2 py-1 rounded-md bg-gray-800 hover:bg-gray-700 text-[9px] sm:text-[10px] text-gray-400 hover:text-white transition-colors shrink-0"
                           >
-                            <span className="material-symbols-outlined text-xs">
+                            <span className="material-symbols-outlined text-[10px] sm:text-xs">
                               {copiedId === msg.id ? 'check' : 'content_copy'}
                             </span>
                             {copiedId === msg.id ? 'Copied!' : 'Copy'}
                           </button>
                         </div>
-                        <div className="p-4 overflow-x-auto">
-                          <pre className="text-sm font-mono text-gray-200 leading-relaxed whitespace-pre-wrap">
+                        <div className="p-3 sm:p-4 overflow-x-auto">
+                          <pre className="text-[12px] sm:text-sm font-mono text-gray-200 leading-relaxed whitespace-pre-wrap break-words">
                             {msg.code}
                           </pre>
                         </div>
@@ -555,14 +553,14 @@ export default function CodePage() {
 
                     {/* Explanation — rendered as markdown */}
                     {msg.explanation && (
-                      <div className={`px-4 py-3 ${msg.code ? 'border-t border-gray-800' : ''}`}>
+                      <div className={`px-3 sm:px-4 py-3 min-w-0 overflow-hidden ${msg.code ? 'border-t border-gray-800' : ''}`}>
                         <MarkdownRenderer content={msg.explanation} theme="dark" />
                       </div>
                     )}
 
                     {/* No code, no explanation — show raw content as markdown */}
                     {!msg.code && !msg.explanation && msg.content && (
-                      <div className="px-4 py-3">
+                      <div className="px-3 sm:px-4 py-3 min-w-0 overflow-hidden">
                         <MarkdownRenderer content={msg.content} theme="dark" />
                       </div>
                     )}
@@ -606,24 +604,24 @@ export default function CodePage() {
               onKeyDown={handleKeyDown}
               placeholder={
                 thread.length > 0
-                  ? 'Continue the conversation... (context is maintained)'
+                  ? 'Continue the conversation...'
                   : mode === 'generate' ? 'Describe what code you need...'
                   : mode === 'debug' ? 'Paste your buggy code here...'
                   : mode === 'explain' ? 'Paste code you want explained...'
                   : 'Paste code to optimize...'
               }
-              className="w-full min-h-[64px] sm:min-h-[80px] md:min-h-[100px] bg-gray-900/80 border border-gray-800 rounded-2xl p-3 sm:p-4 pr-28 sm:pr-32 text-sm font-mono text-gray-200 placeholder-gray-600 resize-none focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/20 transition-all"
-              rows={3}
+              className="w-full min-h-[56px] sm:min-h-[80px] md:min-h-[100px] bg-gray-900/80 border border-gray-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 pr-20 sm:pr-32 text-[13px] sm:text-sm font-mono text-gray-200 placeholder-gray-600 resize-none focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/20 transition-all"
+              rows={2}
             />
 
             {/* Submit */}
-            <div className="absolute bottom-3 right-3 flex items-center gap-2">
+            <div className="absolute bottom-2.5 sm:bottom-3 right-2.5 sm:right-3 flex items-center gap-2">
               <span className="text-[10px] text-gray-600 hidden md:block">⌘ Enter</span>
               <button
                 onClick={handleGenerate}
                 disabled={!prompt.trim() || isGenerating}
                 className={`
-                  flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all
+                  flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[12px] sm:text-sm font-medium transition-all
                   ${isGenerating
                     ? 'bg-purple-500/20 text-purple-400 cursor-wait'
                     : 'bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-600/20'
@@ -631,27 +629,27 @@ export default function CodePage() {
                   disabled:opacity-40 disabled:cursor-not-allowed
                 `}
               >
-                <span className="material-symbols-outlined text-base">send</span>
-                Send
+                <span className="material-symbols-outlined text-[14px] sm:text-base">send</span>
+                <span className="hidden sm:inline">Send</span>
               </button>
             </div>
           </div>
 
           {/* Context indicator */}
-          <div className="flex items-center justify-between mt-2 px-1">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-xs text-purple-400/50">
+          <div className="flex items-center justify-between mt-1.5 sm:mt-2 px-1">
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+              <span className="material-symbols-outlined text-[10px] sm:text-xs text-purple-400/50 shrink-0">
                 {thread.length > 0 ? 'link' : 'link_off'}
               </span>
-              <span className="text-[10px] text-gray-600">
+              <span className="text-[9px] sm:text-[10px] text-gray-600 truncate">
                 {thread.length > 0
-                  ? `${messageCount} messages in context`
-                  : 'No context — start a conversation'
+                  ? `${messageCount} msgs in context`
+                  : 'No context'
                 }
               </span>
             </div>
-            <span className="text-[10px] text-gray-700">
-              Hushh Intelligence · Extended Thinking
+            <span className="text-[9px] sm:text-[10px] text-gray-700 shrink-0">
+              Hushh Intelligence
             </span>
           </div>
         </div>

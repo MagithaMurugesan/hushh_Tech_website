@@ -1,4 +1,4 @@
-/**
+ /**
  * Hushh Agents — Markdown Renderer
  * 
  * Renders AI responses with proper markdown formatting.
@@ -65,7 +65,7 @@ export default function MarkdownRenderer({ content, theme = 'dark', className = 
   };
 
   return (
-    <div className={`markdown-rendered ${className}`}>
+    <div className={`markdown-rendered overflow-hidden min-w-0 w-full ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -93,7 +93,7 @@ export default function MarkdownRenderer({ content, theme = 'dark', className = 
 
           /* Paragraph */
           p: ({ children }) => (
-            <p className={`text-sm leading-relaxed ${colors.text} mb-3 last:mb-0`}>
+            <p className={`text-[13px] sm:text-sm leading-relaxed ${colors.text} mb-3 last:mb-0 break-words`}>
               {children}
             </p>
           ),
@@ -120,12 +120,12 @@ export default function MarkdownRenderer({ content, theme = 'dark', className = 
 
           /* Lists */
           ul: ({ children }) => (
-            <ul className={`list-disc list-outside ml-5 mb-3 space-y-1 ${colors.text} text-sm`}>
+            <ul className={`list-disc list-outside ml-4 sm:ml-5 mb-3 space-y-1 ${colors.text} text-[13px] sm:text-sm`}>
               {children}
             </ul>
           ),
           ol: ({ children }) => (
-            <ol className={`list-decimal list-outside ml-5 mb-3 space-y-1 ${colors.text} text-sm`}>
+            <ol className={`list-decimal list-outside ml-4 sm:ml-5 mb-3 space-y-1 ${colors.text} text-[13px] sm:text-sm`}>
               {children}
             </ol>
           ),
@@ -158,20 +158,20 @@ export default function MarkdownRenderer({ content, theme = 'dark', className = 
             // Try to extract language from child code element
             const lang = extractLanguageFromChildren(children);
             return (
-              <div className={`rounded-xl border ${colors.codeBlock} my-3 overflow-hidden`}>
+              <div className={`rounded-xl border ${colors.codeBlock} my-3 overflow-hidden min-w-0`}>
                 {/* Header bar with language + copy */}
-                <div className={`flex items-center justify-between px-4 py-2 border-b ${
+                <div className={`flex items-center justify-between px-3 sm:px-4 py-2 border-b ${
                   isDark ? 'border-gray-800 bg-gray-900/60' : 'border-gray-200 bg-gray-100/80'
                 }`}>
-                  <div className="flex items-center gap-2">
-                    <span className={`material-symbols-outlined text-xs ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>code</span>
-                    <span className={`text-[10px] font-mono uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`material-symbols-outlined text-xs shrink-0 ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>code</span>
+                    <span className={`text-[9px] sm:text-[10px] font-mono uppercase tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
                       {lang || 'code'}
                     </span>
                   </div>
                   <CopyButton text={codeText} theme={theme} />
                 </div>
-                <pre className="p-4 overflow-x-auto text-sm font-mono leading-relaxed">
+                <pre className="p-3 sm:p-4 overflow-x-auto text-[12px] sm:text-sm font-mono leading-relaxed max-w-full">
                   {children}
                 </pre>
               </div>
@@ -190,8 +190,8 @@ export default function MarkdownRenderer({ content, theme = 'dark', className = 
 
           /* Table */
           table: ({ children }) => (
-            <div className="overflow-x-auto my-3 rounded-lg">
-              <table className={`w-full text-sm border ${colors.table} border-collapse`}>
+            <div className="overflow-x-auto my-3 rounded-lg -mx-1 px-1">
+              <table className={`w-full text-[11px] sm:text-sm border ${colors.table} border-collapse`}>
                 {children}
               </table>
             </div>
