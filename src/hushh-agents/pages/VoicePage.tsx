@@ -102,10 +102,14 @@ export default function VoicePage() {
     setError(null);
 
     try {
-      // Get WebSocket URL from our API
-      const tokenRes = await fetch('/api/gemini-ephemeral-token', {
+      // Get WebSocket URL from Supabase Edge Function
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://wowsvdyzwvujfzfswqpm.supabase.co';
+      const tokenRes = await fetch(`${supabaseUrl}/functions/v1/gemini-voice-token`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
         body: JSON.stringify({ language: langParam }),
       });
 
