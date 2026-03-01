@@ -102,20 +102,35 @@ export default function VoicePage() {
     setError(null);
 
     try {
-      // Get WebSocket URL from Supabase Edge Function
+      // Get WebSocket URL - try Supabase Edge Function first, fallback to direct connection
+      let wsUrl: string;
+      
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://wowsvdyzwvujfzfswqpm.supabase.co';
-      const tokenRes = await fetch(`${supabaseUrl}/functions/v1/gemini-voice-token`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({ language: langParam }),
-      });
-
-      if (!tokenRes.ok) throw new Error('Failed to get connection');
-
-      const { wsUrl } = await tokenRes.json();
+      
+      try {
+        const tokenRes = await fetch(`${supabaseUrl}/functions/v1/gemini-voice-token`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ language: langParam }),
+        });
+        
+        if (tokenRes.ok) {
+          const data = await tokenRes.json();
+          wsUrl = data.wsUrl;
+        } else {
+          throw new Error('Edge function unavailable');
+        }
+      } catch {
+        // Fallback: Use API key from environment (for development)
+        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        if (!apiKey) {
+          throw new Error('Voice API not configured. Please contact support.');
+        }
+        wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${apiKey}`;
+      }
       
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
