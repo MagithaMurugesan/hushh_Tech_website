@@ -12,10 +12,10 @@ import { createClient } from '@supabase/supabase-js';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import AgentAvatar from '../components/AgentAvatar';
 
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL || 'https://ibsisfnjxeowvdtvgzff.supabase.co',
-  import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-);
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://ibsisfnjxeowvdtvgzff.supabase.co';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 interface AgentData {
   id: string;
@@ -124,13 +124,17 @@ const AgentChatPage: React.FC = () => {
         parts: [{ text: m.content }],
       }));
 
-      const res = await fetch('/api/gemini-agent-chat', {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/gemini-chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        },
         body: JSON.stringify({
           message: msg,
           history,
           systemInstruction: buildSystemInstruction(agent),
+          agentId: agent.id,
         }),
       });
 

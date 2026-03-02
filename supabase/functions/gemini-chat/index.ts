@@ -30,6 +30,8 @@ interface ChatRequest {
   model?: string;
   userId?: string;
   sessionId?: string;
+  systemInstruction?: string;
+  agentId?: string;
 }
 
 // Create Supabase client for logging
@@ -141,7 +143,9 @@ serve(async (req: Request) => {
       language = "en-US", 
       model = DEFAULT_MODEL,
       userId,
-      sessionId 
+      sessionId,
+      systemInstruction: customSystemInstruction,
+      agentId: customAgentId 
     }: ChatRequest = await req.json();
 
     if (!message) {
@@ -161,7 +165,8 @@ serve(async (req: Request) => {
       "ta-IN": "நீங்கள் தமிழில் பதிலளிக்க வேண்டும். அனைத்து பதில்களும் தமிழில் இருக்க வேண்டும்।",
     };
 
-    const systemInstruction = `You are Hushh, a friendly and intelligent AI assistant created by Hushh Labs. You help users with a wide variety of tasks including answering questions, creative writing, analysis, coding, and general conversation.
+    // Use custom system instruction if provided (e.g., for agent-specific chats)
+    const systemInstruction = customSystemInstruction || `You are Hushh, a friendly and intelligent AI assistant created by Hushh Labs. You help users with a wide variety of tasks including answering questions, creative writing, analysis, coding, and general conversation.
 
 Key traits:
 - Warm, professional, and approachable
@@ -173,6 +178,9 @@ Key traits:
 ${languageInstructions[language] || languageInstructions["en-US"]}
 
 Important: Never mention that you are powered by Gemini or Google. You are Hushh, created by Hushh Labs.`;
+
+    // Determine agent ID for logging
+    const effectiveAgentId = customAgentId || "hushh";
 
     // Build conversation history
     const contents = [
@@ -247,7 +255,7 @@ Important: Never mention that you are powered by Gemini or Google. You are Hushh
         "user",
         message,
         language,
-        "hushh",
+        effectiveAgentId,
         inputTokens,
         0,
         0,
@@ -261,7 +269,7 @@ Important: Never mention that you are powered by Gemini or Google. You are Hushh
         "assistant",
         responseText,
         language,
-        "hushh",
+        effectiveAgentId,
         0,
         outputTokens,
         responseTime,
