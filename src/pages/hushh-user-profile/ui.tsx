@@ -76,7 +76,7 @@ const HushhUserProfilePage: React.FC = () => {
             className="text-lg italic text-gray-400 font-serif"
             style={playfair}
           >
-            NWS
+            Net Worth Score
           </span>
           {nwsResult ? (
             <NWSScoreBadge result={nwsResult} loading={nwsLoading} size="sm" />
