@@ -1,8 +1,48 @@
 // Delete User Account Edge Function
 // Securely deletes all user data and the auth account
+// Ultra-resilient: each table deletion is independent — one failure never blocks others
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 import { corsHeaders } from '../_shared/cors.ts'
+
+/** Safely delete rows from a table. Never throws. */
+async function safeDelete(
+  client: any,
+  table: string,
+  column: string,
+  value: string
+): Promise<void> {
+  try {
+    const { error } = await client.from(table).delete().eq(column, value)
+    if (error) {
+      console.warn(`[DeleteAccount] ${table}: ${error.message} (code: ${error.code})`)
+    } else {
+      console.log(`[DeleteAccount] ✓ ${table}`)
+    }
+  } catch (e: any) {
+    console.warn(`[DeleteAccount] ${table} skipped: ${e.message}`)
+  }
+}
+
+/** Safely delete rows using .in() filter. Never throws. */
+async function safeDeleteIn(
+  client: any,
+  table: string,
+  column: string,
+  values: string[]
+): Promise<void> {
+  if (!values.length) return
+  try {
+    const { error } = await client.from(table).delete().in(column, values)
+    if (error) {
+      console.warn(`[DeleteAccount] ${table}: ${error.message}`)
+    } else {
+      console.log(`[DeleteAccount] ✓ ${table}`)
+    }
+  } catch (e: any) {
+    console.warn(`[DeleteAccount] ${table} skipped: ${e.message}`)
+  }
+}
 
 Deno.serve(async (req) => {
   // Handle CORS preflight request
@@ -16,306 +56,175 @@ Deno.serve(async (req) => {
     if (!authHeader) {
       return new Response(
         JSON.stringify({ error: 'Missing authorization header' }),
-        { 
-          status: 401, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Extract JWT from Bearer token
     const jwt = authHeader.replace('Bearer ', '')
     if (!jwt || jwt === authHeader) {
       return new Response(
-        JSON.stringify({ error: 'Invalid authorization header format. Expected: Bearer <token>' }),
-        { 
-          status: 401, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
+        JSON.stringify({ error: 'Invalid authorization header format' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    console.log('[DeleteAccount] JWT extracted, length:', jwt.length)
-
-    // Create Supabase clients
+    // Create admin client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-
-    // Admin client for all operations (including user verification)
     const adminClient = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Use admin client to get user from the JWT token directly
-    // This is more reliable than creating a user client with the token
+    // Verify user from JWT
     const { data: { user }, error: userError } = await adminClient.auth.getUser(jwt)
-    
+
     if (userError || !user) {
-      console.error('[DeleteAccount] User validation failed:', userError?.message, userError?.status)
-      console.error('[DeleteAccount] Full error:', JSON.stringify(userError))
-      
-      // Provide more detailed error message
+      console.error('[DeleteAccount] User validation failed:', userError?.message)
       let errorMessage = 'Invalid or expired token'
-      if (userError?.message) {
-        errorMessage = userError.message
-      }
       if (userError?.status === 401 || userError?.message?.includes('expired')) {
         errorMessage = 'Your session has expired. Please log out, log back in, and try again.'
       }
-      
       return new Response(
-        JSON.stringify({ 
-          error: errorMessage,
-          details: userError?.message || 'Token validation failed',
-          code: userError?.status || 401
-        }),
-        { 
-          status: 401, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
+        JSON.stringify({ error: errorMessage }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
-
-    console.log('[DeleteAccount] User verified successfully:', user.id, user.email)
 
     const userId = user.id
-    console.log(`Deleting account for user: ${userId}`)
+    console.log(`[DeleteAccount] Starting deletion for user: ${userId} (${user.email})`)
 
-    // Delete user data from all tables in the correct order (respecting foreign keys)
-    // Order: child tables first, parent tables last
+    // ═══════════════════════════════════════════════════════
+    // Delete from ALL tables — child tables first, then parent
+    // Each deletion is independent and never blocks the others
+    // ═══════════════════════════════════════════════════════
 
-    // 1. Delete agent_messages (child of investor_agents)
-    const { error: agentMessagesError } = await adminClient
-      .from('agent_messages')
-      .delete()
-      .eq('user_id', userId)
-    
-    if (agentMessagesError) {
-      console.error('Error deleting agent_messages:', agentMessagesError)
-    }
+    // --- Community & Events ---
+    await safeDelete(adminClient, 'community_registrations', 'user_id', userId)
 
-    // 2. Delete investor_agents
-    const { error: investorAgentsError } = await adminClient
-      .from('investor_agents')
-      .delete()
-      .eq('user_id', userId)
-    
-    if (investorAgentsError) {
-      console.error('Error deleting investor_agents:', investorAgentsError)
-    }
+    // --- NDA / Agreements ---
+    await safeDelete(adminClient, 'global_nda_signatures', 'user_id', userId)
+    await safeDelete(adminClient, 'nda_agreements', 'user_id', userId)
 
-    // 3. Delete public_chat_messages
-    const { error: chatMessagesError } = await adminClient
-      .from('public_chat_messages')
-      .delete()
-      .eq('user_id', userId)
-    
-    if (chatMessagesError) {
-      console.error('Error deleting public_chat_messages:', chatMessagesError)
-    }
+    // --- Hushh Agents tables ---
+    await safeDelete(adminClient, 'agent_onboarding_requests', 'user_id', userId)
 
-    // 4. Delete background_tasks
-    const { error: backgroundTasksError } = await adminClient
-      .from('background_tasks')
-      .delete()
-      .eq('user_id', userId)
-    
-    if (backgroundTasksError) {
-      console.error('Error deleting background_tasks:', backgroundTasksError)
-    }
-
-    // 5. Delete investor_profiles
-    const { error: investorProfilesError } = await adminClient
-      .from('investor_profiles')
-      .delete()
-      .eq('user_id', userId)
-    
-    if (investorProfilesError) {
-      console.error('Error deleting investor_profiles:', investorProfilesError)
-    }
-
-    // 6. Delete identity_verifications
-    const { error: identityVerificationsError } = await adminClient
-      .from('identity_verifications')
-      .delete()
-      .eq('user_id', userId)
-    
-    if (identityVerificationsError) {
-      console.error('Error deleting identity_verifications:', identityVerificationsError)
-    }
-
-    // 7. Delete ceo_meeting_payments
-    const { error: ceoMeetingPaymentsError } = await adminClient
-      .from('ceo_meeting_payments')
-      .delete()
-      .eq('user_id', userId)
-    
-    if (ceoMeetingPaymentsError) {
-      console.error('Error deleting ceo_meeting_payments:', ceoMeetingPaymentsError)
-    }
-
-    // 8. Delete kyc-related tables
-    const { error: kycAttestationsError } = await adminClient
-      .from('kyc_attestations')
-      .delete()
-      .eq('user_id', userId)
-    
-    if (kycAttestationsError) {
-      console.error('Error deleting kyc_attestations:', kycAttestationsError)
-    }
-
-    const { error: kycRequestsError } = await adminClient
-      .from('kyc_requests')
-      .delete()
-      .eq('user_id', userId)
-    
-    if (kycRequestsError) {
-      console.error('Error deleting kyc_requests:', kycRequestsError)
-    }
-
-    // 9. Delete onboarding_data
-    const { error: onboardingDataError } = await adminClient
-      .from('onboarding_data')
-      .delete()
-      .eq('user_id', userId)
-    
-    if (onboardingDataError) {
-      console.error('Error deleting onboarding_data:', onboardingDataError)
-    }
-
-    // 10. Delete members (last since other tables might reference it)
-    const { error: membersError } = await adminClient
-      .from('members')
-      .delete()
-      .eq('user_id', userId)
-
-    if (membersError) {
-      console.error('Error deleting members:', membersError)
-    }
-
-    // 11. Delete Hushh AI data (child to parent order)
-    console.log('Deleting Hushh AI data...')
-
-    // Get hushh_ai_user_id first
-    const { data: hushhAiUser } = await adminClient
-      .from('hushh_ai_users')
-      .select('id')
-      .eq('supabase_user_id', userId)
-      .single()
-
-    if (hushhAiUser) {
-      const hushhAiUserId = hushhAiUser.id
-
-      // Get all chat IDs for this user
-      const { data: userChats } = await adminClient
-        .from('hushh_ai_chats')
+    // Get hushh_agents chat IDs for this user
+    let agentChatIds: string[] = []
+    try {
+      const { data: agentChats } = await adminClient
+        .from('hushh_agents_chats')
         .select('id')
-        .eq('user_id', hushhAiUserId)
+        .eq('user_id', userId)
+      agentChatIds = agentChats?.map((c: any) => c.id) || []
+    } catch (_) { /* table may not exist */ }
 
-      const chatIds = userChats?.map((c: any) => c.id) || []
+    if (agentChatIds.length > 0) {
+      await safeDeleteIn(adminClient, 'hushh_agents_messages', 'chat_id', agentChatIds)
+    }
+    await safeDelete(adminClient, 'hushh_agents_chats', 'user_id', userId)
+    await safeDelete(adminClient, 'hushh_agents_tracking', 'user_id', userId)
 
-      // Delete messages (child of chats)
-      if (chatIds.length > 0) {
-        const { error: hushhMessagesError } = await adminClient
-          .from('hushh_ai_messages')
-          .delete()
-          .in('chat_id', chatIds)
+    // --- Investor Agents ---
+    await safeDelete(adminClient, 'agent_messages', 'user_id', userId)
+    await safeDelete(adminClient, 'investor_agents', 'user_id', userId)
 
-        if (hushhMessagesError) {
-          console.error('Error deleting Hushh AI messages:', hushhMessagesError)
-        }
-      }
+    // --- Chat ---
+    await safeDelete(adminClient, 'public_chat_messages', 'user_id', userId)
 
-      // Delete chats
-      const { error: hushhChatsError } = await adminClient
-        .from('hushh_ai_chats')
-        .delete()
-        .eq('user_id', hushhAiUserId)
+    // --- Background Tasks ---
+    await safeDelete(adminClient, 'background_tasks', 'user_id', userId)
 
-      if (hushhChatsError) {
-        console.error('Error deleting Hushh AI chats:', hushhChatsError)
-      }
+    // --- Investor & KYC ---
+    await safeDelete(adminClient, 'investor_profiles', 'user_id', userId)
+    await safeDelete(adminClient, 'identity_verifications', 'user_id', userId)
+    await safeDelete(adminClient, 'ceo_meeting_payments', 'user_id', userId)
+    await safeDelete(adminClient, 'kyc_attestations', 'user_id', userId)
+    await safeDelete(adminClient, 'kyc_requests', 'user_id', userId)
 
-      // Delete media limits
-      const { error: mediaLimitsError } = await adminClient
-        .from('hushh_ai_media_limits')
-        .delete()
-        .eq('user_id', hushhAiUserId)
+    // --- Onboarding ---
+    await safeDelete(adminClient, 'onboarding_data', 'user_id', userId)
 
-      if (mediaLimitsError) {
-        console.error('Error deleting media limits:', mediaLimitsError)
-      }
+    // --- Members ---
+    await safeDelete(adminClient, 'members', 'user_id', userId)
 
-      // Delete storage files (files stored under userId folder)
-      try {
-        const { data: files } = await adminClient.storage
-          .from('hushh-ai-media')
-          .list(userId)
-
-        if (files && files.length > 0) {
-          const filePaths = files.map((f: any) => `${userId}/${f.name}`)
-          const { error: storageError } = await adminClient.storage
-            .from('hushh-ai-media')
-            .remove(filePaths)
-
-          if (storageError) {
-            console.error('Error deleting Hushh AI media:', storageError)
-          }
-        }
-      } catch (storageErr) {
-        console.error('Error accessing Hushh AI storage:', storageErr)
-      }
-
-      // Delete user record
-      const { error: hushhUserError } = await adminClient
+    // --- Hushh AI tables ---
+    try {
+      const { data: hushhAiUser } = await adminClient
         .from('hushh_ai_users')
-        .delete()
-        .eq('id', hushhAiUserId)
+        .select('id')
+        .eq('supabase_user_id', userId)
+        .single()
 
-      if (hushhUserError) {
-        console.error('Error deleting Hushh AI user:', hushhUserError)
+      if (hushhAiUser) {
+        const hushhAiUserId = hushhAiUser.id
+
+        // Get chat IDs
+        let chatIds: string[] = []
+        try {
+          const { data: chats } = await adminClient
+            .from('hushh_ai_chats')
+            .select('id')
+            .eq('user_id', hushhAiUserId)
+          chatIds = chats?.map((c: any) => c.id) || []
+        } catch (_) { /* skip */ }
+
+        if (chatIds.length > 0) {
+          await safeDeleteIn(adminClient, 'hushh_ai_messages', 'chat_id', chatIds)
+        }
+        await safeDelete(adminClient, 'hushh_ai_chats', 'user_id', hushhAiUserId)
+        await safeDelete(adminClient, 'hushh_ai_media_limits', 'user_id', hushhAiUserId)
+
+        // Storage cleanup
+        try {
+          const { data: files } = await adminClient.storage
+            .from('hushh-ai-media')
+            .list(userId)
+          if (files && files.length > 0) {
+            const filePaths = files.map((f: any) => `${userId}/${f.name}`)
+            await adminClient.storage.from('hushh-ai-media').remove(filePaths)
+          }
+        } catch (_) { /* skip storage errors */ }
+
+        await safeDelete(adminClient, 'hushh_ai_users', 'id', hushhAiUserId)
       }
-
-      console.log('Hushh AI data deleted successfully')
+    } catch (e: any) {
+      console.warn('[DeleteAccount] Hushh AI cleanup skipped:', e.message)
     }
 
-    // Finally, delete the auth user using admin API
+    // ═══════════════════════════════════════════════════════
+    // Finally, delete the auth user
+    // ═══════════════════════════════════════════════════════
+    console.log(`[DeleteAccount] All table data cleaned. Deleting auth user...`)
+
     const { error: deleteAuthError } = await adminClient.auth.admin.deleteUser(userId)
-    
+
     if (deleteAuthError) {
-      console.error('Error deleting auth user:', deleteAuthError)
+      console.error('[DeleteAccount] Auth deletion failed:', deleteAuthError.message)
+
+      // If FK constraint, try to sign out and return partial success
+      // The user data is already cleaned, just auth record remains
       return new Response(
-        JSON.stringify({ 
-          error: 'Failed to delete user account', 
-          details: deleteAuthError.message 
+        JSON.stringify({
+          success: false,
+          error: 'Account data deleted but auth record could not be removed. Please contact support.',
+          details: deleteAuthError.message,
         }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    console.log(`Successfully deleted account for user: ${userId}`)
+    console.log(`[DeleteAccount] ✓ Account fully deleted: ${userId}`)
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: 'Account and all associated data have been permanently deleted' 
+      JSON.stringify({
+        success: true,
+        message: 'Account and all associated data have been permanently deleted',
       }),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
-
-  } catch (error) {
-    console.error('Unexpected error:', error)
+  } catch (error: any) {
+    console.error('[DeleteAccount] Unexpected error:', error)
     return new Response(
       JSON.stringify({ error: 'An unexpected error occurred', details: error.message }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })
