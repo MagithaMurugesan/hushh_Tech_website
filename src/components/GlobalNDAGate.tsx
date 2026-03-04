@@ -1,18 +1,23 @@
 /**
  * GlobalNDAGate Component
- * 
- * GLOBAL NDA ENFORCEMENT - Acts as a universal key for the entire website.
- * 
+ *
+ * GLOBAL NDA ENFORCEMENT — Acts as a universal key for the entire website.
+ *
  * How it works:
- * - If user is NOT authenticated → Allow access (they'll see public marketing pages)
- * - If user IS authenticated → Check NDA status
+ * - If user is NOT authenticated → Allow access (public marketing pages)
+ * - If user IS authenticated → Check NDA status (with sessionStorage cache)
  *   - If NDA signed → Allow access to all routes
- *   - If NDA NOT signed → Redirect to /sign-nda (only allow minimal auth routes)
- * 
- * This ensures NO authenticated user can access ANY content without signing the NDA first.
+ *   - If NDA NOT signed → Redirect to /sign-nda
+ *
+ * Performance optimizations:
+ * - NDA status cached in sessionStorage (5-minute TTL)
+ * - Single useEffect (no double-fire race condition)
+ * - Case-insensitive route matching
+ * - Only re-checks when userId changes (not on every route change)
+ * - Retry logic with graceful fallback on errors
  */
 
-import React, { useEffect, useState, ReactNode } from 'react';
+import React, { useEffect, useState, useRef, ReactNode } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Session } from '@supabase/supabase-js';
 import { Box, Spinner, VStack, Text } from '@chakra-ui/react';
@@ -23,110 +28,180 @@ interface GlobalNDAGateProps {
   session: Session | null;
 }
 
-// MINIMAL routes that bypass NDA check for authenticated users
-// These are ONLY the routes needed for authentication and NDA signing itself
+/* ── Cache helpers ── */
+const NDA_CACHE_KEY = 'hushh_nda_cache';
+const NDA_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+interface NDACache {
+  userId: string;
+  hasSignedNda: boolean;
+  timestamp: number;
+}
+
+/** Read cached NDA status. Returns null if expired or missing. */
+const getCachedNDA = (userId: string): boolean | null => {
+  try {
+    const raw = sessionStorage.getItem(NDA_CACHE_KEY);
+    if (!raw) return null;
+    const cache: NDACache = JSON.parse(raw);
+    if (cache.userId !== userId) return null;
+    if (Date.now() - cache.timestamp > NDA_CACHE_TTL) return null;
+    return cache.hasSignedNda;
+  } catch {
+    return null;
+  }
+};
+
+/** Write NDA status to cache. */
+export const setCachedNDA = (userId: string, hasSignedNda: boolean): void => {
+  try {
+    const cache: NDACache = { userId, hasSignedNda, timestamp: Date.now() };
+    sessionStorage.setItem(NDA_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    /* sessionStorage may not be available — ignore */
+  }
+};
+
+/** Clear NDA cache (e.g. on logout). */
+export const clearNDACache = (): void => {
+  try {
+    sessionStorage.removeItem(NDA_CACHE_KEY);
+  } catch {
+    /* ignore */
+  }
+};
+
+/* ── Route bypass lists (all lowercase for case-insensitive matching) ── */
 const AUTH_ROUTES = [
-  '/Login',
-  '/Signup',
+  '/login',
+  '/signup',
   '/auth/callback',
   '/sign-nda',
 ];
 
-// Public routes accessible WITHOUT authentication
-// These are marketing/info pages visible to non-logged-in users
-const UNAUTHENTICATED_PUBLIC_ROUTES = [
-  '/',
-  '/privacy-policy',
-  '/faq',
-  '/carrer-privacy-policy',
-  '/california-privacy-policy',
-  '/eu-uk-jobs-privacy-policy',
-  '/delete-account',
-  '/investor-guide',
-  '/about',
-  '/services',
-  '/career',
-  '/community',
-  '/Contact',
-  '/benefits',
-];
-
-// Check if path is an auth-related route
 const isAuthRoute = (pathname: string): boolean => {
-  return AUTH_ROUTES.some(route => 
-    pathname === route || pathname.startsWith(`${route}/`)
+  const lower = pathname.toLowerCase();
+  return AUTH_ROUTES.some(
+    (route) => lower === route || lower.startsWith(`${route}/`),
   );
 };
 
-// Check if path is a public route (for unauthenticated users)
-const isUnauthenticatedPublicRoute = (pathname: string): boolean => {
-  // Home page exact match
-  if (pathname === '/') return true;
-  
-  return UNAUTHENTICATED_PUBLIC_ROUTES.some(route => {
-    if (route === '/') return false; // Already handled above
-    return pathname === route || pathname.startsWith(`${route}/`);
-  });
-};
-
+/* ── Component ── */
 const GlobalNDAGate: React.FC<GlobalNDAGateProps> = ({ children, session }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isChecking, setIsChecking] = useState(true);
   const [hasSignedNDA, setHasSignedNDA] = useState<boolean | null>(null);
 
+  // Track the last userId we checked — avoids re-checking on every render
+  const lastCheckedUserRef = useRef<string | null>(null);
+
   useEffect(() => {
-    const checkNDA = async () => {
+    let cancelled = false;
+
+    const run = async () => {
       const pathname = location.pathname;
-      
-      // Always allow auth-related routes (login, signup, sign-nda, callback)
+
+      // 1. Always allow auth-related routes instantly
       if (isAuthRoute(pathname)) {
-        setIsChecking(false);
-        setHasSignedNDA(true);
+        if (!cancelled) {
+          setIsChecking(false);
+          setHasSignedNDA(true);
+        }
         return;
       }
 
-      // If no session (not logged in), allow access to public pages
-      if (!session?.user?.id) {
-        // Allow public marketing pages for non-authenticated users
-        setIsChecking(false);
-        setHasSignedNDA(true);
+      // 2. No session → allow public pages instantly
+      const userId = session?.user?.id;
+      if (!userId) {
+        if (!cancelled) {
+          setIsChecking(false);
+          setHasSignedNDA(true);
+        }
         return;
       }
 
-      // USER IS AUTHENTICATED - Check NDA status
+      // 3. Already checked this user and NDA is signed → allow instantly
+      if (lastCheckedUserRef.current === userId && hasSignedNDA === true) {
+        if (!cancelled) setIsChecking(false);
+        return;
+      }
+
+      // 4. Check sessionStorage cache first (instant, no network)
+      const cached = getCachedNDA(userId);
+      if (cached === true) {
+        lastCheckedUserRef.current = userId;
+        if (!cancelled) {
+          setHasSignedNDA(true);
+          setIsChecking(false);
+        }
+        return;
+      }
+
+      // 5. Fresh check needed — show spinner briefly, call RPC
+      if (!cancelled) setIsChecking(true);
+
       try {
-        const status = await checkNDAStatus(session.user.id);
+        const status = await checkNDAStatus(userId);
+
+        if (cancelled) return;
+
+        setCachedNDA(userId, status.hasSignedNda);
+        lastCheckedUserRef.current = userId;
         setHasSignedNDA(status.hasSignedNda);
-        
-        // If NDA not signed, redirect to NDA page
+
         if (!status.hasSignedNda) {
-          // Store the intended destination for redirect after signing
           sessionStorage.setItem('nda_redirect_after', pathname);
           navigate('/sign-nda', { replace: true });
         }
       } catch (error) {
-        console.error('Error checking NDA status:', error);
-        // On error, redirect to NDA page to be safe
-        sessionStorage.setItem('nda_redirect_after', pathname);
-        navigate('/sign-nda', { replace: true });
+        console.error('[GlobalNDAGate] NDA check failed:', error);
+
+        if (cancelled) return;
+
+        // Retry once before giving up
+        try {
+          const retryStatus = await checkNDAStatus(userId);
+
+          if (cancelled) return;
+
+          setCachedNDA(userId, retryStatus.hasSignedNda);
+          lastCheckedUserRef.current = userId;
+          setHasSignedNDA(retryStatus.hasSignedNda);
+
+          if (!retryStatus.hasSignedNda) {
+            sessionStorage.setItem('nda_redirect_after', pathname);
+            navigate('/sign-nda', { replace: true });
+          }
+        } catch (retryError) {
+          console.error('[GlobalNDAGate] NDA retry also failed:', retryError);
+
+          if (cancelled) return;
+
+          // If we had a previous cached result for this user, use it
+          if (cached !== null) {
+            setHasSignedNDA(cached);
+          } else {
+            // No cache, no network — redirect to NDA to be safe
+            sessionStorage.setItem('nda_redirect_after', pathname);
+            navigate('/sign-nda', { replace: true });
+          }
+        }
       } finally {
-        setIsChecking(false);
+        if (!cancelled) setIsChecking(false);
       }
     };
 
-    checkNDA();
-  }, [session, location.pathname, navigate]);
+    run();
 
-  // Re-check when session changes (user logs in/out)
-  useEffect(() => {
-    if (session?.user?.id) {
-      setIsChecking(true);
-      setHasSignedNDA(null);
-    }
-  }, [session?.user?.id]);
+    return () => {
+      cancelled = true;
+    };
+    // Only re-run when userId changes or pathname changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id, location.pathname]);
 
-  // Show loading state while checking - Apple-style black/white design
+  // Loading spinner — Apple-style
   if (isChecking) {
     return (
       <Box
@@ -152,7 +227,6 @@ const GlobalNDAGate: React.FC<GlobalNDAGateProps> = ({ children, session }) => {
     );
   }
 
-  // Render children if access is allowed
   return <>{children}</>;
 };
 

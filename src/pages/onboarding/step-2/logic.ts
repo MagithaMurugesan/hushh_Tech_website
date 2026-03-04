@@ -60,14 +60,14 @@ export const useStep2Logic = (): Step2Logic => {
   const handleContinue = async () => {
     if (!userId || !config.supabaseClient || !selectedSource) return;
     setIsLoading(true);
-    try { await upsertOnboardingData(userId, { referral_source: selectedSource, current_step: 2 }); navigate('/onboarding/step-3'); }
+    try { await upsertOnboardingData(userId, { referral_source: selectedSource, current_step: 2 }); navigate('/onboarding/step-4'); }
     catch (error) { console.error('Error:', error); }
     finally { setIsLoading(false); }
   };
 
   const handleSkip = async () => {
     if (userId) { try { await upsertOnboardingData(userId, { current_step: 2 }); } catch (e) { console.error('Error:', e); } }
-    navigate('/onboarding/step-3');
+    navigate('/onboarding/step-4');
   };
 
   const handleBack = () => navigate('/onboarding/step-1');

@@ -202,7 +202,7 @@ export function useStep9Logic() {
     navigate('/onboarding/step-11');
   };
 
-  const handleBack = () => navigate('/onboarding/step-8');
+  const handleBack = () => navigate('/onboarding/step-7');
 
   const handleShowInfoToggle = (open: boolean) => setShowInfo(open);
 

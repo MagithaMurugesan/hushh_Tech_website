@@ -1,6 +1,10 @@
 /**
  * NDA Service
- * Handles all NDA-related API calls for the global NDA gate feature
+ * Handles all NDA-related API calls for the global NDA gate feature.
+ *
+ * Performance optimizations:
+ * - IP address fetched once and reused (no duplicate ipify calls)
+ * - signNDA accepts pre-fetched IP to avoid redundant network call
  */
 
 import config from '../../resources/config/config';
@@ -24,91 +28,92 @@ export interface SignNDAResult {
 }
 
 /**
- * Check if the current user has signed the NDA
+ * Fetch client IP address (best-effort, with timeout).
+ * Returns 'unknown' if the fetch fails or takes >3s.
  */
-export const checkNDAStatus = async (userId: string): Promise<NDAStatus> => {
+export const fetchClientIP = async (): Promise<string> => {
   try {
-    if (!config.supabaseClient) {
-      console.error('Supabase client not initialized');
-      return {
-        hasSignedNda: false,
-        signedAt: null,
-        ndaVersion: null,
-        signerName: null,
-      };
-    }
-    
-    const { data, error } = await config.supabaseClient
-      .rpc('check_user_nda_status', { p_user_id: userId });
-    
-    if (error) {
-      console.error('Error checking NDA status:', error);
-      return {
-        hasSignedNda: false,
-        signedAt: null,
-        ndaVersion: null,
-        signerName: null,
-      };
-    }
-    
-    return data as NDAStatus;
-  } catch (err) {
-    console.error('Error in checkNDAStatus:', err);
-    return {
-      hasSignedNda: false,
-      signedAt: null,
-      ndaVersion: null,
-      signerName: null,
-    };
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch('https://api.ipify.org?format=json', {
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    const data = await res.json();
+    return data.ip || 'unknown';
+  } catch {
+    return 'unknown';
   }
 };
 
 /**
- * Sign the global NDA
+ * Check if the current user has signed the NDA.
+ */
+export const checkNDAStatus = async (userId: string): Promise<NDAStatus> => {
+  const fallback: NDAStatus = {
+    hasSignedNda: false,
+    signedAt: null,
+    ndaVersion: null,
+    signerName: null,
+  };
+
+  if (!config.supabaseClient) {
+    console.error('[ndaService] Supabase client not initialized');
+    return fallback;
+  }
+
+  try {
+    const { data, error } = await config.supabaseClient.rpc(
+      'check_user_nda_status',
+      { p_user_id: userId },
+    );
+
+    if (error) {
+      console.error('[ndaService] check_user_nda_status error:', error);
+      return fallback;
+    }
+
+    return data as NDAStatus;
+  } catch (err) {
+    console.error('[ndaService] checkNDAStatus exception:', err);
+    return fallback;
+  }
+};
+
+/**
+ * Sign the global NDA.
+ * Accepts an optional pre-fetched IP so the caller can avoid a duplicate fetch.
  */
 export const signNDA = async (
   signerName: string,
   ndaVersion: string = 'v1.0',
-  pdfUrl?: string
+  pdfUrl?: string,
+  prefetchedIp?: string,
 ): Promise<SignNDAResult> => {
+  if (!config.supabaseClient) {
+    console.error('[ndaService] Supabase client not initialized');
+    return { success: false, error: 'Supabase client not initialized' };
+  }
+
   try {
-    if (!config.supabaseClient) {
-      console.error('Supabase client not initialized');
-      return {
-        success: false,
-        error: 'Supabase client not initialized',
-      };
-    }
-    
-    // Get client IP for audit trail (best effort)
-    let signerIp = 'unknown';
-    try {
-      const ipResponse = await fetch('https://api.ipify.org?format=json');
-      const ipData = await ipResponse.json();
-      signerIp = ipData.ip;
-    } catch (ipErr) {
-      console.warn('Could not fetch client IP:', ipErr);
-    }
-    
-    const { data, error } = await config.supabaseClient
-      .rpc('sign_global_nda', {
-        p_signer_name: signerName,
-        p_nda_version: ndaVersion,
-        p_pdf_url: pdfUrl || null,
-        p_signer_ip: signerIp,
-      });
-    
+    // Use pre-fetched IP or fetch once
+    const signerIp = prefetchedIp || (await fetchClientIP());
+
+    const { data, error } = await config.supabaseClient.rpc('sign_global_nda', {
+      p_signer_name: signerName,
+      p_nda_version: ndaVersion,
+      p_pdf_url: pdfUrl || null,
+      p_signer_ip: signerIp,
+    });
+
     if (error) {
-      console.error('Error signing NDA:', error);
-      return {
-        success: false,
-        error: error.message,
-      };
+      console.error('[ndaService] sign_global_nda error:', error);
+      return { success: false, error: error.message };
     }
-    
+
     return data as SignNDAResult;
   } catch (err) {
-    console.error('Error in signNDA:', err);
+    console.error('[ndaService] signNDA exception:', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Unknown error',
@@ -117,11 +122,11 @@ export const signNDA = async (
 };
 
 /**
- * Generate personalized NDA PDF using Cloud Run service
+ * Generate personalized NDA PDF using Cloud Run service.
  */
 export const generateNDAPdf = async (
   metadata: Record<string, unknown>,
-  accessToken: string
+  accessToken: string,
 ): Promise<{ success: boolean; pdfUrl?: string; blob?: Blob; error?: string }> => {
   try {
     const response = await fetch(
@@ -133,27 +138,20 @@ export const generateNDAPdf = async (
           'jwt-token': accessToken,
         },
         body: JSON.stringify({ metadata }),
-      }
+      },
     );
-    
+
     if (!response.ok) {
       const errorText = await response.text();
-      return {
-        success: false,
-        error: `Failed to generate PDF: ${errorText}`,
-      };
+      return { success: false, error: `Failed to generate PDF: ${errorText}` };
     }
-    
+
     const blob = await response.blob();
     const pdfUrl = URL.createObjectURL(blob);
-    
-    return {
-      success: true,
-      pdfUrl,
-      blob,
-    };
+
+    return { success: true, pdfUrl, blob };
   } catch (err) {
-    console.error('Error generating NDA PDF:', err);
+    console.error('[ndaService] generateNDAPdf error:', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Unknown error',
@@ -162,7 +160,7 @@ export const generateNDAPdf = async (
 };
 
 /**
- * Send NDA signed notification to manish@hushh.ai and ankit@hushh.ai
+ * Send NDA signed notification to manish@hushh.ai and ankit@hushh.ai.
  */
 export const sendNDANotification = async (
   signerName: string,
@@ -172,10 +170,9 @@ export const sendNDANotification = async (
   pdfUrl?: string,
   pdfBlob?: Blob,
   userId?: string,
-  signerIp?: string
+  signerIp?: string,
 ): Promise<{ success: boolean; error?: string }> => {
   try {
-    // Prepare payload
     const payload: Record<string, unknown> = {
       signerName,
       signerEmail,
@@ -185,52 +182,44 @@ export const sendNDANotification = async (
       userId,
     };
 
-    // Include PDF URL if available
-    if (pdfUrl) {
-      payload.pdfUrl = pdfUrl;
-    }
+    if (pdfUrl) payload.pdfUrl = pdfUrl;
 
-    // Convert PDF blob to base64 if provided for attachment
+    // Convert PDF blob to base64 for attachment (if provided)
     if (pdfBlob) {
       try {
         const arrayBuffer = await pdfBlob.arrayBuffer();
         const base64 = btoa(
           new Uint8Array(arrayBuffer).reduce(
             (data, byte) => data + String.fromCharCode(byte),
-            ''
-          )
+            '',
+          ),
         );
         payload.pdfBase64 = base64;
       } catch (blobErr) {
-        console.warn('Could not convert PDF blob to base64:', blobErr);
+        console.warn('[ndaService] Could not convert PDF blob to base64:', blobErr);
       }
     }
 
-    // Call the Supabase Edge Function
     const response = await fetch(NDA_NOTIFICATION_FUNCTION_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
       },
       body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('NDA notification failed:', errorText);
-      return {
-        success: false,
-        error: `Failed to send notification: ${errorText}`,
-      };
+      console.error('[ndaService] NDA notification failed:', errorText);
+      return { success: false, error: `Failed to send notification: ${errorText}` };
     }
 
     const result = await response.json();
-    console.log('NDA notification sent successfully:', result);
-
+    console.log('[ndaService] NDA notification sent successfully:', result);
     return { success: true };
   } catch (err) {
-    console.error('Error sending NDA notification:', err);
+    console.error('[ndaService] sendNDANotification error:', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Unknown error',
@@ -239,50 +228,40 @@ export const sendNDANotification = async (
 };
 
 /**
- * Upload signed NDA PDF to Supabase Storage
+ * Upload signed NDA PDF to Supabase Storage.
  */
 export const uploadSignedNDA = async (
   userId: string,
-  pdfBlob: Blob
+  pdfBlob: Blob,
 ): Promise<{ success: boolean; url?: string; error?: string }> => {
+  if (!config.supabaseClient) {
+    console.error('[ndaService] Supabase client not initialized');
+    return { success: false, error: 'Supabase client not initialized' };
+  }
+
   try {
-    if (!config.supabaseClient) {
-      console.error('Supabase client not initialized');
-      return {
-        success: false,
-        error: 'Supabase client not initialized',
-      };
-    }
-    
     const fileName = `nda_${userId}_${Date.now()}.pdf`;
     const filePath = `signed-ndas/${fileName}`;
-    
-    const { data, error } = await config.supabaseClient.storage
+
+    const { error } = await config.supabaseClient.storage
       .from('assets')
       .upload(filePath, pdfBlob, {
         contentType: 'application/pdf',
         upsert: false,
       });
-    
+
     if (error) {
-      console.error('Error uploading NDA PDF:', error);
-      return {
-        success: false,
-        error: error.message,
-      };
+      console.error('[ndaService] Upload error:', error);
+      return { success: false, error: error.message };
     }
-    
-    // Get public URL
+
     const { data: urlData } = config.supabaseClient.storage
       .from('assets')
       .getPublicUrl(filePath);
-    
-    return {
-      success: true,
-      url: urlData.publicUrl,
-    };
+
+    return { success: true, url: urlData.publicUrl };
   } catch (err) {
-    console.error('Error in uploadSignedNDA:', err);
+    console.error('[ndaService] uploadSignedNDA exception:', err);
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Unknown error',
@@ -296,4 +275,5 @@ export default {
   generateNDAPdf,
   sendNDANotification,
   uploadSignedNDA,
+  fetchClientIP,
 };

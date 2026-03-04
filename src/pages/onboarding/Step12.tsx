@@ -420,7 +420,7 @@ function OnboardingStep12() {
                     YOUR INVESTMENT ALLOCATION
                   </h2>
                   <button 
-                    onClick={() => navigate('/onboarding/step-3')}
+                    onClick={() => navigate('/onboarding/step-4')}
                     className="text-[#2b8cee] text-sm font-semibold hover:text-blue-600 transition-colors flex items-center gap-1"
                   >
                     <EditIcon />

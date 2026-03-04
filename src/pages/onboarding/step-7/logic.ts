@@ -119,7 +119,7 @@ export function useStep7Logic() {
     });
 
     if (upsertError) { setError('Failed to save data'); setIsLoading(false); return; }
-    navigate('/onboarding/step-8');
+    navigate('/onboarding/step-9');
   };
 
   const handleBack = () => navigate('/onboarding/step-5');
@@ -133,8 +133,8 @@ export function useStep7Logic() {
         const { data: { user } } = await config.supabaseClient.auth.getUser();
         if (user) await upsertOnboardingData(user.id, { current_step: 7 });
       }
-      navigate('/onboarding/step-8');
-    } catch { navigate('/onboarding/step-8'); }
+      navigate('/onboarding/step-9');
+    } catch { navigate('/onboarding/step-9'); }
     finally { setIsLoading(false); }
   };
 

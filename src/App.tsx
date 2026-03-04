@@ -59,11 +59,10 @@ import HushhIDHeroDemo from './pages/hushhid-hero-demo';
 import FinancialLinkPage from './pages/onboarding/financial-link/ui';
 import OnboardingStep1 from './pages/onboarding/step-1/ui';
 import OnboardingStep2 from './pages/onboarding/step-2/ui';
-import OnboardingStep3 from './pages/onboarding/step-3/ui';
 import OnboardingStep4 from './pages/onboarding/step-4/ui';
 import OnboardingStep5 from './pages/onboarding/step-5/ui';
 import OnboardingStep7 from './pages/onboarding/step-7/ui';
-import OnboardingStep8 from './pages/onboarding/step-8/ui';
+// Step 8 merged into Step 4 — redirect kept for backward compatibility
 import OnboardingStep9 from './pages/onboarding/step-9/ui';
 import OnboardingStep11 from './pages/onboarding/step-11/ui';
 import OnboardingStep13 from './pages/onboarding/step-13/ui';
@@ -276,11 +275,6 @@ function App() {
                 <OnboardingStep2 />
               </ProtectedRoute>
             } />
-            <Route path="/onboarding/step-3" element={
-              <ProtectedRoute>
-                <OnboardingStep3 />
-              </ProtectedRoute>
-            } />
             <Route path="/onboarding/step-4" element={
               <ProtectedRoute>
                 <OnboardingStep4 />
@@ -301,11 +295,8 @@ function App() {
                 <OnboardingStep7 />
               </ProtectedRoute>
             } />
-            <Route path="/onboarding/step-8" element={
-              <ProtectedRoute>
-                <OnboardingStep8 />
-              </ProtectedRoute>
-            } />
+            {/* Step 8 merged into Step 4 — redirect for backward compat */}
+            <Route path="/onboarding/step-8" element={<Navigate to="/onboarding/step-9" replace />} />
             <Route path="/onboarding/step-9" element={
               <ProtectedRoute>
                 <OnboardingStep9 />

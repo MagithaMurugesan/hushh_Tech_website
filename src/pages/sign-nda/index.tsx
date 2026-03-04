@@ -1,17 +1,31 @@
 /**
- * Sign NDA Page — Aligned with onboarding step 1-8 design language.
- * Playfair Display headings, lowercase, HushhTechCta, HushhTechHeader/Footer.
- * Backend logic (auth, NDA signing, PDF gen, notification) fully preserved.
+ * Sign NDA Page — Aligned with onboarding design language.
+ * Playfair Display headings, HushhTechCta, HushhTechHeader/Footer.
+ *
+ * Performance optimizations:
+ * - Sign NDA first (fast RPC) → redirect immediately
+ * - PDF generation + upload + notification run in background (non-blocking)
+ * - IP fetched once and reused (no duplicate ipify calls)
+ * - Streamlined auth check (getSession instead of onAuthStateChange listener)
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@chakra-ui/react';
 import config from '../../resources/config/config';
-import { signNDA, sendNDANotification, generateNDAPdf, uploadSignedNDA } from '../../services/nda/ndaService';
+import {
+  signNDA,
+  sendNDANotification,
+  generateNDAPdf,
+  uploadSignedNDA,
+  fetchClientIP,
+} from '../../services/nda/ndaService';
+import { setCachedNDA } from '../../components/GlobalNDAGate';
 import HushhTechHeader from '../../components/hushh-tech-header/HushhTechHeader';
 import HushhTechFooter from '../../components/hushh-tech-footer/HushhTechFooter';
-import HushhTechCta, { HushhTechCtaVariant } from '../../components/hushh-tech-cta/HushhTechCta';
+import HushhTechCta, {
+  HushhTechCtaVariant,
+} from '../../components/hushh-tech-cta/HushhTechCta';
 
 /* NDA terms data */
 const NDA_SECTIONS = [
@@ -44,7 +58,6 @@ const NDA_SECTIONS = [
 const SignNDAPage: React.FC = () => {
   const navigate = useNavigate();
   const toast = useToast();
-  const isMountedRef = useRef(true);
 
   const [isLoading, setIsLoading] = useState(true);
   const [signerName, setSignerName] = useState('');
@@ -56,43 +69,52 @@ const SignNDAPage: React.FC = () => {
   const [nameError, setNameError] = useState('');
   const [termsError, setTermsError] = useState('');
 
-  /* Cleanup on unmount */
+  /* Auth check — uses local `cancelled` flag (StrictMode-safe) */
   useEffect(() => {
-    return () => { isMountedRef.current = false; };
-  }, []);
+    let cancelled = false;
 
-  /* Auth lifecycle: validate session + listen for changes */
-  useEffect(() => {
-    if (!config.supabaseClient) {
-      if (isMountedRef.current) setIsLoading(false);
-      return;
-    }
-
-    const {
-      data: { subscription },
-    } = config.supabaseClient.auth.onAuthStateChange(async (event, session) => {
-      if (!isMountedRef.current) return;
-
-      if (!session?.user) {
-        navigate('/login', { replace: true });
+    const initAuth = async () => {
+      if (!config.supabaseClient) {
+        if (!cancelled) setIsLoading(false);
         return;
       }
 
-      setUserId(session.user.id);
-      setUserEmail(session.user.email || null);
+      try {
+        const {
+          data: { session },
+        } = await config.supabaseClient.auth.getSession();
 
-      const fullName =
-        session.user.user_metadata?.full_name ||
-        session.user.user_metadata?.name ||
-        session.user.email?.split('@')[0] || '';
-      if (fullName && !signerName) {
-        setSignerName(fullName);
+        if (cancelled) return;
+
+        if (!session?.user) {
+          navigate('/login', { replace: true });
+          return;
+        }
+
+        setUserId(session.user.id);
+        setUserEmail(session.user.email || null);
+
+        // Pre-fill name from OAuth metadata
+        const fullName =
+          session.user.user_metadata?.full_name ||
+          session.user.user_metadata?.name ||
+          session.user.email?.split('@')[0] ||
+          '';
+        if (fullName) setSignerName(fullName);
+      } catch (err) {
+        console.error('[SignNDA] Auth check failed:', err);
+        if (!cancelled) navigate('/login', { replace: true });
+        return;
       }
 
-      setIsLoading(false);
-    });
+      if (!cancelled) setIsLoading(false);
+    };
 
-    return () => subscription?.unsubscribe();
+    initAuth();
+
+    return () => {
+      cancelled = true;
+    };
   }, [navigate]);
 
   const validateForm = useCallback((): boolean => {
@@ -119,9 +141,14 @@ const SignNDAPage: React.FC = () => {
     return isValid;
   }, [signerName, agreedToTerms]);
 
+  /**
+   * OPTIMIZED NDA SIGNING FLOW:
+   * 1. Fetch IP + Sign NDA in parallel → fast (~1s)
+   * 2. Redirect immediately after signing
+   * 3. PDF generation + upload + notification run in background
+   */
   const handleSignNDA = useCallback(async () => {
-    if (!validateForm()) return;
-    if (isSubmitting) return;
+    if (!validateForm() || isSubmitting) return;
 
     if (!config.supabaseClient || !userId) {
       toast({
@@ -138,7 +165,10 @@ const SignNDAPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      const { data: { session } } = await config.supabaseClient.auth.getSession();
+      const {
+        data: { session },
+      } = await config.supabaseClient.auth.getSession();
+
       if (!session) {
         toast({
           title: 'session expired',
@@ -151,85 +181,102 @@ const SignNDAPage: React.FC = () => {
         return;
       }
 
-      const accessToken = session.access_token;
       const trimmedName = signerName.trim();
-      let generatedPdfUrl: string | undefined;
-      let pdfBlob: Blob | undefined;
+      const accessToken = session.access_token;
 
-      /* PDF generation — non-blocking */
-      try {
-        if (accessToken) {
-          const pdfResult = await generateNDAPdf(
-            {
-              signerName: trimmedName,
-              signerEmail: userEmail || 'unknown@email.com',
-              signedAt: new Date().toISOString(),
-              ndaVersion: 'v1.0',
-              userId,
-            },
-            accessToken
-          );
+      // Step 1: Fetch IP + Sign NDA in parallel (fast path)
+      const [clientIp, signResult] = await Promise.all([
+        fetchClientIP(),
+        signNDA(trimmedName, 'v1.0', undefined, undefined),
+      ]);
 
-          if (pdfResult.success && pdfResult.blob) {
-            pdfBlob = pdfResult.blob;
-            const uploadResult = await uploadSignedNDA(userId, pdfResult.blob);
-            if (uploadResult.success && uploadResult.url) {
-              generatedPdfUrl = uploadResult.url;
+      if (!signResult.success) {
+        // If sign failed without IP, retry with IP
+        const retryResult = await signNDA(trimmedName, 'v1.0', undefined, clientIp);
+        if (!retryResult.success) {
+          toast({
+            title: 'error signing nda',
+            description: retryResult.error || 'an error occurred. please try again.',
+            status: 'error',
+            duration: 5000,
+            isClosable: true,
+          });
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      // Step 2: NDA signed! Update cache + show success + redirect immediately
+      setCachedNDA(userId, true);
+
+      toast({
+        title: 'nda signed successfully',
+        description: 'thank you for signing the non-disclosure agreement.',
+        status: 'success',
+        duration: 4000,
+        isClosable: true,
+      });
+
+      const redirectTo = sessionStorage.getItem('nda_redirect_after') || '/';
+      sessionStorage.removeItem('nda_redirect_after');
+      navigate(redirectTo, { replace: true });
+
+      // Step 3: Background tasks — PDF gen + upload + notification (non-blocking)
+      const signedAt = signResult.signedAt || new Date().toISOString();
+      const emailAddr = userEmail || 'unknown@email.com';
+
+      // Fire-and-forget background tasks
+      (async () => {
+        let generatedPdfUrl: string | undefined;
+        let pdfBlob: Blob | undefined;
+
+        try {
+          if (accessToken) {
+            const pdfResult = await generateNDAPdf(
+              {
+                signerName: trimmedName,
+                signerEmail: emailAddr,
+                signedAt,
+                ndaVersion: 'v1.0',
+                userId,
+              },
+              accessToken,
+            );
+
+            if (pdfResult.success && pdfResult.blob) {
+              pdfBlob = pdfResult.blob;
+              const uploadResult = await uploadSignedNDA(userId, pdfResult.blob);
+              if (uploadResult.success && uploadResult.url) {
+                generatedPdfUrl = uploadResult.url;
+              }
             }
           }
+        } catch (pdfError) {
+          console.warn('[SignNDA] Background PDF gen/upload failed:', pdfError);
         }
-      } catch (pdfError) {
-        console.warn('[SignNDA] PDF generation/upload failed, continuing:', pdfError);
-      }
 
-      const result = await signNDA(trimmedName, 'v1.0', generatedPdfUrl);
-
-      if (!isMountedRef.current) return;
-
-      if (result.success) {
+        // Send notification (fire-and-forget)
         sendNDANotification(
           trimmedName,
-          userEmail || 'unknown@email.com',
-          result.signedAt || new Date().toISOString(),
-          result.ndaVersion || 'v1.0',
+          emailAddr,
+          signedAt,
+          signResult.ndaVersion || 'v1.0',
           generatedPdfUrl,
           pdfBlob,
-          userId
+          userId,
+          clientIp,
         ).catch((err) => console.error('[SignNDA] Notification failed:', err));
-
-        toast({
-          title: 'nda signed successfully',
-          description: 'thank you for signing the non-disclosure agreement.',
-          status: 'success',
-          duration: 4000,
-          isClosable: true,
-        });
-
-        const redirectTo = sessionStorage.getItem('nda_redirect_after') || '/';
-        sessionStorage.removeItem('nda_redirect_after');
-        navigate(redirectTo, { replace: true });
-      } else {
-        toast({
-          title: 'error signing nda',
-          description: result.error || 'an error occurred. please try again.',
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
-      }
+      })();
     } catch (error) {
       console.error('[SignNDA] Unexpected error:', error);
-      if (isMountedRef.current) {
-        toast({
-          title: 'error',
-          description: 'an unexpected error occurred. please try again.',
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
-      }
-    } finally {
-      if (isMountedRef.current) setIsSubmitting(false);
+      toast({
+        title: 'error',
+        description: 'an unexpected error occurred. please try again.',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+      setIsSubmitting(false);
     }
   }, [validateForm, isSubmitting, userId, userEmail, signerName, navigate, toast]);
 
@@ -245,7 +292,6 @@ const SignNDAPage: React.FC = () => {
   /* ─── RENDER ─── */
   return (
     <div className="bg-white text-gray-900 min-h-screen antialiased flex flex-col selection:bg-hushh-blue selection:text-white">
-      {/* ═══ Common Header ═══ */}
       <HushhTechHeader />
 
       <main className="px-6 md:px-10 flex-grow max-w-md md:max-w-2xl lg:max-w-3xl mx-auto w-full pb-32">
@@ -263,7 +309,8 @@ const SignNDAPage: React.FC = () => {
             className="text-[2.5rem] md:text-[3rem] lg:text-[3.5rem] leading-[1.1] font-normal text-black tracking-tight font-serif"
             style={{ fontFamily: "'Playfair Display', serif" }}
           >
-            Non-Disclosure<br />
+            Non-Disclosure
+            <br />
             <span className="text-gray-400 italic font-light">Agreement</span>
           </h1>
           <p className="text-gray-500 text-sm font-light mt-3 leading-relaxed">
@@ -297,8 +344,9 @@ const SignNDAPage: React.FC = () => {
                 mutual non-disclosure agreement
               </p>
               <p className="text-sm text-gray-500 leading-relaxed">
-                This Non-Disclosure Agreement ("Agreement") is entered into between
-                Hushh Technologies LLC ("Hushh") and the undersigned party ("Recipient").
+                This Non-Disclosure Agreement (&quot;Agreement&quot;) is entered into
+                between Hushh Technologies LLC (&quot;Hushh&quot;) and the undersigned
+                party (&quot;Recipient&quot;).
               </p>
               {NDA_SECTIONS.map((section) => (
                 <div key={section.title}>
@@ -338,7 +386,9 @@ const SignNDAPage: React.FC = () => {
               />
             </div>
             {nameError && (
-              <p className="px-4 py-2 text-xs text-red-600 font-medium">{nameError}</p>
+              <p className="px-4 py-2 text-xs text-red-600 font-medium">
+                {nameError}
+              </p>
             )}
 
             {/* Agreement checkbox */}
@@ -359,12 +409,15 @@ const SignNDAPage: React.FC = () => {
                 />
                 <span className="text-xs text-gray-500 leading-relaxed">
                   I have read, understood, and agree to the terms of this Non-Disclosure
-                  Agreement. I acknowledge that this constitutes my legal electronic signature.
+                  Agreement. I acknowledge that this constitutes my legal electronic
+                  signature.
                 </span>
               </label>
             </div>
             {termsError && (
-              <p className="px-4 py-2 text-xs text-red-600 font-medium">{termsError}</p>
+              <p className="px-4 py-2 text-xs text-red-600 font-medium">
+                {termsError}
+              </p>
             )}
           </div>
 
@@ -391,7 +444,6 @@ const SignNDAPage: React.FC = () => {
             variant={HushhTechCtaVariant.BLACK}
             onClick={handleSignNDA}
             disabled={!agreedToTerms || !signerName.trim() || isSubmitting}
-            className="md:w-full"
           >
             {isSubmitting ? 'signing...' : 'sign & continue'}
           </HushhTechCta>
@@ -399,8 +451,9 @@ const SignNDAPage: React.FC = () => {
 
         {/* ── Legal Footer ── */}
         <p className="text-[11px] leading-[16px] text-gray-400 text-center font-light">
-          By signing, you agree that your digital signature has the same legal validity
-          as a handwritten signature under applicable electronic signature laws.
+          By signing, you agree that your digital signature has the same legal
+          validity as a handwritten signature under applicable electronic signature
+          laws.
         </p>
 
         {/* ── Trust Badges ── */}
@@ -416,7 +469,6 @@ const SignNDAPage: React.FC = () => {
         </section>
       </main>
 
-      {/* ═══ Common Footer with Navigation ═══ */}
       <HushhTechFooter />
     </div>
   );
