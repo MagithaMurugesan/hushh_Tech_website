@@ -79,11 +79,22 @@ const AUTH_ROUTES = [
   '/sign-nda',
 ];
 
+/** Routes that are completely separate products (own auth flow) */
+const EXCLUDED_PRODUCTS = [
+  '/hushh-agents',
+];
+
 const isAuthRoute = (pathname: string): boolean => {
   const lower = pathname.toLowerCase();
-  return AUTH_ROUTES.some(
-    (route) => lower === route || lower.startsWith(`${route}/`),
-  );
+  /* Bypass auth routes */
+  if (AUTH_ROUTES.some((route) => lower === route || lower.startsWith(`${route}/`))) {
+    return true;
+  }
+  /* Bypass separate product routes — they manage their own auth */
+  if (EXCLUDED_PRODUCTS.some((route) => lower === route || lower.startsWith(`${route}/`))) {
+    return true;
+  }
+  return false;
 };
 
 /* ── Component ── */

@@ -105,12 +105,10 @@ export function useAuth(): UseAuthReturn {
     setError(null);
 
     try {
-      // Store the intended redirect path for after OAuth
-      localStorage.setItem('hushh_agents_auth_redirect', ROUTES.HOME);
-      
-      // Use the origin + hushh-agents for redirect
-      // Note: Supabase will add auth tokens as URL fragments
-      const redirectUrl = `${window.location.origin}/hushh-agents`;
+      // Preserve the current page's ?redirectTo= so after OAuth
+      // the LoginPage can navigate to the intended destination
+      const currentSearch = window.location.search;
+      const redirectUrl = `${window.location.origin}/hushh-agents/login${currentSearch}`;
       
       console.log('[HushhAgents] OAuth redirect URL:', redirectUrl);
       
