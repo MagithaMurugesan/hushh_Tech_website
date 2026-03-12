@@ -318,7 +318,7 @@ export const getCitiesOfState = async (
   // Try to resolve the code to a name first using the states list.
   const statesForLookup = await getStatesOfCountry(countryIsoCode).catch(() => []);
   const stateMatch = statesForLookup.find(
-    s => s.isoCode === stateCode || s.name === stateCode
+    s => s && (s.isoCode === stateCode || s.name === stateCode)
   );
   const stateName = stateMatch?.name || stateCode;
   return fetchCitiesFromFallback(countryIsoCode, stateName);

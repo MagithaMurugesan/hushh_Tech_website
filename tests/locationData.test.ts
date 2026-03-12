@@ -294,9 +294,16 @@ describe('locationData - Unit Tests', () => {
     });
 
     it('should fallback to countriesnow.space when edge function fails', async () => {
+      // Flow: 1. edge cities fails → 2. getStatesOfCountry (edge states) → 3. fallback cities
       global.fetch = vi.fn()
-        .mockRejectedValueOnce(new Error('Edge function down'))
-        .mockResolvedValueOnce({
+        .mockRejectedValueOnce(new Error('Edge function down'))           // 1. edge cities
+        .mockResolvedValueOnce({                                          // 2. edge states (for name lookup)
+          ok: true,
+          json: () => Promise.resolve({
+            data: [{ isoCode: 'CA', name: 'California' }],
+          }),
+        })
+        .mockResolvedValueOnce({                                          // 3. fallback cities
           ok: true,
           json: () => Promise.resolve({
             error: false,
@@ -306,8 +313,8 @@ describe('locationData - Unit Tests', () => {
 
       const cities = await getCitiesOfState('US', 'CA');
 
-      expect(global.fetch).toHaveBeenCalledTimes(2);
-      const [fallbackUrl] = (global.fetch as any).mock.calls[1];
+      expect(global.fetch).toHaveBeenCalledTimes(3);
+      const [fallbackUrl] = (global.fetch as any).mock.calls[2];
       expect(fallbackUrl).toBe('https://countriesnow.space/api/v0.1/countries/state/cities');
       expect(cities).toHaveLength(3);
       expect(cities[0]).toEqual({ name: 'San Francisco' });
@@ -323,9 +330,16 @@ describe('locationData - Unit Tests', () => {
     });
 
     it('should filter out empty city names from fallback', async () => {
+      // Flow: 1. edge cities fails → 2. getStatesOfCountry (edge states) → 3. fallback cities
       global.fetch = vi.fn()
-        .mockRejectedValueOnce(new Error('Edge down'))
-        .mockResolvedValueOnce({
+        .mockRejectedValueOnce(new Error('Edge down'))                   // 1. edge cities
+        .mockResolvedValueOnce({                                         // 2. edge states (for name lookup)
+          ok: true,
+          json: () => Promise.resolve({
+            data: [{ isoCode: 'MH', name: 'Maharashtra' }],
+          }),
+        })
+        .mockResolvedValueOnce({                                         // 3. fallback cities
           ok: true,
           json: () => Promise.resolve({
             error: false,
