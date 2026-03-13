@@ -13,7 +13,7 @@ import { FaXTwitter } from "react-icons/fa6";
 import { SiGooglepay } from "react-icons/si";
 import { HiMail } from "react-icons/hi";
 import HushhTechBackHeader from "../../components/hushh-tech-back-header/HushhTechBackHeader";
-import { PrimaryCtaButton } from "../../components/PrimaryCtaButton";
+import HushhTechCta, { HushhTechCtaVariant } from "../../components/hushh-tech-cta/HushhTechCta";
 import { useFooterVisibility } from "../../utils/useFooterVisibility";
 import { InvestorChatWidget } from "../../components/InvestorChatWidget";
 import { fetchPublicInvestorProfileBySlug } from "../../services/investorProfile";
@@ -178,30 +178,30 @@ const PublicInvestorProfilePage: React.FC = () => {
 
   if (!profileData || error) {
     return (
-      <div className="bg-white min-h-screen flex items-center justify-center px-4" style={{ fontFamily: "'Inter', sans-serif" }}>
-        <div className="text-center max-w-sm">
-          <div className="w-20 h-20 bg-[#F3F4F6] rounded-full flex items-center justify-center mx-auto mb-6">
-            <User className="w-10 h-10 text-[#9CA3AF]" />
+      <div className="bg-white text-gray-900 min-h-screen antialiased flex flex-col selection:bg-hushh-blue selection:text-white">
+        <HushhTechBackHeader onBackClick={() => navigate('/')} rightLabel="FAQs" />
+        <main className="px-6 flex-grow max-w-md mx-auto w-full flex flex-col items-center justify-center">
+          <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-6">
+            <User className="w-8 h-8 text-gray-400" />
           </div>
-          <h1 className="text-2xl font-bold text-[#111827] mb-2">Profile Not Found</h1>
-          <p className="text-sm text-[#6B7280] mb-6">
+          <h1
+            className="text-[2rem] leading-[1.1] font-normal text-black tracking-tight text-center mb-3 font-serif"
+            style={{ fontFamily: "'Playfair Display', serif" }}
+          >
+            Profile Not Found
+          </h1>
+          <p className="text-sm text-gray-500 font-medium text-center mb-8">
             This investor profile doesn't exist, is private, or the link may be incorrect.
           </p>
-          <div className="space-y-3">
-            <button
-              onClick={() => navigate('/')}
-              className="w-full bg-[#2B8CEE] hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-xl shadow-md transition-all"
-            >
+          <div className="w-full space-y-3">
+            <HushhTechCta variant={HushhTechCtaVariant.BLACK} onClick={() => navigate('/')}>
               Go to Home
-            </button>
-            <button
-              onClick={() => navigate('/investor-profile')}
-              className="w-full bg-[#F3F4F6] hover:bg-[#E5E7EB] text-[#374151] font-semibold py-3 px-6 rounded-xl transition-all"
-            >
+            </HushhTechCta>
+            <HushhTechCta variant={HushhTechCtaVariant.WHITE} onClick={() => navigate('/investor-profile')}>
               Create Your Own Profile
-            </button>
+            </HushhTechCta>
           </div>
-        </div>
+        </main>
       </div>
     );
   }
@@ -258,167 +258,144 @@ const PublicInvestorProfilePage: React.FC = () => {
         <meta name="twitter:image" content={ogImageUrl} />
       </Helmet>
 
-      <div 
-        className="bg-white min-h-screen"
-        style={{ fontFamily: "'Inter', sans-serif" }}
-      >
+      <div className="bg-white text-gray-900 min-h-screen antialiased flex flex-col selection:bg-hushh-blue selection:text-white">
         {/* Hushh Design System Header */}
         <HushhTechBackHeader
           onBackClick={handleBack}
           rightType="hamburger"
         />
 
-        <div className="max-w-md mx-auto min-h-screen flex flex-col relative pb-24">
-
-          {/* Main Content Area */}
-          <div className="flex-1 px-5 pt-2 pb-28 space-y-6">
+        <main className="px-6 flex-grow max-w-md mx-auto w-full pb-48">
             
             {/* HOME TAB CONTENT */}
             {activeTab === 'home' && (
               <>
-                {/* Welcome Card */}
-                <div className="bg-white rounded-2xl shadow-sm border border-[#E5E7EB] overflow-hidden">
-                  <div className="h-28 w-full relative bg-gradient-to-br from-slate-800 to-blue-900">
-                    <div className="absolute inset-0 bg-gradient-to-br from-slate-800/90 to-blue-900/90" />
-                    <div className="absolute bottom-4 left-4">
-                      <span className="bg-[#2B8CEE] text-white text-[10px] font-bold px-3 py-1.5 rounded-full tracking-wide uppercase shadow-sm">
-                        🏆 Verified Investor
-                      </span>
+                {/* Welcome Section */}
+                <section className="py-8">
+                  <h3 className="text-[10px] tracking-[0.2em] text-gray-400 uppercase mb-4 font-medium">
+                    Verified Investor Profile
+                  </h3>
+                  <h1
+                    className="text-[2.75rem] leading-[1.1] font-normal text-black tracking-tight font-serif"
+                    style={{ fontFamily: "'Playfair Display', serif" }}
+                  >
+                    {maskedData.name?.split(' ')[0] || 'Investor'} <br />
+                    <span className="text-gray-400 italic font-light">Investor Profile</span>
+                  </h1>
+                </section>
+
+                {/* Profile Details */}
+                <section className="mb-8 space-y-0">
+                  <div className="py-4 border-b border-gray-200 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
+                        <User className="w-5 h-5 text-gray-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{maskedData.name}</p>
+                        <p className="text-xs text-gray-500 font-medium">Age {maskedData.age}</p>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 bg-hushh-blue/10 text-hushh-blue text-[10px] font-semibold rounded-full">
+                      Verified
+                    </span>
+                  </div>
+                  <div className="py-4 border-b border-gray-200 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-gray-600 text-xl" style={{ fontVariationSettings: "'wght' 400" }}>mail</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{maskedData.email}</p>
+                      <p className="text-xs text-gray-500 font-medium">Contact masked for privacy</p>
                     </div>
                   </div>
-                  <div className="p-5">
-                    <h2 className="text-xl font-bold mb-2 text-[#111827]">
-                      Hello, {maskedData.name?.split(' ')[0] || 'Investor'}
-                    </h2>
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      <span className="px-3 py-1.5 bg-[#F3F4F6] rounded-full text-xs font-medium text-[#6B7280]">
-                        Age {maskedData.age}
-                      </span>
-                      <span className="px-3 py-1.5 bg-[#F3F4F6] rounded-full text-xs font-medium text-[#6B7280]">
-                        {maskedData.email}
-                      </span>
-                      {maskedData.organisation && (
-                        <span className="px-3 py-1.5 bg-[#F3F4F6] rounded-full text-xs font-medium text-[#6B7280]">
-                          {maskedData.organisation}
-                        </span>
-                      )}
+                  {maskedData.organisation && (
+                    <div className="py-4 border-b border-gray-200 flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
+                        <Briefcase className="w-5 h-5 text-gray-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{maskedData.organisation}</p>
+                        <p className="text-xs text-gray-500 font-medium">Organisation</p>
+                      </div>
                     </div>
-                    <p className="text-sm text-[#6B7280]">
-                      Contact details are masked for privacy.
-                    </p>
-                  </div>
-                </div>
+                  )}
+                </section>
 
                 {/* Share Section */}
-                <section className="bg-[#2B8CEE] rounded-2xl p-5 shadow-sm">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <Share2 className="w-5 h-5 text-white" />
-                      <h3 className="text-lg font-semibold text-white">{maskedData.name}'s Profile</h3>
-                    </div>
+                <section className="mb-8">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3
+                      className="text-xl text-black font-normal font-serif"
+                      style={{ fontFamily: "'Playfair Display', serif" }}
+                    >
+                      Share Profile
+                    </h3>
                     <button
                       onClick={handleOpenProfile}
-                      className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+                      className="p-2 hover:bg-gray-100 rounded-full transition-colors"
                       aria-label="Open profile"
                     >
-                      <ExternalLink className="w-4 h-4 text-white" />
+                      <ExternalLink className="w-4 h-4 text-gray-500" />
                     </button>
                   </div>
-                  <p className="text-sm text-white/90 mb-4">
-                    Share this profile with others
-                  </p>
 
-                  {/* Profile URL Display */}
-                  <div className="bg-white rounded-xl p-3 flex items-center gap-3 mb-4">
-                    <Link className="w-5 h-5 text-[#2B8CEE] flex-shrink-0" />
-                    <span className="text-sm text-[#374151] truncate flex-1">
-                      {profileUrl}
-                    </span>
-                    <button
-                      onClick={onCopy}
-                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
-                      aria-label="Copy link"
-                    >
-                      {hasCopied ? (
-                        <Check className="w-5 h-5 text-green-500" />
-                      ) : (
-                        <Copy className="w-5 h-5 text-gray-400" />
-                      )}
+                  {/* Profile URL */}
+                  <div className="py-4 border-b border-gray-200 flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                      <Link className="w-4 h-4 text-gray-700" />
+                    </div>
+                    <span className="text-sm text-gray-700 truncate flex-1">{profileUrl}</span>
+                    <button onClick={onCopy} className="p-2 hover:bg-gray-100 rounded-full transition-colors" aria-label="Copy link">
+                      {hasCopied ? <Check className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5 text-gray-400" />}
                     </button>
                   </div>
 
                   {/* Share via Social */}
-                  <p className="text-sm text-white/90 mb-3">Share via</p>
-                  <div className="flex items-center gap-3 mb-5">
-                    <button
-                      onClick={handleShareWhatsApp}
-                      className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors"
-                      aria-label="Share on WhatsApp"
-                    >
-                      <FaWhatsapp className="w-5 h-5 text-white" />
-                    </button>
-                    <button
-                      onClick={handleShareX}
-                      className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors"
-                      aria-label="Share on X"
-                    >
-                      <FaXTwitter className="w-5 h-5 text-white" />
-                    </button>
-                    <button
-                      onClick={handleShareEmail}
-                      className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors"
-                      aria-label="Share via Email"
-                    >
-                      <HiMail className="w-5 h-5 text-white" />
-                    </button>
-                    <button
-                      onClick={handleShareLinkedIn}
-                      className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors"
-                      aria-label="Share on LinkedIn"
-                    >
-                      <FaLinkedin className="w-5 h-5 text-white" />
-                    </button>
-                    <button
-                      onClick={onCopy}
-                      className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-colors"
-                      aria-label="Copy link"
-                    >
-                      {hasCopied ? (
-                        <Check className="w-5 h-5 text-white" />
-                      ) : (
-                        <Copy className="w-5 h-5 text-white" />
-                      )}
-                    </button>
+                  <div className="py-4 border-b border-gray-200">
+                    <p className="text-xs text-gray-500 font-medium mb-3">Share via</p>
+                    <div className="flex items-center gap-3">
+                      <button onClick={handleShareWhatsApp} className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors" aria-label="WhatsApp">
+                        <FaWhatsapp className="w-5 h-5 text-gray-700" />
+                      </button>
+                      <button onClick={handleShareX} className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors" aria-label="X">
+                        <FaXTwitter className="w-5 h-5 text-gray-700" />
+                      </button>
+                      <button onClick={handleShareEmail} className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors" aria-label="Email">
+                        <HiMail className="w-5 h-5 text-gray-700" />
+                      </button>
+                      <button onClick={handleShareLinkedIn} className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-colors" aria-label="LinkedIn">
+                        <FaLinkedin className="w-5 h-5 text-gray-700" />
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Wallet Pass Buttons */}
-                  <div className="space-y-3">
-                    <button
-                      className="w-full bg-white hover:bg-gray-50 text-[#111827] font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-colors"
-                    >
-                      <FaApple className="w-5 h-5" />
-                      Add to Apple Wallet
+                  {/* Wallet Pass */}
+                  <div className="py-4 space-y-3">
+                    <button className="w-full h-14 bg-black text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
+                      <FaApple className="w-5 h-5" /> Add to Apple Wallet
                     </button>
-                    <button
-                      className="w-full bg-white hover:bg-gray-50 text-[#111827] font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-colors border border-[#E5E7EB]"
-                    >
-                      <SiGooglepay className="w-5 h-5" />
-                      Add to Google Wallet
+                    <button className="w-full h-14 bg-white text-black border border-black font-semibold text-sm flex items-center justify-center gap-2 hover:bg-gray-50 active:scale-[0.98] transition-colors">
+                      <SiGooglepay className="w-5 h-5" /> Add to Google Wallet
                     </button>
                   </div>
                 </section>
 
                 {/* AI Generated Investment Profile */}
                 {investorProfile && (
-                  <section className="bg-white rounded-2xl border border-[#E5E7EB] p-5 shadow-sm">
-                    <div className="flex items-center gap-3 mb-5">
-                      <Brain className="w-6 h-6 text-[#2B8CEE]" />
-                      <h3 className="text-lg font-semibold text-[#111827]">Investment Profile</h3>
+                  <section className="mb-8">
+                    <div className="flex items-center justify-between mb-6">
+                      <h3
+                        className="text-xl text-black font-normal font-serif"
+                        style={{ fontFamily: "'Playfair Display', serif" }}
+                      >
+                        Investment Profile
+                      </h3>
+                      <span className="px-2.5 py-1 bg-hushh-blue/10 text-hushh-blue text-[10px] font-semibold rounded-full uppercase tracking-wide">
+                        AI Analyzed
+                      </span>
                     </div>
-                    <p className="text-sm text-[#6B7280] mb-4">
-                      AI-analyzed investment preferences and insights
-                    </p>
-                    <div className="space-y-3">
+                    <div className="space-y-0">
                       {Object.entries(investorProfile).map(([fieldName, fieldData]: [string, any]) => {
                         const label = FIELD_LABELS[fieldName as keyof typeof FIELD_LABELS] || fieldName;
                         const valueText = Array.isArray(fieldData.value)
@@ -428,53 +405,41 @@ const PublicInvestorProfilePage: React.FC = () => {
                         const isExpanded = expandedFields.has(fieldName);
 
                         return (
-                          <div 
-                            key={fieldName}
-                            className="bg-[#F9FAFB] rounded-xl p-4 border border-[#E5E7EB]"
-                          >
+                          <div key={fieldName} className="py-4 border-b border-gray-200">
                             <button
                               onClick={() => toggleField(fieldName)}
-                              className="w-full flex items-start gap-3 text-left"
+                              className="w-full flex items-center gap-4 text-left"
                             >
-                              {getFieldIcon(fieldName)}
+                              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                                {getFieldIcon(fieldName)}
+                              </div>
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className="text-sm font-medium text-[#111827]">{label}</span>
-                                  <div className="flex items-center gap-2">
-                                    <span 
-                                      className="text-xs font-medium px-2 py-0.5 rounded-full"
-                                      style={{ 
-                                        backgroundColor: `${confColor}15`,
-                                        color: confColor 
-                                      }}
-                                    >
-                                      {confLabel}
-                                    </span>
-                                    {isExpanded ? (
-                                      <ChevronUp className="w-4 h-4 text-[#6B7280]" />
-                                    ) : (
-                                      <ChevronDown className="w-4 h-4 text-[#6B7280]" />
-                                    )}
-                                  </div>
-                                </div>
-                                <p className="text-sm text-[#374151]">{valueText}</p>
+                                <p className="text-sm font-semibold text-gray-900 mb-0.5">{label}</p>
+                                <p className="text-xs text-gray-500 font-medium">{valueText}</p>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span
+                                  className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                                  style={{ backgroundColor: `${confColor}15`, color: confColor }}
+                                >
+                                  {confLabel}
+                                </span>
+                                {isExpanded ? (
+                                  <ChevronUp className="w-4 h-4 text-gray-400" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                                )}
                               </div>
                             </button>
-                            
-                            {/* Expanded content with rationale */}
                             {isExpanded && fieldData.rationale && (
-                              <div className="mt-3 pt-3 border-t border-[#E5E7EB]">
-                                <p className="text-xs text-[#6B7280] italic">
-                                  💡 {fieldData.rationale}
+                              <div className="mt-3 ml-14 pl-0">
+                                <p className="text-xs text-gray-500 italic mb-2">
+                                  {fieldData.rationale}
                                 </p>
-                                {/* Confidence bar */}
-                                <div className="mt-2 h-1.5 bg-[#E5E7EB] rounded-full overflow-hidden">
-                                  <div 
-                                    className="h-full rounded-full transition-all duration-500"
-                                    style={{ 
-                                      width: `${Math.round((fieldData.confidence || 0) * 100)}%`,
-                                      backgroundColor: confColor 
-                                    }}
+                                <div className="h-0.5 bg-gray-200 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full transition-all duration-500"
+                                    style={{ width: `${Math.round((fieldData.confidence || 0) * 100)}%`, backgroundColor: confColor }}
                                   />
                                 </div>
                               </div>
@@ -633,19 +598,21 @@ const PublicInvestorProfilePage: React.FC = () => {
 
                 {/* Personal Information */}
                 {visibleOnboardingFields.length > 0 && (
-                  <section className="bg-white rounded-2xl border border-[#E5E7EB] p-5 shadow-sm">
-                    <div className="flex items-center gap-3 mb-5">
-                      <User className="w-6 h-6 text-[#2B8CEE]" />
-                      <h3 className="text-lg font-semibold text-[#111827]">Personal Information</h3>
-                    </div>
-                    <div className="space-y-3">
+                  <section className="mb-8">
+                    <h3
+                      className="text-xl text-black font-normal font-serif mb-6"
+                      style={{ fontFamily: "'Playfair Display', serif" }}
+                    >
+                      Personal Information
+                    </h3>
+                    <div className="space-y-0">
                       {visibleOnboardingFields.map((field) => (
-                        <div 
+                        <div
                           key={field.key}
-                          className="flex items-center justify-between py-3 border-b border-[#E5E7EB] last:border-b-0"
+                          className="py-4 border-b border-gray-200 flex items-center justify-between"
                         >
-                          <span className="text-sm text-[#6B7280]">{field.label}</span>
-                          <span className="text-sm font-medium text-[#111827]">{field.value}</span>
+                          <span className="text-sm text-gray-500 font-medium">{field.label}</span>
+                          <span className="text-sm font-semibold text-gray-900">{field.value}</span>
                         </div>
                       ))}
                     </div>
@@ -653,20 +620,29 @@ const PublicInvestorProfilePage: React.FC = () => {
                 )}
 
                 {/* CTA to create own profile */}
-                <section className="bg-[#F9FAFB] rounded-2xl border border-[#E5E7EB] p-5">
-                  <div className="text-center">
-                    <h3 className="text-lg font-semibold text-[#111827] mb-2">
-                      Want your own investor profile?
-                    </h3>
-                    <p className="text-sm text-[#6B7280] mb-4">
-                      Create your AI-powered investor profile in minutes
-                    </p>
-                    <PrimaryCtaButton
-                      w="full"
-                      onClick={() => navigate("/investor-profile")}
-                    >
-                      Create Your Hushh ID →
-                    </PrimaryCtaButton>
+                <section className="mb-8 space-y-3">
+                  <h3
+                    className="text-xl text-black font-normal font-serif mb-2"
+                    style={{ fontFamily: "'Playfair Display', serif" }}
+                  >
+                    Create Your Profile
+                  </h3>
+                  <p className="text-xs text-gray-500 font-medium mb-4">
+                    Get your AI-powered investor profile in minutes
+                  </p>
+                  <HushhTechCta variant={HushhTechCtaVariant.BLACK} onClick={() => navigate("/investor-profile")}>
+                    Create Your Hushh ID
+                  </HushhTechCta>
+                  <HushhTechCta variant={HushhTechCtaVariant.WHITE} onClick={() => navigate("/")}>
+                    Back to Home
+                  </HushhTechCta>
+                </section>
+
+                {/* Trust Badges */}
+                <section className="flex flex-col items-center justify-center text-center gap-2 pb-8">
+                  <div className="flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[12px] text-hushh-blue">lock</span>
+                    <span className="text-[10px] text-gray-500 tracking-wide uppercase font-medium">256 Bit Encryption</span>
                   </div>
                 </section>
               </>
@@ -679,7 +655,6 @@ const PublicInvestorProfilePage: React.FC = () => {
               </div>
             )}
 
-          </div>
 
           {/* Bottom Navigation Bar - Black */}
           <nav className="fixed bottom-0 left-0 right-0 bg-black border-t border-gray-800 z-20">
@@ -708,7 +683,7 @@ const PublicInvestorProfilePage: React.FC = () => {
               </button>
             </div>
           </nav>
-        </div>
+        </main>
       </div>
     </>
   );
