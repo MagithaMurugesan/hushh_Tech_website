@@ -169,6 +169,7 @@ function OnboardingStep13() {
   const isFooterVisible = useFooterVisibility();
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true); // Data fetch loading
+  const [autoSkipping, setAutoSkipping] = useState(false); // Plaid auto-save & skip in progress
   const [error, setError] = useState<string | null>(null);
   
   // Plaid auto-fill status message (shown as banner)
@@ -265,12 +266,13 @@ function OnboardingStep13() {
   // Fetches ACH account/routing numbers from Plaid via the user's stored access_token.
   // Validates data before auto-filling (rejects sandbox test values).
   // If multiple accounts exist, shows picker instead of blindly selecting the first.
+  // Returns: { validAccounts, institutionName } if Plaid data found, null otherwise
   const attemptPlaidAutoFill = async (
     userId: string,
     dbHasBankName: boolean,
     dbHasCountry: boolean,
-  ) => {
-    if (!config.supabaseClient) return;
+  ): Promise<{ validAccounts: PlaidAccount[]; institutionName: string } | null> => {
+    if (!config.supabaseClient) return null;
 
     try {
       // 1. Check if user has a Plaid access token from the financial link step
@@ -280,15 +282,15 @@ function OnboardingStep13() {
         .eq('user_id', userId)
         .maybeSingle();
 
-      if (!financialData?.plaid_access_token) return; // No linked bank — nothing to auto-fill
-      if (!isMountedRef.current) return;
+      if (!financialData?.plaid_access_token) return null; // No linked bank — nothing to auto-fill
+      if (!isMountedRef.current) return null;
 
       setAutoFillMessage('🔍 Auto-filling from your linked bank...');
       console.log('[Step13] Plaid access_token found, fetching auth numbers...');
 
       // 2. Fetch ACH auth numbers from Plaid via Edge Function
       const authData = await fetchAuthNumbers(financialData.plaid_access_token);
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current) return null;
 
       // Handle expired/invalid access token
       if (!authData) {
@@ -297,7 +299,7 @@ function OnboardingStep13() {
         autoFillTimeoutRef.current = setTimeout(() => {
           if (isMountedRef.current) setAutoFillMessage(null);
         }, 5000);
-        return;
+        return null;
       }
 
       const achNumbers = authData.numbers?.ach || [];
@@ -310,7 +312,7 @@ function OnboardingStep13() {
         autoFillTimeoutRef.current = setTimeout(() => {
           if (isMountedRef.current) setAutoFillMessage(null);
         }, 5000);
-        return;
+        return null;
       }
 
       // 3. Map Plaid response to our PlaidAccount format
@@ -339,7 +341,7 @@ function OnboardingStep13() {
         autoFillTimeoutRef.current = setTimeout(() => {
           if (isMountedRef.current) setAutoFillMessage(null);
         }, 6000);
-        return;
+        return null;
       }
 
       // Filter out accounts with invalid data
@@ -353,7 +355,7 @@ function OnboardingStep13() {
         autoFillTimeoutRef.current = setTimeout(() => {
           if (isMountedRef.current) setAutoFillMessage(null);
         }, 5000);
-        return;
+        return null;
       }
 
       // 5. Set accounts for picker UI
@@ -403,6 +405,9 @@ function OnboardingStep13() {
       autoFillTimeoutRef.current = setTimeout(() => {
         if (isMountedRef.current) setAutoFillMessage(null);
       }, 5000);
+
+      // Return the valid accounts so caller can decide to auto-skip
+      return { validAccounts, institutionName: financialData.institution_name || '' };
     } catch (err) {
       console.error('[Step13] Plaid auto-fill failed:', err);
       if (isMountedRef.current) {
@@ -411,6 +416,7 @@ function OnboardingStep13() {
           if (isMountedRef.current) setAutoFillMessage(null);
         }, 5000);
       }
+      return null;
     }
   };
 
@@ -470,11 +476,66 @@ function OnboardingStep13() {
         if (data.bank_address_country) { setBankCountry(data.bank_address_country); dbHasCountry = true; }
       }
 
-      // --- Plaid Auto-Fill ---
+      // --- Plaid Auto-Fill & Auto-Skip ---
       // Only attempt if user hasn't already saved bank data in a previous session
       const hasBankDataAlready = data?.bank_routing_number;
       if (!hasBankDataAlready) {
-        await attemptPlaidAutoFill(user.id, dbHasBankName, dbHasCountry);
+        const plaidResult = await attemptPlaidAutoFill(user.id, dbHasBankName, dbHasCountry);
+
+        // ─── AUTO-SKIP LOGIC ───
+        // If Plaid returned exactly 1 valid account → save it automatically & skip this page
+        // If multiple accounts → user must pick one (show the form with picker)
+        if (plaidResult && plaidResult.validAccounts.length === 1 && isMountedRef.current) {
+          const account = plaidResult.validAccounts[0];
+          const holderName = (data?.legal_first_name && data?.legal_last_name)
+            ? `${data.legal_first_name} ${data.legal_last_name}`
+            : (data?.bank_account_holder_name || '');
+
+          console.log('[Step13] ✅ Single valid Plaid account — auto-saving & skipping page');
+          setAutoSkipping(true);
+          setAutoFillMessage('✅ Saving your bank details from Plaid...');
+
+          try {
+            // Auto-save bank data to onboarding_data
+            const encryptedAccountNumber = btoa(account.achAccount);
+            const acctType = (account.subtype === 'checking' || account.subtype === 'savings')
+              ? account.subtype
+              : 'checking';
+
+            const { error: autoSaveError } = await upsertOnboardingData(user.id, {
+              bank_name: plaidResult.institutionName || 'Plaid-linked Bank',
+              bank_account_holder_name: holderName,
+              bank_account_number_encrypted: encryptedAccountNumber,
+              bank_routing_number: account.achRouting,
+              bank_address_country: 'US', // ACH = US only
+              bank_account_type: acctType,
+              banking_info_skipped: false,
+              banking_info_submitted_at: new Date().toISOString(),
+              plaid_auto_filled: true, // Flag indicating auto-filled by Plaid
+              current_step: 13,
+              is_completed: true,
+              completed_at: new Date().toISOString(),
+            });
+
+            if (autoSaveError) {
+              console.error('[Step13] Auto-save failed, showing manual form:', autoSaveError);
+              setAutoSkipping(false);
+              setAutoFillMessage('⚠️ Auto-save failed. Please enter details manually.');
+              // Fall through — user will see the manual form
+            } else {
+              // Success! Navigate to meet-ceo page, skip showing the form
+              console.log('[Step13] ✅ Bank data auto-saved via Plaid — navigating to meet-ceo');
+              navigate('/onboarding/meet-ceo');
+              return; // Exit loadData — component will unmount
+            }
+          } catch (saveErr) {
+            console.error('[Step13] Auto-save exception:', saveErr);
+            setAutoSkipping(false);
+            setAutoFillMessage('⚠️ Auto-save failed. Please enter details manually.');
+            // Fall through — show manual form
+          }
+        }
+        // If plaidResult has multiple accounts or null → show manual form (already handled)
       }
       } catch (err) {
         console.error('[Step13] Error loading data:', err);
@@ -710,8 +771,22 @@ function OnboardingStep13() {
           Provide your banking information for investment transfers securely.
         </p>
 
+        {/* ─── Auto-Skip Transition Screen ─── */}
+        {autoSkipping && (
+          <div className="flex flex-col items-center justify-center py-20 animate-pulse">
+            <div className="w-16 h-16 bg-[#F0F7FF] rounded-full flex items-center justify-center mb-6">
+              <span className="material-symbols-outlined text-[#007AFF] text-3xl">account_balance</span>
+            </div>
+            <h2 className="text-[20px] font-semibold text-black mb-2">Saving Bank Details</h2>
+            <p className="text-[15px] text-[#8E8E93] text-center max-w-xs mb-6">
+              Your bank information from Plaid is being saved automatically...
+            </p>
+            <div className="w-10 h-10 border-4 border-gray-200 border-t-[#007AFF] rounded-full animate-spin" />
+          </div>
+        )}
+
         {/* ─── Page Loading Shimmer ─── */}
-        {pageLoading && (
+        {pageLoading && !autoSkipping && (
           <div className="space-y-4 animate-pulse">
             <div className="h-[120px] bg-gray-100 rounded-xl" />
             <div className="space-y-0 rounded-[10px] overflow-hidden border border-gray-100">
@@ -727,8 +802,8 @@ function OnboardingStep13() {
           </div>
         )}
 
-        {/* ─── Form Content (hidden while loading) ─── */}
-        {!pageLoading && <>
+        {/* ─── Form Content (hidden while loading or auto-skipping) ─── */}
+        {!pageLoading && !autoSkipping && <>
           {/* Error Message */}
           {error && (
             <div className="mx-5 mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
@@ -963,7 +1038,7 @@ function OnboardingStep13() {
         </main>
 
         {/* ═══ iOS Fixed Footer ═══ */}
-        {!isFooterVisible && (
+        {!isFooterVisible && !autoSkipping && (
           <div
             className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-[#C6C6C8]/30 px-4 pt-3 z-50"
             style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}
