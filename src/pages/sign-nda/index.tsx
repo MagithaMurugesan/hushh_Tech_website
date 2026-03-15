@@ -13,6 +13,7 @@ import { signNDA, sendNDANotification, generateNDAPdf, uploadSignedNDA } from '.
 import HushhTechHeader from '../../components/hushh-tech-header/HushhTechHeader';
 import HushhTechFooter from '../../components/hushh-tech-footer/HushhTechFooter';
 import HushhTechCta, { HushhTechCtaVariant } from '../../components/hushh-tech-cta/HushhTechCta';
+import { isPrivateRelayEmail, getEffectiveEmail } from '../../utils/emailUtils';
 
 /* ── Fund documents config ── */
 const FUND_DOCUMENTS = [
@@ -88,6 +89,8 @@ const SignNDAPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [realEmail, setRealEmail] = useState('');
+  const [isRelayUser, setIsRelayUser] = useState(false);
 
   /* Track which fund documents have been acknowledged */
   const [docAcknowledged, setDocAcknowledged] = useState<Record<string, boolean>>(
@@ -100,8 +103,14 @@ const SignNDAPage: React.FC = () => {
   /* Derived: all documents acknowledged? */
   const allDocsAcknowledged = FUND_DOCUMENTS.every((d) => docAcknowledged[d.id]);
 
+  /* For relay users, require real email. For normal users, no extra check. */
+  const hasValidEmail = isRelayUser ? realEmail.trim().includes('@') && !isPrivateRelayEmail(realEmail) : true;
+
   /* Can submit? */
-  const canSubmit = agreedToTerms && allDocsAcknowledged && signerName.trim().length >= 2 && !isSubmitting;
+  const canSubmit = agreedToTerms && allDocsAcknowledged && signerName.trim().length >= 2 && hasValidEmail && !isSubmitting;
+
+  /* Effective email for NDA PDF & notifications */
+  const effectiveEmail = isRelayUser && realEmail.trim() ? realEmail.trim() : (userEmail || 'unknown@email.com');
 
   /* Cleanup on unmount */
   useEffect(() => {
@@ -127,6 +136,16 @@ const SignNDAPage: React.FC = () => {
 
       setUserId(session.user.id);
       setUserEmail(session.user.email || null);
+
+      /* Detect Apple Private Relay email */
+      const isRelay = isPrivateRelayEmail(session.user.email);
+      setIsRelayUser(isRelay);
+
+      /* Pre-fill real email from metadata if previously saved */
+      const savedRealEmail = session.user.user_metadata?.real_email as string;
+      if (savedRealEmail && isRelay) {
+        setRealEmail(savedRealEmail);
+      }
 
       const fullName =
         session.user.user_metadata?.full_name ||
@@ -232,7 +251,7 @@ const SignNDAPage: React.FC = () => {
           const pdfResult = await generateNDAPdf(
             {
               signerName: trimmedName,
-              signerEmail: userEmail || 'unknown@email.com',
+              signerEmail: effectiveEmail,
               signedAt: new Date().toISOString(),
               ndaVersion: 'v1.0',
               userId,
@@ -260,9 +279,16 @@ const SignNDAPage: React.FC = () => {
         /* Build list of acknowledged documents for notification */
         const acknowledgedDocs = FUND_DOCUMENTS.map((d) => d.fullName);
 
+        /* Save real email to user_metadata for future use (non-blocking) */
+        if (isRelayUser && realEmail.trim()) {
+          config.supabaseClient.auth.updateUser({
+            data: { real_email: realEmail.trim() },
+          }).catch((err: unknown) => console.warn('[SignNDA] Failed to save real email:', err));
+        }
+
         sendNDANotification(
           trimmedName,
-          userEmail || 'unknown@email.com',
+          effectiveEmail,
           result.signedAt || new Date().toISOString(),
           result.ndaVersion || 'v1.0',
           generatedPdfUrl,
@@ -326,7 +352,7 @@ const SignNDAPage: React.FC = () => {
       <main className="px-6 flex-grow max-w-md mx-auto w-full pb-32">
         {/* ── Icon + Title ── */}
         <section className="pt-12 pb-8 text-center">
-          <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-hushh-blue flex items-center justify-center">
+          <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-black flex items-center justify-center">
             <span
               className="material-symbols-outlined text-white text-3xl"
               style={{ fontVariationSettings: "'FILL' 1, 'wght' 500" }}
@@ -547,8 +573,36 @@ const SignNDAPage: React.FC = () => {
             )}
           </div>
 
+          {/* ── Apple Private Relay: Real email input ── */}
+          {isRelayUser && (
+            <div className="mt-4 border border-amber-200 bg-amber-50/50 rounded-xl p-4">
+              <div className="flex items-start gap-2 mb-3">
+                <span className="material-symbols-outlined text-amber-600 text-lg shrink-0 mt-0.5">mail</span>
+                <div>
+                  <p className="text-xs font-semibold text-amber-800">
+                    Apple hid your email
+                  </p>
+                  <p className="text-[11px] text-amber-600 mt-0.5 leading-relaxed">
+                    For legal NDA documents, please provide your real email address.
+                  </p>
+                </div>
+              </div>
+              <input
+                type="email"
+                value={realEmail}
+                onChange={(e) => setRealEmail(e.target.value)}
+                placeholder="your.real@email.com"
+                className="w-full px-3 py-2.5 text-sm border border-amber-200 rounded-lg bg-white outline-none focus:border-black focus:ring-1 focus:ring-black transition-colors placeholder:text-gray-400"
+                aria-label="Your real email address"
+              />
+              {realEmail && !hasValidEmail && (
+                <p className="text-[11px] text-red-500 mt-1.5">Please enter a valid, non-relay email address.</p>
+              )}
+            </div>
+          )}
+
           {/* Signing as info */}
-          {userEmail && (
+          {(userEmail || effectiveEmail) && (
             <div className="flex items-center justify-center gap-1.5 mt-3">
               <span
                 className="material-symbols-outlined text-gray-400 text-base"
@@ -558,18 +612,22 @@ const SignNDAPage: React.FC = () => {
               </span>
               <p className="text-xs text-gray-500">
                 Signing as{' '}
-                <span className="text-black font-semibold">{userEmail}</span>
+                <span className="text-black font-semibold">
+                  {isRelayUser && realEmail.trim() ? realEmail.trim() : userEmail}
+                </span>
               </p>
             </div>
           )}
         </section>
 
-        {/* ── Validation hint when not ready ── */}
-        {!canSubmit && signerName.trim().length >= 2 && (
+        {/* ── Validation hints — always visible when incomplete ── */}
+        {!canSubmit && !isSubmitting && (
           <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg">
-            <p className="text-xs text-amber-700 leading-relaxed">
-              {!allDocsAcknowledged && '⚠ Please acknowledge all fund documents above. '}
-              {!agreedToTerms && '⚠ Please agree to the NDA terms.'}
+            <p className="text-xs text-amber-700 leading-relaxed space-y-1">
+              {signerName.trim().length < 2 && <span className="block">⚠ Please enter your full legal name above.</span>}
+              {!allDocsAcknowledged && <span className="block">⚠ Please acknowledge all fund documents above.</span>}
+              {!agreedToTerms && <span className="block">⚠ Please agree to the NDA terms.</span>}
+              {isRelayUser && !hasValidEmail && <span className="block">⚠ Please enter your real email address.</span>}
             </p>
           </div>
         )}

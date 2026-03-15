@@ -8,9 +8,8 @@ import {
   Target, Clock, Gauge, Droplets, Briefcase, Layers, Zap, Activity,
   Brain, ChevronDown, ChevronUp, Search, Globe, Coffee, Heart, Users, Newspaper
 } from "lucide-react";
-import { FaApple, FaWhatsapp, FaLinkedin } from "react-icons/fa";
+import { FaApple, FaWhatsapp, FaLinkedin, FaGoogle } from "react-icons/fa";
 import { FaXTwitter } from "react-icons/fa6";
-import { SiGooglepay } from "react-icons/si";
 import { HiMail } from "react-icons/hi";
 import HushhTechBackHeader from "../../components/hushh-tech-back-header/HushhTechBackHeader";
 import HushhTechCta, { HushhTechCtaVariant } from "../../components/hushh-tech-cta/HushhTechCta";
@@ -270,6 +269,26 @@ const PublicInvestorProfilePage: React.FC = () => {
             {/* HOME TAB CONTENT */}
             {activeTab === 'home' && (
               <>
+                {/* Wallet Buttons - Top */}
+                <section className="pt-6 pb-2">
+                  <div className="flex items-center justify-center gap-4">
+                    <button
+                      className="flex items-center gap-2.5 px-6 py-3 bg-[#F5F5F5] rounded-full hover:bg-gray-200 active:scale-[0.97] transition-all"
+                      aria-label="Add to Apple Wallet"
+                    >
+                      <FaApple className="w-5 h-5 text-black" />
+                      <span className="text-sm font-medium text-black">Apple Wallet</span>
+                    </button>
+                    <button
+                      className="flex items-center gap-2.5 px-6 py-3 bg-[#F5F5F5] rounded-full hover:bg-gray-200 active:scale-[0.97] transition-all"
+                      aria-label="Add to Google Wallet"
+                    >
+                      <FaGoogle className="w-4 h-4" style={{ color: '#4285F4' }} />
+                      <span className="text-sm font-medium text-black">Google Wallet</span>
+                    </button>
+                  </div>
+                </section>
+
                 {/* Welcome Section */}
                 <section className="py-8">
                   <h3 className="text-[10px] tracking-[0.2em] text-gray-400 uppercase mb-4 font-medium">
@@ -370,15 +389,6 @@ const PublicInvestorProfilePage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Wallet Pass */}
-                  <div className="py-4 space-y-3">
-                    <button className="w-full h-14 bg-black text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
-                      <FaApple className="w-5 h-5" /> Add to Apple Wallet
-                    </button>
-                    <button className="w-full h-14 bg-white text-black border border-black font-semibold text-sm flex items-center justify-center gap-2 hover:bg-gray-50 active:scale-[0.98] transition-colors">
-                      <SiGooglepay className="w-5 h-5" /> Add to Google Wallet
-                    </button>
-                  </div>
                 </section>
 
                 {/* AI Generated Investment Profile */}

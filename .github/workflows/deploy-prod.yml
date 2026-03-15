@@ -28,7 +28,7 @@ jobs:
       # 3. Deploy pre-built dist/ to Cloud Run (runtime-only Dockerfile)
       - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy hushh-tech-prod \
+          gcloud run deploy hushh-tech-website \
             --source . \
             --project=hushh-tech-prod \
             --region=us-central1 \
