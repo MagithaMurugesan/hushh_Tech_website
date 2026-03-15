@@ -19,8 +19,6 @@ import HushhTechCta, {
 export default function OnboardingStep8() {
   const {
     addressLine1,
-    addressLine2,
-    setAddressLine2,
     zipCode,
     loading,
     isDetecting,
@@ -171,7 +169,7 @@ export default function OnboardingStep8() {
                   value={addressLine1}
                   onChange={(e) => handleAddressLine1Change(e.target.value)}
                   onBlur={() => handleBlur("addressLine1", addressLine1)}
-                  placeholder="Street address"
+                  placeholder="Street address, apt, suite, bldg"
                   className="w-full text-sm text-gray-700 font-medium bg-transparent border-none outline-none p-0 placeholder-gray-400 focus:ring-0"
                   autoComplete="address-line1"
                 />
@@ -183,8 +181,11 @@ export default function OnboardingStep8() {
               {errors.addressLine1}
             </p>
           )}
+        </section>
 
-          {/* Address Line 2 */}
+        {/* ── ZIP / Country / State / City ── */}
+        <section className="space-y-0 mb-6">
+          {/* ZIP Code — moved above Country */}
           <div className="py-5 border-b border-gray-200">
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
@@ -192,32 +193,40 @@ export default function OnboardingStep8() {
                   className="material-symbols-outlined text-gray-700 text-lg"
                   style={{ fontVariationSettings: "'wght' 400" }}
                 >
-                  apartment
+                  pin
                 </span>
               </div>
               <div className="flex-1 min-w-0">
                 <label
-                  htmlFor="addressLine2"
+                  htmlFor="zipCode"
                   className="text-sm font-semibold text-gray-900 block mb-1"
                 >
-                  Address Line 2
+                  ZIP / Postal Code
                 </label>
                 <input
-                  id="addressLine2"
+                  id="zipCode"
                   type="text"
-                  value={addressLine2}
-                  onChange={(e) => setAddressLine2(e.target.value)}
-                  placeholder="Apt, suite, bldg (optional)"
+                  value={zipCode}
+                  inputMode="text"
+                  onChange={(e) => handleZipCodeChange(e.target.value)}
+                  onBlur={() => handleBlur("zipCode", zipCode)}
+                  placeholder="e.g. 10001"
                   className="w-full text-sm text-gray-700 font-medium bg-transparent border-none outline-none p-0 placeholder-gray-400 focus:ring-0"
-                  autoComplete="address-line2"
+                  autoComplete="postal-code"
                 />
               </div>
             </div>
           </div>
-        </section>
+          {touched.zipCode && errors.zipCode ? (
+            <p className="text-xs text-red-500 pl-14 py-1">
+              {errors.zipCode}
+            </p>
+          ) : (
+            <p className="text-[10px] text-gray-400 pl-14 pt-1 pb-2 font-light">
+              Supports numeric and alphanumeric codes based on region.
+            </p>
+          )}
 
-        {/* ── Country / State / City / ZIP ── */}
-        <section className="space-y-0 mb-6">
           {/* Country */}
           <div className="border-b border-gray-200">
             <SearchableSelect
@@ -277,47 +286,6 @@ export default function OnboardingStep8() {
             />
           </div>
 
-          {/* ZIP Code */}
-          <div className="py-5 border-b border-gray-200">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-                <span
-                  className="material-symbols-outlined text-gray-700 text-lg"
-                  style={{ fontVariationSettings: "'wght' 400" }}
-                >
-                  pin
-                </span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <label
-                  htmlFor="zipCode"
-                  className="text-sm font-semibold text-gray-900 block mb-1"
-                >
-                  ZIP / Postal Code
-                </label>
-                <input
-                  id="zipCode"
-                  type="text"
-                  value={zipCode}
-                  inputMode="text"
-                  onChange={(e) => handleZipCodeChange(e.target.value)}
-                  onBlur={() => handleBlur("zipCode", zipCode)}
-                  placeholder="e.g. 10001"
-                  className="w-full text-sm text-gray-700 font-medium bg-transparent border-none outline-none p-0 placeholder-gray-400 focus:ring-0"
-                  autoComplete="postal-code"
-                />
-              </div>
-            </div>
-          </div>
-          {touched.zipCode && errors.zipCode ? (
-            <p className="text-xs text-red-500 pl-14 py-1">
-              {errors.zipCode}
-            </p>
-          ) : (
-            <p className="text-[10px] text-gray-400 pl-14 pt-1 font-light">
-              Supports numeric and alphanumeric codes based on region.
-            </p>
-          )}
         </section>
 
         {/* ── CTAs — Continue & Skip ── */}

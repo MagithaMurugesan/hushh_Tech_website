@@ -22,7 +22,7 @@ export const PROGRESS_PCT = Math.round((DISPLAY_STEP / TOTAL_STEPS) * 100);
 export const validateAddress = (v: string) => {
   if (!v.trim()) return 'Address is required';
   if (v.trim().length < 5) return 'Address is too short';
-  if (v.trim().length > 100) return 'Address is too long';
+  if (v.trim().length > 200) return 'Address is too long';
   if (!/[a-zA-Z]/.test(v)) return 'Please enter a valid address';
   return undefined;
 };
@@ -46,7 +46,6 @@ export function useStep8Logic() {
   const dropdowns = useLocationDropdowns();
 
   const [addressLine1, setAddressLine1] = useState('');
-  const [addressLine2, setAddressLine2] = useState('');
   const [zipCode, setZipCode] = useState('');
 
   const [loading, setLoading] = useState(false);
@@ -80,8 +79,8 @@ export function useStep8Logic() {
 
       if (result.data.formattedAddress) {
         const parsed = locationService.parseFormattedAddress(result.data.formattedAddress, result.data);
-        if (parsed.line1) setAddressLine1(parsed.line1);
-        if (parsed.line2) setAddressLine2(parsed.line2);
+        const combined = [parsed.line1, parsed.line2].filter(Boolean).join(', ');
+        if (combined) setAddressLine1(combined);
       }
 
       dropdowns.applyDetectedLocation(
@@ -118,8 +117,8 @@ export function useStep8Logic() {
         .maybeSingle();
 
       if (saved?.address_line_1) {
-        setAddressLine1(saved.address_line_1);
-        setAddressLine2(saved.address_line_2 || '');
+        const combined = [saved.address_line_1, saved.address_line_2].filter(Boolean).join(', ');
+        setAddressLine1(combined);
         setZipCode(saved.zip_code || '');
         const code = locationService.mapCountryToIsoCode(saved.address_country || 'US');
         dropdowns.applyDetectedLocation(code, saved.state, undefined, saved.city);
@@ -182,7 +181,7 @@ export function useStep8Logic() {
 
     const { error: saveError } = await upsertOnboardingData(user.id, {
       address_line_1: addressLine1.trim(),
-      address_line_2: addressLine2.trim() || null,
+      address_line_2: null,
       address_country: dropdowns.country,
       state: dropdowns.state,
       city: dropdowns.city,
@@ -225,8 +224,6 @@ export function useStep8Logic() {
   return {
     // State
     addressLine1,
-    addressLine2,
-    setAddressLine2,
     zipCode,
     loading,
     isDetecting,
