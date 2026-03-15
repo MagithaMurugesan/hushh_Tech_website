@@ -307,13 +307,47 @@ export const useStep13Logic = (): Step13Logic => {
     }
   }, []);
 
+  // Helper: auto-save completion and skip to meet-ceo
+  const autoCompleteAndSkip = async (
+    userId: string,
+    bankData: {
+      bankName: string;
+      holderName: string;
+      accountNum: string;
+      routingNum: string;
+      country: string;
+      city?: string;
+      acctType: string;
+    },
+  ) => {
+    console.log('[Step13] Bank data complete — auto-saving and skipping to meet-ceo');
+    const encryptedAccountNumber = btoa(bankData.accountNum);
+    await upsertOnboardingData(userId, {
+      bank_name: bankData.bankName.trim(),
+      bank_account_holder_name: bankData.holderName.trim(),
+      bank_account_number_encrypted: encryptedAccountNumber,
+      bank_routing_number: bankData.routingNum.trim(),
+      bank_address_city: bankData.city?.trim() || null,
+      bank_address_country: bankData.country,
+      bank_account_type: bankData.acctType,
+      banking_info_skipped: false,
+      banking_info_submitted_at: new Date().toISOString(),
+      current_step: 13,
+      is_completed: true,
+      completed_at: new Date().toISOString(),
+    });
+    if (isMountedRef.current) navigate('/onboarding/meet-ceo');
+  };
+
   // ─── Plaid Auto-Fill Logic ───
+  // Returns true if auto-fill succeeded with all required data (auto-skip possible)
   const attemptPlaidAutoFill = async (
     userId: string,
+    holderName: string,
     dbHasBankName: boolean,
     dbHasCountry: boolean,
-  ) => {
-    if (!config.supabaseClient) return;
+  ): Promise<boolean> => {
+    if (!config.supabaseClient) return false;
 
     try {
       const { data: financialData } = await config.supabaseClient
@@ -322,14 +356,14 @@ export const useStep13Logic = (): Step13Logic => {
         .eq('user_id', userId)
         .maybeSingle();
 
-      if (!financialData?.plaid_access_token) return;
-      if (!isMountedRef.current) return;
+      if (!financialData?.plaid_access_token) return false;
+      if (!isMountedRef.current) return false;
 
       setAutoFillMessage('🔍 Auto-filling from your linked bank...');
       console.log('[Step13] Plaid access_token found, fetching auth numbers...');
 
       const authData = await fetchAuthNumbers(financialData.plaid_access_token);
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current) return false;
 
       if (!authData) {
         console.warn('[Step13] Plaid returned no auth data — token may be expired');
@@ -337,7 +371,7 @@ export const useStep13Logic = (): Step13Logic => {
         autoFillTimeoutRef.current = setTimeout(() => {
           if (isMountedRef.current) setAutoFillMessage(null);
         }, 5000);
-        return;
+        return false;
       }
 
       const achNumbers = authData.numbers?.ach || [];
@@ -349,7 +383,7 @@ export const useStep13Logic = (): Step13Logic => {
         autoFillTimeoutRef.current = setTimeout(() => {
           if (isMountedRef.current) setAutoFillMessage(null);
         }, 5000);
-        return;
+        return false;
       }
 
       const mappedAccounts: PlaidAccount[] = achNumbers.map((ach: any) => {
@@ -376,7 +410,7 @@ export const useStep13Logic = (): Step13Logic => {
         autoFillTimeoutRef.current = setTimeout(() => {
           if (isMountedRef.current) setAutoFillMessage(null);
         }, 6000);
-        return;
+        return false;
       }
 
       const validAccounts = mappedAccounts.filter(
@@ -389,16 +423,35 @@ export const useStep13Logic = (): Step13Logic => {
         autoFillTimeoutRef.current = setTimeout(() => {
           if (isMountedRef.current) setAutoFillMessage(null);
         }, 5000);
-        return;
+        return false;
       }
 
       setPlaidAccounts(validAccounts);
       if (financialData.institution_name) setPlaidInstitutionName(financialData.institution_name);
 
+      // If exactly 1 valid account AND we have institution name → auto-complete & skip
       if (validAccounts.length === 1) {
         const account = validAccounts[0];
-        setSelectedAccountIdx(0);
+        const resolvedBankName = financialData.institution_name || '';
+        const resolvedCountry = dbHasCountry ? bankCountry : 'US';
+        const resolvedSubtype = (account.subtype === 'checking' || account.subtype === 'savings')
+          ? account.subtype : 'checking';
 
+        // If we have all required data → auto-save and skip entirely
+        if (resolvedBankName && account.achAccount && account.achRouting && holderName) {
+          await autoCompleteAndSkip(userId, {
+            bankName: resolvedBankName,
+            holderName,
+            accountNum: account.achAccount,
+            routingNum: account.achRouting,
+            country: resolvedCountry,
+            acctType: resolvedSubtype,
+          });
+          return true;
+        }
+
+        // Otherwise fill form fields for manual completion
+        setSelectedAccountIdx(0);
         if (!userModifiedFields.current.has('accountNumber')) {
           setAccountNumber(account.achAccount);
           setConfirmAccountNumber(account.achAccount);
@@ -407,10 +460,8 @@ export const useStep13Logic = (): Step13Logic => {
           setRoutingNumber(account.achRouting);
         }
         if (!userModifiedFields.current.has('accountType')) {
-          const subtype = account.subtype as 'checking' | 'savings';
-          if (subtype === 'checking' || subtype === 'savings') setAccountType(subtype);
+          if (resolvedSubtype === 'checking' || resolvedSubtype === 'savings') setAccountType(resolvedSubtype);
         }
-
         setAutoFillMessage('✅ Bank details auto-filled from Plaid');
       } else {
         setSelectedAccountIdx(-1);
@@ -432,6 +483,8 @@ export const useStep13Logic = (): Step13Logic => {
       autoFillTimeoutRef.current = setTimeout(() => {
         if (isMountedRef.current) setAutoFillMessage(null);
       }, 5000);
+
+      return false;
     } catch (err) {
       console.error('[Step13] Plaid auto-fill failed:', err);
       if (isMountedRef.current) {
@@ -440,6 +493,7 @@ export const useStep13Logic = (): Step13Logic => {
           if (isMountedRef.current) setAutoFillMessage(null);
         }, 5000);
       }
+      return false;
     }
   };
 
@@ -497,9 +551,28 @@ export const useStep13Logic = (): Step13Logic => {
           if (data.bank_address_country) { setBankCountry(data.bank_address_country); dbHasCountry = true; }
         }
 
-        const hasBankDataAlready = data?.bank_routing_number;
-        if (!hasBankDataAlready) {
-          await attemptPlaidAutoFill(user.id, dbHasBankName, dbHasCountry);
+        // Derive account holder name for auto-skip
+        const resolvedHolderName = accountHolderName
+          || (data?.bank_account_holder_name)
+          || (data?.legal_first_name && data?.legal_last_name
+              ? `${data.legal_first_name} ${data.legal_last_name}` : '');
+
+        // If DB already has all bank data → auto-skip to meet-ceo
+        if (data?.bank_routing_number && data?.bank_name && data?.bank_account_holder_name) {
+          console.log('[Step13] All bank data already in DB — skipping to meet-ceo');
+          await upsertOnboardingData(user.id, {
+            current_step: 13,
+            is_completed: true,
+            completed_at: new Date().toISOString(),
+          });
+          if (isMountedRef.current) navigate('/onboarding/meet-ceo');
+          return;
+        }
+
+        // If no bank data → try Plaid auto-fill
+        if (!data?.bank_routing_number) {
+          const skipped = await attemptPlaidAutoFill(user.id, resolvedHolderName, dbHasBankName, dbHasCountry);
+          if (skipped) return; // Already navigated to meet-ceo
         }
       } catch (err) {
         console.error('[Step13] Error loading data:', err);
