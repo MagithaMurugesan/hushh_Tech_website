@@ -39,4 +39,5 @@ jobs:
             --min-instances=1 \
             --max-instances=10 \
             --port=8080 \
+            --clear-base-image \
             --quiet
