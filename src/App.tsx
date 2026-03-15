@@ -57,7 +57,7 @@ import HushhIDHeroDemo from './pages/hushhid-hero-demo';
 import FinancialLinkPage from './pages/onboarding/financial-link/ui';
 import OnboardingStep1 from './pages/onboarding/step-1/ui';
 import OnboardingStep2 from './pages/onboarding/step-2/ui';
-import OnboardingStep3 from './pages/onboarding/step-3/ui';
+// Step 3 removed (was interstitial filler) — route redirects to step-4
 import OnboardingStep4 from './pages/onboarding/step-4/ui';
 import OnboardingStep5 from './pages/onboarding/step-5/ui';
 import OnboardingStep7 from './pages/onboarding/step-7/ui';
@@ -278,10 +278,9 @@ function App() {
               </ProtectedRoute>
             } />
             <Route path="/onboarding/step-3" element={
-              <ProtectedRoute>
-                <OnboardingStep3 />
-              </ProtectedRoute>
+              <Navigate to="/onboarding/step-4" replace />
             } />
+            {/* Step 3 removed — was interstitial "Let's continue" filler */}
             <Route path="/onboarding/step-4" element={
               <ProtectedRoute>
                 <OnboardingStep4 />
