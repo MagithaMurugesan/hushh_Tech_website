@@ -39,16 +39,14 @@ const inlineInput = "text-right text-sm font-medium bg-transparent border-none f
 /* ── Page ── */
 const HushhUserProfilePage: React.FC = () => {
   const {
-    form, investorProfile, loading, loadingSeconds, isProcessing, investorStatus, shadowStatus,
+    form, investorProfile, loading, loadingSeconds, isProcessing, investorStatus,
     hasOnboardingData, isApplePassLoading, isGooglePassLoading, nwsResult, nwsLoading,
     hasCopied, onCopy, profileUrl, navigate,
     handleChange, handleBack, handleSave,
-    handleRetryShadow,
     isDirty, isSaving, handleSaveChanges,
     handleAppleWalletPass, handleGoogleWalletPass, COUNTRIES,
     editingField, setEditingField, FIELD_OPTIONS, MULTI_SELECT_FIELDS,
     handleUpdateAIField, handleMultiSelectToggle, getConfidenceLabel, getConfidenceBadgeClass,
-    shadowProfile, shadowLoading, shadowErrorMessage, shadowConfidenceLabel, shadowLifestyleTags, shadowBrandTags, shadowKnownForTags,
   } = useHushhUserProfileLogic();
 
   const firstName = form.name?.split(" ")[0] || "Investor";
@@ -119,16 +117,6 @@ const HushhUserProfilePage: React.FC = () => {
                    investorStatus === 'done' ? 'Ready ✓' : investorStatus === 'error' ? 'Failed' : '—'}
                 </span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500">Shadow Profile</span>
-                <span className={`text-[10px] uppercase tracking-widest font-medium ${
-                  shadowStatus === 'running' ? 'text-gray-400' :
-                  shadowStatus === 'done' ? 'text-ios-green' : 'text-red-500'
-                }`}>
-                  {shadowStatus === 'running' ? 'Analyzing...' :
-                   shadowStatus === 'done' ? 'Ready ✓' : shadowStatus === 'error' ? 'Failed' : '—'}
-                </span>
-              </div>
             </div>
           </section>
         )}
@@ -156,35 +144,6 @@ const HushhUserProfilePage: React.FC = () => {
             <span className="material-symbols-outlined text-lg">auto_awesome</span>
           </HushhTechCta>
         </section>
-
-        {shadowStatus === 'error' && (
-          <section className="mb-10 rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
-            <div className="flex items-center justify-between gap-3 mb-2">
-              <span className="text-[10px] uppercase tracking-[0.2em] text-amber-700 font-medium">
-                Shadow Profile Needs Attention
-              </span>
-              <span className="text-[10px] uppercase tracking-[0.14em] text-amber-700/80 font-medium">
-                {shadowProfile ? 'Showing Saved Data' : 'Not Generated'}
-              </span>
-            </div>
-            <p className="text-sm text-amber-900 leading-relaxed">
-              {shadowErrorMessage || 'Shadow profile generation failed. Please try again.'}
-            </p>
-            {shadowProfile && (
-              <p className="text-xs text-amber-800/80 mt-2">
-                Your previous shadow profile is still visible below while you retry.
-              </p>
-            )}
-            <button
-              type="button"
-              onClick={handleRetryShadow}
-              disabled={shadowLoading || shadowStatus === 'running'}
-              className="mt-4 inline-flex items-center justify-center rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-medium tracking-[0.14em] uppercase text-amber-900 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {shadowLoading ? 'Retrying…' : 'Retry Shadow Analysis'}
-            </button>
-          </section>
-        )}
 
         {/* ── AI-Generated Investment Profile ── */}
         {investorProfile && Object.keys(investorProfile).length > 0 && (
@@ -281,85 +240,6 @@ const HushhUserProfilePage: React.FC = () => {
                   </div>
                 );
               })}
-            </div>
-          </section>
-        )}
-
-        {/* ── Deep Profile Intelligence ── */}
-        {shadowProfile && (
-          <section className="mb-12">
-            <div className="mb-8">
-              <h2 className="text-2xl font-medium text-black tracking-tight mb-2 font-serif" style={playfair}>
-                Deep{" "}
-                <span className="text-gray-400 italic font-light">Intelligence.</span>
-              </h2>
-              <p className="text-gray-500 text-xs leading-relaxed">
-                Insights gathered by our Shadow Investigator AI.
-              </p>
-            </div>
-
-            <div className="py-1">
-              <SectionLabel>Identity</SectionLabel>
-              {shadowProfile.occupation && (
-                <FieldRow label="Occupation">
-                  <span className="text-sm font-medium text-black">{shadowProfile.occupation}</span>
-                </FieldRow>
-              )}
-              {shadowProfile.nationality && (
-                <FieldRow label="Nationality">
-                  <span className="text-sm font-medium text-black">{shadowProfile.nationality}</span>
-                </FieldRow>
-              )}
-              {shadowProfile.netWorthScore > 0 && (
-                <FieldRow label="Wealth Score">
-                  <span className="text-sm font-medium text-black">{shadowProfile.netWorthScore}/100</span>
-                </FieldRow>
-              )}
-            </div>
-
-            {/* Lifestyle */}
-            {shadowLifestyleTags.length > 0 && (
-              <div className="py-4">
-                <SectionLabel>Lifestyle</SectionLabel>
-                <div className="flex flex-wrap gap-2">
-                  {shadowLifestyleTags.map((tag, i) => (
-                    <span key={i} className="text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-700 bg-gray-50">{tag}</span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Brands */}
-            {shadowBrandTags.length > 0 && (
-              <div className="py-4">
-                <SectionLabel>Brands</SectionLabel>
-                <div className="flex flex-wrap gap-2">
-                  {shadowBrandTags.map((brand, i) => (
-                    <span key={i} className="text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-700 bg-gray-50">{brand}</span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Known For */}
-            {shadowKnownForTags.length > 0 && (
-              <div className="py-4">
-                <SectionLabel>Known For</SectionLabel>
-                {shadowKnownForTags.map((item, i) => (
-                  <FieldRow key={i} label={`#${i + 1}`}>
-                    <span className="text-sm font-medium text-black">{item}</span>
-                  </FieldRow>
-                ))}
-              </div>
-            )}
-
-            {/* Confidence */}
-            <div className="border-t border-gray-100 mt-2 pt-4 flex items-center justify-between">
-              <span className="text-sm text-gray-500 font-light">AI Confidence</span>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-gray-200 bg-gray-50">
-                <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
-                <span className="text-[10px] tracking-[0.14em] uppercase text-gray-500 font-medium">{shadowConfidenceLabel}</span>
-              </span>
             </div>
           </section>
         )}

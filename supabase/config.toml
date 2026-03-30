@@ -22,9 +22,6 @@ port = 54323
 [functions.generate-investor-profile]
 verify_jwt = true
 
-[functions.shadow-investigator]
-verify_jwt = false
-
 # Auth Configuration - Fix redirect to hushhtech.com
 [auth]
 enabled = true

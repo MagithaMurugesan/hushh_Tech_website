@@ -19,7 +19,7 @@ import { fetchPublicInvestorProfileBySlug } from "../../services/investorProfile
 import { maskProfileData, maskOnboardingField } from "../../utils/maskSensitiveData";
 import { InvestorProfile, FIELD_LABELS, VALUE_LABELS, ONBOARDING_FIELD_LABELS } from "../../types/investorProfile";
 import { OnboardingData } from "../../types/onboarding";
-import { ShadowProfile } from "../../services/shadowInvestigator";
+import type { ShadowProfile } from "../../types/shadowProfile";
 
 type TabType = 'home' | 'chat';
 

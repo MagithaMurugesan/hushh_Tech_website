@@ -11,17 +11,10 @@ import { generateInvestorProfile } from '../../services/investorProfile/apiClien
 import { downloadHushhGoldPass, launchGoogleWalletPass } from '../../services/walletPass';
 import { InvestorProfile, FIELD_LABELS, VALUE_LABELS } from '../../types/investorProfile';
 import { calculateNWSFromDB, NWSResult } from '../../services/networkScore/calculateNWS';
-import {
-  invokeShadowInvestigator,
-  formatPhoneContact,
-  ShadowProfile,
-  SHADOW_FIELD_LABELS,
-  type ShadowInvestigatorParams,
-} from '../../services/shadowInvestigator';
 
 // Re-export types for UI
-export type { InvestorProfile, NWSResult, ShadowProfile };
-export { FIELD_LABELS, VALUE_LABELS, SHADOW_FIELD_LABELS, formatPhoneContact };
+export type { InvestorProfile, NWSResult };
+export { FIELD_LABELS, VALUE_LABELS };
 
 // Complete country list matching Step 6 onboarding - using full country names
 const COUNTRIES = [
@@ -115,8 +108,7 @@ export const useHushhUserProfileLogic = () => {
   // Per-API status for non-blocking background processing
   type ApiStatus = 'idle' | 'running' | 'done' | 'error';
   const [investorStatus, setInvestorStatus] = useState<ApiStatus>('idle');
-  const [shadowStatus, setShadowStatus] = useState<ApiStatus>('idle');
-  const isProcessing = investorStatus === 'running' || shadowStatus === 'running';
+  const isProcessing = investorStatus === 'running';
   const [hasOnboardingData, setHasOnboardingData] = useState(false);
   const [isApplePassLoading, setIsApplePassLoading] = useState(false);
   const [isGooglePassLoading, setIsGooglePassLoading] = useState(false);
@@ -126,10 +118,6 @@ export const useHushhUserProfileLogic = () => {
   // Dirty tracking for AI profile field edits (separate from form edits)
   const [isAiProfileDirty, setIsAiProfileDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  // Shadow Investigator state
-  const [shadowProfile, setShadowProfile] = useState<ShadowProfile | null>(null);
-  const [shadowLoading, setShadowLoading] = useState(false);
-  const [shadowErrorMessage, setShadowErrorMessage] = useState<string | null>(null);
   // NWS Score state
   const [nwsResult, setNwsResult] = useState<NWSResult | null>(null);
   const [nwsLoading, setNwsLoading] = useState(true);
@@ -152,10 +140,7 @@ export const useHushhUserProfileLogic = () => {
   }, []);
 
   useEffect(() => {
-    const isStillProcessing =
-      investorStatus === 'running' || shadowStatus === 'running';
-
-    if (!isStillProcessing) {
+    if (investorStatus !== 'running') {
       if (timerRef.current) {
         stopTimer();
       }
@@ -169,7 +154,7 @@ export const useHushhUserProfileLogic = () => {
         clearInterval(timerRef.current);
       }
     };
-  }, [investorStatus, shadowStatus, loading, stopTimer]);
+  }, [investorStatus, loading, stopTimer]);
 
   // Field options for AI-generated profile editing
   const FIELD_OPTIONS: Record<string, { value: string; label: string }[]> = {
@@ -358,13 +343,6 @@ export const useHushhUserProfileLogic = () => {
             setInvestorProfile(existingProfile.investor_profile);
             setInvestorStatus('done');
           }
-
-          // Load shadow profile if available (for data consistency when sharing)
-          if (existingProfile.shadow_profile) {
-            setShadowProfile(existingProfile.shadow_profile);
-            setShadowStatus('done');
-            console.log('[Profile] Loaded cached shadow profile from Supabase');
-          }
           
           // Prefill form from investor_profiles table
           setForm((prev) => ({
@@ -549,107 +527,11 @@ export const useHushhUserProfileLogic = () => {
     }
   };
 
-  const buildShadowInvestigatorParams = (): ShadowInvestigatorParams | null => {
-    if (!form.name?.trim() || !form.email?.trim()) {
-      return null;
-    }
-
-    const explicitAge = typeof form.age === 'number' ? form.age : Number(form.age);
-    const derivedAge = form.dateOfBirth
-      ? Math.floor((Date.now() - new Date(form.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
-      : undefined;
-
-    return {
-      name: form.name,
-      email: form.email,
-      contact: formatPhoneContact(form.phoneCountryCode, form.phoneNumber),
-      country: form.residenceCountry || form.citizenshipCountry || undefined,
-      age: Number.isFinite(explicitAge) && explicitAge > 0 ? explicitAge : derivedAge,
-      dateOfBirth: form.dateOfBirth || undefined,
-    };
-  };
-
-  const runShadowInvestigator = async ({
-    startTimerOnRun = false,
-  }: { startTimerOnRun?: boolean } = {}) => {
-    const params = buildShadowInvestigatorParams();
-    if (!params) {
-      const errorMessage = 'Please complete your name and email before generating the shadow profile.';
-      setShadowStatus('error');
-      setShadowLoading(false);
-      setShadowErrorMessage(errorMessage);
-      toast({
-        title: 'Shadow profile failed',
-        description: errorMessage,
-        status: 'warning',
-        duration: 4000,
-      });
-      return;
-    }
-
-    if (startTimerOnRun) {
-      startTimer();
-    }
-
-    setShadowLoading(true);
-    setShadowStatus('running');
-    setShadowErrorMessage(null);
-
-    try {
-      const result = await invokeShadowInvestigator(params);
-      if (result.success && result.data) {
-        const structured = result.data.structured;
-        setShadowProfile(structured);
-        setShadowStatus('done');
-        setShadowErrorMessage(null);
-        toast({ title: 'Shadow profile ready ✓', status: 'success', duration: 3000 });
-        saveToSupabase({ shadow_profile: structured });
-        return;
-      }
-
-      const errorMessage = result.error || 'Shadow profile generation failed. Please try again.';
-      setShadowStatus('error');
-      setShadowErrorMessage(errorMessage);
-      console.error('[Profile] Shadow investigator error:', result.error);
-      toast({
-        title: 'Shadow profile failed',
-        description: shadowProfile
-          ? `${errorMessage} Showing your previously saved shadow profile.`
-          : errorMessage,
-        status: 'warning',
-        duration: 5000,
-      });
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Network error. Please try again.';
-      setShadowStatus('error');
-      setShadowErrorMessage(errorMessage);
-      console.error('[Profile] Shadow investigator exception:', err);
-      toast({
-        title: 'Shadow profile failed',
-        description: shadowProfile
-          ? `${errorMessage} Showing your previously saved shadow profile.`
-          : errorMessage,
-        status: 'warning',
-        duration: 5000,
-      });
-    } finally {
-      setShadowLoading(false);
-    }
-  };
-
-  const handleRetryShadow = () => {
-    if (!userId || shadowLoading || shadowStatus === 'running') {
-      return;
-    }
-
-    void runShadowInvestigator({ startTimerOnRun: investorStatus !== 'running' });
-  };
-
   /**
    * handleSubmit — NON-BLOCKING background processing
-   * Fires both APIs independently. Each updates state when it completes.
+   * Fires investor profile generation in the background.
    * User can scroll, edit, navigate while APIs run in background.
-   * No timeout — these are heavy APIs that take as long as they need.
+   * No timeout — this is a heavy API that takes as long as it needs.
    */
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -678,9 +560,6 @@ export const useHushhUserProfileLogic = () => {
     // ── Start background processing ──
     setLoading(true);
     setInvestorStatus('running');
-    setShadowStatus('running');
-    setShadowLoading(true);
-    setShadowErrorMessage(null);
     startTimer();
 
     toast({
@@ -717,8 +596,6 @@ export const useHushhUserProfileLogic = () => {
       toast({ title: "Investor profile failed", description: "Network error — will retry later", status: "warning", duration: 4000 });
     });
 
-    // ── API 2: Shadow Investigator (fire-and-forget) ──
-    void runShadowInvestigator();
   };
 
   const handleBack = () => {
@@ -939,32 +816,18 @@ export const useHushhUserProfileLogic = () => {
     return "border-slate-200 bg-white/80 text-slate-600";
   };
 
-  const shadowConfidenceLabel = shadowProfile ? getConfidenceLabel(shadowProfile.confidence || 0) : "Low";
-  const shadowLifestyleTags: string[] = shadowProfile
-    ? [
-        shadowProfile.diet ? `Diet: ${shadowProfile.diet}` : "",
-        ...(shadowProfile.hobbies || []).slice(0, 3),
-        ...(shadowProfile.coffeePreferences || []).slice(0, 2).map((pref) => `Coffee: ${pref}`),
-        ...(shadowProfile.chaiPreferences || []).slice(0, 1).map((pref) => `Chai: ${pref}`),
-        ...(shadowProfile.drinkPreferences || []).slice(0, 2),
-      ].filter(Boolean)
-    : [];
-  const shadowBrandTags: string[] = shadowProfile ? (shadowProfile.brands || []).slice(0, 6) : [];
-  const shadowKnownForTags: string[] = shadowProfile ? (shadowProfile.knownFor || []).slice(0, 4) : [];
-
   return {
     form, setForm, userId, investorProfile, setInvestorProfile, profileSlug,
-    loading, loadingSeconds, isProcessing, investorStatus, shadowStatus,
+    loading, loadingSeconds, isProcessing, investorStatus,
     setLoading, hasOnboardingData, isApplePassLoading, isGooglePassLoading,
-    editingField, setEditingField, shadowProfile, shadowLoading, shadowErrorMessage, nwsResult, nwsLoading,
+    editingField, setEditingField, nwsResult, nwsLoading,
     isFooterVisible, hasCopied, onCopy, profileUrl, navigate, toast,
     FIELD_OPTIONS, MULTI_SELECT_FIELDS, COUNTRIES, defaultFormState,
     isDirty, isSaving, handleSaveChanges,
     handleUpdateAIField, handleMultiSelectToggle, handleChange, handleSubmit,
-    handleBack, handleSave, handleRetryShadow, handleAppleWalletPass, handleGoogleWalletPass,
+    handleBack, handleSave, handleAppleWalletPass, handleGoogleWalletPass,
     handleShareWhatsApp, handleShareX, handleShareEmail, handleShareLinkedIn, handleOpenProfile,
     inputClassName, selectClassName, labelClassName, cardClassName,
     aiFieldCardTones, getConfidenceLabel, getConfidenceBadgeClass,
-    shadowConfidenceLabel, shadowLifestyleTags, shadowBrandTags, shadowKnownForTags,
   };
 };
