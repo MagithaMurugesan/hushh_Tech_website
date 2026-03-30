@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import config from '../../../resources/config/config';
+import { TOTAL_VISIBLE_ONBOARDING_STEPS } from '../../../services/onboarding/flow';
 import { upsertOnboardingData } from '../../../services/onboarding/upsertOnboardingData';
 import type { UIAccountType } from '../../../types/onboarding';
 import { ACCOUNT_TYPE_OPTIONS } from '../../../types/onboarding';
@@ -12,7 +13,7 @@ import { locationService } from '../../../services/location';
    ═══════════════════════════════════════════════ */
 
 export const CURRENT_STEP = 5;
-export const TOTAL_STEPS = 12;
+export const TOTAL_STEPS = TOTAL_VISIBLE_ONBOARDING_STEPS;
 export const PROGRESS_PCT = Math.round((CURRENT_STEP / TOTAL_STEPS) * 100);
 
 export interface DialCodeOption {
@@ -189,39 +190,49 @@ export function useStep5Logic() {
 
       /* Only run dial code detection if Plaid didn't already set it */
       if (!plaidSetDialCode) {
-      const savedPhoneCode = onboardingData?.phone_country_code ? String(onboardingData.phone_country_code) : '';
-      const cachedDial =
-        savedPhoneCode ||
-        (onboardingData?.gps_detected_phone_dial_code ? String(onboardingData.gps_detected_phone_dial_code) : '') ||
-        ((onboardingData?.gps_location_data as any)?.phoneDialCode ? String((onboardingData.gps_location_data as any).phoneDialCode) : '');
+        const sharedLocationRecord = await locationService.readSharedLocationCache(user.id);
+        const sharedLocation = sharedLocationRecord?.data || null;
+        const savedPhoneCode = onboardingData?.phone_country_code ? String(onboardingData.phone_country_code) : '';
+        const cachedDial =
+          savedPhoneCode ||
+          (sharedLocation?.phoneDialCode ? String(sharedLocation.phoneDialCode) : '') ||
+          (onboardingData?.gps_detected_phone_dial_code ? String(onboardingData.gps_detected_phone_dial_code) : '') ||
+          ((onboardingData?.gps_location_data as any)?.phoneDialCode ? String((onboardingData.gps_location_data as any).phoneDialCode) : '');
 
-      if (cachedDial) {
-        setCountryCode(cachedDial);
-        const matched = PHONE_DIAL_CODES.find((o) => o.code === cachedDial);
-        if (matched) setSelectedDialCountryIso(matched.iso);
-      } else {
-        setIsAutoDetectingDialCode(true);
-        try {
-          const ipLoc = await locationService.getLocationByIp();
-          if (ipLoc?.phoneDialCode) {
-            setCountryCode(ipLoc.phoneDialCode);
-            const matched = PHONE_DIAL_CODES.find((o) => o.code === ipLoc.phoneDialCode);
+        if (cachedDial) {
+          setCountryCode(cachedDial);
+          if (sharedLocation?.countryCode) {
+            const sharedIso = String(sharedLocation.countryCode).toUpperCase();
+            if (PHONE_DIAL_CODES.some((o) => o.iso === sharedIso)) setSelectedDialCountryIso(sharedIso);
+          } else {
+            const matched = PHONE_DIAL_CODES.find((o) => o.code === cachedDial);
             if (matched) setSelectedDialCountryIso(matched.iso);
           }
-          if (ipLoc?.countryCode) {
-            const iso = String(ipLoc.countryCode).toUpperCase();
-            if (PHONE_DIAL_CODES.some((o) => o.iso === iso)) setSelectedDialCountryIso(iso);
+        } else {
+          setIsAutoDetectingDialCode(true);
+          try {
+            const cachedLocation = await locationService.getCachedLocation(user.id);
+            const resolvedLocation = cachedLocation || await locationService.getLocationByIp();
+
+            if (resolvedLocation?.phoneDialCode) {
+              setCountryCode(resolvedLocation.phoneDialCode);
+              const matched = PHONE_DIAL_CODES.find((o) => o.code === resolvedLocation.phoneDialCode);
+              if (matched) setSelectedDialCountryIso(matched.iso);
+            }
+            if (resolvedLocation?.countryCode) {
+              const iso = String(resolvedLocation.countryCode).toUpperCase();
+              if (PHONE_DIAL_CODES.some((o) => o.iso === iso)) setSelectedDialCountryIso(iso);
+            }
+            if (!cachedLocation && resolvedLocation) {
+              try { await locationService.saveLocationToOnboarding(user.id, resolvedLocation, 'ip'); }
+              catch (e) { console.warn('[Step5] cache fail:', e); }
+            }
+          } catch (err) {
+            console.warn('[Step5] IP detection failed:', err);
+          } finally {
+            setIsAutoDetectingDialCode(false);
           }
-          if (!onboardingData?.gps_location_data) {
-            try { await locationService.saveLocationToOnboarding(user.id, ipLoc); }
-            catch (e) { console.warn('[Step5] cache fail:', e); }
-          }
-        } catch (err) {
-          console.warn('[Step5] IP detection failed:', err);
-        } finally {
-          setIsAutoDetectingDialCode(false);
         }
-      }
       } // end if (!plaidSetDialCode)
     };
     getCurrentUser();

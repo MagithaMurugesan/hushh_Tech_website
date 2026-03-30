@@ -88,6 +88,7 @@ export default function OnboardingStep4() {
         .maybeSingle();
 
       if (onboardingData) {
+        // 1. If the user already confirmed citizenship/residence, use those.
         if (onboardingData.citizenship_country) {
           setCitizenshipCountry(onboardingData.citizenship_country);
           setUserManuallyChanged(true);
@@ -95,6 +96,37 @@ export default function OnboardingStep4() {
         }
         if (onboardingData.residence_country) {
           setResidenceCountry(onboardingData.residence_country);
+        }
+
+        // 2. If country fields are empty but GPS data exists, pre-fill from GPS.
+        const hasCountryFields = onboardingData.citizenship_country || onboardingData.residence_country;
+        const gpsCountryRaw = onboardingData.gps_country
+          || (onboardingData.gps_location_data as any)?.country
+          || '';
+        const gpsCountryCode = (onboardingData.gps_location_data as any)?.countryCode || '';
+
+        if (!hasCountryFields && (gpsCountryRaw || gpsCountryCode)) {
+          const inferredCountry = COUNTRY_CODE_TO_NAME[gpsCountryCode] || gpsCountryRaw;
+          if (inferredCountry && countries.includes(inferredCountry)) {
+            setCitizenshipCountry(inferredCountry);
+            setResidenceCountry(inferredCountry);
+          }
+        }
+
+        // 3. Restore detected-location banner from cached GPS data.
+        const cachedAddress = onboardingData.gps_full_address
+          || (onboardingData.gps_location_data as any)?.formattedAddress
+          || '';
+        const cachedCity = onboardingData.gps_city
+          || (onboardingData.gps_location_data as any)?.city
+          || '';
+        const cachedState = (onboardingData.gps_location_data as any)?.state || '';
+
+        if (cachedAddress || cachedCity) {
+          setDetectedLocation(cachedAddress || cachedCity || cachedState || gpsCountryRaw);
+          setLocationDetected(true);
+          setLocationStatus('success');
+          setHasPreviousData(true);
         }
       }
     };
@@ -126,7 +158,7 @@ export default function OnboardingStep4() {
           setResidenceCountry(countryName);
         }
 
-        setDetectedLocation(locationData.city || locationData.state || countryName);
+        setDetectedLocation(locationData.formattedAddress || locationData.city || locationData.state || countryName);
         setLocationDetected(true);
         setLocationStatus(result.source === 'detected' ? 'success' : 'ip-success');
         setHasPreviousData(false);

@@ -187,7 +187,7 @@ export function useMeetCeoLogic() {
   };
 
   const handleContinue = () => navigate('/hushh-user-profile');
-  const handleBack = () => navigate('/onboarding/step-13');
+  const handleBack = () => navigate('/onboarding/step-12');
 
   return {
     paymentState,

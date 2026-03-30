@@ -11,6 +11,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Session } from "@supabase/supabase-js";
 import config from "../../resources/config/config";
+import { getContinueOnboardingCta } from "../../services/onboarding/flow";
 
 /* ─── Types ─── */
 export interface OnboardingStatus {
@@ -133,10 +134,10 @@ export const useHomeLogic = (): HomeLogic => {
     }
 
     if (onboardingStatus.currentStep > 1) {
+      const cta = getContinueOnboardingCta(onboardingStatus.currentStep);
       return {
-        text: `Continue Onboarding (Step ${onboardingStatus.currentStep})`,
-        action: () =>
-          navigate(`/onboarding/step-${onboardingStatus.currentStep}`),
+        text: cta.text,
+        action: () => navigate(cta.route),
         loading: false,
       };
     }

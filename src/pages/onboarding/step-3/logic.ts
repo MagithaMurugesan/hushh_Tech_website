@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import config from "../../../resources/config/config";
+import { TOTAL_VISIBLE_ONBOARDING_STEPS } from "../../../services/onboarding/flow";
 import { upsertOnboardingData } from "../../../services/onboarding/upsertOnboardingData";
 
 /* ═══════════════════════════════════════════════
@@ -13,7 +14,7 @@ import { upsertOnboardingData } from "../../../services/onboarding/upsertOnboard
    ═══════════════════════════════════════════════ */
 
 export const CURRENT_STEP = 3;
-export const TOTAL_STEPS = 12;
+export const TOTAL_STEPS = TOTAL_VISIBLE_ONBOARDING_STEPS;
 export const PROGRESS_PCT = Math.round((CURRENT_STEP / TOTAL_STEPS) * 100);
 
 /** Auto-skip delay in seconds */

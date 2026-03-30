@@ -2,10 +2,18 @@
  * Step 8 - Address Entry — Logic Hook
  *
  * All state, effects, handlers, and constants for the address entry step.
+ *
+ * GPS Auto-Fill Flow:
+ * 1. On load, check for cached GPS data → parse address → fill all fields
+ * 2. Trigger cascading dropdowns (country → state → city) with loading UX
+ * 3. While dropdowns load, country/state are locked (isAutoFilling = true)
+ * 4. Once all dropdowns resolve, unlock and show "Address auto-filled"
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import config from '../../../resources/config/config';
+import { getOnboardingDisplayMeta } from '../../../services/onboarding/flow';
+import { resolveOnboardingPrefill } from '../../../services/onboarding/prefill';
 import { upsertOnboardingData } from '../../../services/onboarding/upsertOnboardingData';
 import { useFooterVisibility } from '../../../utils/useFooterVisibility';
 import { useLocationDropdowns } from '../../../hooks/useLocationDropdowns';
@@ -15,8 +23,10 @@ import { locationService } from '../../../services/location/locationService';
    CONSTANTS & VALIDATION
    ═══════════════════════════════════════════════ */
 
-export const DISPLAY_STEP = 7;
-export const TOTAL_STEPS = 12;
+const DISPLAY_META = getOnboardingDisplayMeta('/onboarding/step-8');
+
+export const DISPLAY_STEP = DISPLAY_META.displayStep;
+export const TOTAL_STEPS = DISPLAY_META.totalSteps;
 export const PROGRESS_PCT = Math.round((DISPLAY_STEP / TOTAL_STEPS) * 100);
 
 export const validateAddress = (v: string) => {
@@ -44,6 +54,7 @@ export function useStep8Logic() {
   const navigate = useNavigate();
   const isFooterVisible = useFooterVisibility();
   const dropdowns = useLocationDropdowns();
+  const autoDetectionStartedRef = useRef(false);
 
   const [addressLine1, setAddressLine1] = useState('');
   const [addressLine2, setAddressLine2] = useState('');
@@ -56,6 +67,11 @@ export function useStep8Logic() {
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
 
+  // GPS auto-fill: true while cascading dropdowns are still resolving
+  const [isAutoFilling, setIsAutoFilling] = useState(false);
+  // Tracks whether we triggered a GPS-based cascade that needs monitoring
+  const autoFillCascadeRef = useRef(false);
+
   /* ─── Enable page-level scrolling ─── */
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -67,79 +83,238 @@ export function useStep8Logic() {
     };
   }, []);
 
+  /* ─── Monitor cascade completion to clear isAutoFilling ─── */
+  useEffect(() => {
+    if (!autoFillCascadeRef.current) return;
+
+    // Cascade is done when states and cities have finished loading
+    // AND we have resolved values for country, state, and city
+    const cascadeDone =
+      !dropdowns.loadingStates &&
+      !dropdowns.loadingCities &&
+      dropdowns.country &&
+      dropdowns.state &&
+      dropdowns.city;
+
+    if (cascadeDone) {
+      autoFillCascadeRef.current = false;
+      setIsAutoFilling(false);
+      setDetectionStatus('Address auto-filled from GPS');
+      setTimeout(() => setDetectionStatus(null), 3000);
+    }
+  }, [
+    dropdowns.loadingStates,
+    dropdowns.loadingCities,
+    dropdowns.country,
+    dropdowns.state,
+    dropdowns.city,
+  ]);
+
   /* ─── Auto-detect location ─── */
-  const detectAndApply = async (userId?: string) => {
+  const detectAndApply = async (userId?: string, overwrite = true) => {
     setIsDetecting(true);
-    setDetectionStatus('Detecting your location...');
+    setIsAutoFilling(true);
+    autoFillCascadeRef.current = true;
+    setDetectionStatus('Auto-filling address from GPS...');
 
     try {
       const result = await locationService.detectLocation();
-      if (!result.data) { setDetectionStatus(null); return; }
+      if (!result.data) {
+        setDetectionStatus(null);
+        setIsAutoFilling(false);
+        autoFillCascadeRef.current = false;
+        return;
+      }
 
-      if (result.data.postalCode) setZipCode(result.data.postalCode);
+      // Fill postal code
+      if (result.data.postalCode && (overwrite || !zipCode)) {
+        setZipCode(result.data.postalCode);
+      }
 
+      // Parse formatted address — combine line1 + line2 into a single Address Line 1
       if (result.data.formattedAddress) {
         const parsed = locationService.parseFormattedAddress(result.data.formattedAddress, result.data);
-        if (parsed.line1) setAddressLine1(parsed.line1);
-        if (parsed.line2) setAddressLine2(parsed.line2);
+        const combined = [parsed.line1, parsed.line2].filter(Boolean).join(', ');
+        if (combined && (overwrite || !addressLine1)) setAddressLine1(combined);
       }
 
-      dropdowns.applyDetectedLocation(
-        result.data.countryCode,
-        result.data.stateCode,
-        result.data.state,
-        result.data.city,
-      );
+      // Trigger cascading dropdowns (country → state → city)
+      if (
+        overwrite ||
+        !dropdowns.country ||
+        !dropdowns.state ||
+        !dropdowns.city
+      ) {
+        dropdowns.applyDetectedLocation(
+          result.data.countryCode,
+          result.data.stateCode,
+          result.data.state,
+          result.data.city,
+        );
+      }
 
+      // Save to DB in background
       if (userId) {
-        locationService.saveLocationToOnboarding(userId, result.data).catch(() => {});
+        locationService
+          .saveLocationToOnboarding(
+            userId,
+            result.data,
+            result.source === 'detected' ? 'gps' : 'ip'
+          )
+          .catch(() => {});
       }
 
-      setDetectionStatus(result.data.city || result.data.country || 'Location detected');
-      setTimeout(() => setDetectionStatus(null), 2500);
+      setDetectionStatus('Auto-filling address from GPS...');
     } catch {
       setDetectionStatus(null);
+      setIsAutoFilling(false);
+      autoFillCascadeRef.current = false;
     } finally {
       setIsDetecting(false);
     }
   };
 
-  /* ─── Init: Load saved data or detect ─── */
+  /* ─── Init: Load saved data or prefill from known sources ─── */
   useEffect(() => {
     const init = async () => {
       if (!config.supabaseClient) return;
       const { data: { user } } = await config.supabaseClient.auth.getUser();
       if (!user) return;
 
-      const { data: saved } = await config.supabaseClient
-        .from('onboarding_data')
-        .select('address_line_1, address_line_2, address_country, state, city, zip_code, residence_country')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      const [onboardingResult, financialResult, enrichedResult, cachedLocation] = await Promise.all([
+        config.supabaseClient
+          .from('onboarding_data')
+          .select(`
+            address_line_1, address_line_2, address_country, state, city, zip_code, residence_country
+          `)
+          .eq('user_id', user.id)
+          .maybeSingle(),
+        config.supabaseClient
+          .from('user_financial_data')
+          .select('identity_data')
+          .eq('user_id', user.id)
+          .maybeSingle(),
+        config.supabaseClient
+          .from('user_enriched_profiles')
+          .select('enriched_address_line1, enriched_address_city, enriched_address_state, enriched_address_zip, enriched_address_country')
+          .eq('user_id', user.id)
+          .maybeSingle(),
+        locationService.getCachedLocation(user.id),
+      ]);
 
-      if (saved?.address_line_1) {
-        setAddressLine1(saved.address_line_1);
-        setAddressLine2(saved.address_line_2 || '');
-        setZipCode(saved.zip_code || '');
-        const code = locationService.mapCountryToIsoCode(saved.address_country || 'US');
-        dropdowns.applyDetectedLocation(code, saved.state, undefined, saved.city);
-        return;
+      const enrichedProfile = enrichedResult.data
+        ? {
+            address_line_1: enrichedResult.data.enriched_address_line1 || '',
+            city: enrichedResult.data.enriched_address_city || '',
+            state: enrichedResult.data.enriched_address_state || '',
+            zip_code: enrichedResult.data.enriched_address_zip || '',
+            address_country: enrichedResult.data.enriched_address_country || '',
+          }
+        : undefined;
+
+      const resolved = resolveOnboardingPrefill({
+        onboardingData: onboardingResult.data || undefined,
+        plaidIdentity: financialResult.data?.identity_data,
+        enrichedProfile,
+        locationData: cachedLocation || undefined,
+      });
+
+      // Apply resolved values from saved data / enriched profile
+      if (resolved.values.address_line_1) setAddressLine1(resolved.values.address_line_1);
+      if (resolved.values.address_line_2) setAddressLine2(resolved.values.address_line_2);
+      if (resolved.values.zip_code) setZipCode(resolved.values.zip_code);
+
+      // ─── GPS auto-fill: parse cached address into fields ───
+      // If we have cached GPS data but no saved address_line_1,
+      // parse the formatted address into line1 and line2.
+      if (cachedLocation && !resolved.values.address_line_1) {
+        if (cachedLocation.formattedAddress) {
+          const parsed = locationService.parseFormattedAddress(
+            cachedLocation.formattedAddress,
+            cachedLocation
+          );
+          // Combine line1 + line2 into a single Address Line 1
+          const combined = [parsed.line1, parsed.line2].filter(Boolean).join(', ');
+          if (combined) setAddressLine1(combined);
+        }
+        // Also fill ZIP from GPS if not already set
+        if (cachedLocation.postalCode && !resolved.values.zip_code) {
+          setZipCode(cachedLocation.postalCode);
+        }
       }
 
-      await detectAndApply(user.id);
-      // NOTE: Previously we applied residence_country here, which overwrote
-      // GPS-detected location. Removed — GPS/IP detection already sets the
-      // correct country. If GPS fails, detectAndApply handles it gracefully.
+      // Resolve country code for cascading dropdowns
+      const resolvedCountry =
+        resolved.values.address_country ||
+        resolved.values.residence_country ||
+        cachedLocation?.country ||
+        'US';
+      const countryCode = locationService.mapCountryToIsoCode(resolvedCountry);
+
+      // Determine state/city values for cascade
+      const stateValue = resolved.values.state || cachedLocation?.stateCode || cachedLocation?.state || '';
+      const cityValue = resolved.values.city || cachedLocation?.city || '';
+
+      if (countryCode || stateValue || cityValue) {
+        // Show auto-filling UX while cascade loads
+        setIsAutoFilling(true);
+        autoFillCascadeRef.current = true;
+        setDetectionStatus('Auto-filling address from GPS...');
+
+        dropdowns.applyDetectedLocation(
+          countryCode,
+          stateValue,
+          stateValue,
+          cityValue
+        );
+      }
+
+      // If cached location exists, show the detection status
+      if (cachedLocation && !resolved.values.address_line_1) {
+        setDetectionStatus('Auto-filling address from GPS...');
+      }
+
+      const hasCompleteKnownAddress = Boolean(
+        (resolved.values.address_line_1 || cachedLocation?.formattedAddress) &&
+        (resolved.values.city || cachedLocation?.city) &&
+        (resolved.values.state || cachedLocation?.state) &&
+        (resolved.values.zip_code || cachedLocation?.postalCode)
+      );
+
+      // Only run fresh GPS detection if no known address at all
+      if (!hasCompleteKnownAddress && !autoDetectionStartedRef.current) {
+        autoDetectionStartedRef.current = true;
+        void detectAndApply(user.id, false);
+      }
     };
     init();
     return () => { locationService.cancel(); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /* ─── Safety timeout: clear isAutoFilling after 10s to avoid stuck state ─── */
+  useEffect(() => {
+    if (!isAutoFilling) return;
+    const timer = setTimeout(() => {
+      if (isAutoFilling) {
+        setIsAutoFilling(false);
+        autoFillCascadeRef.current = false;
+        // If we have some data, show success
+        if (dropdowns.country) {
+          setDetectionStatus('Address fields populated');
+          setTimeout(() => setDetectionStatus(null), 2500);
+        } else {
+          setDetectionStatus(null);
+        }
+      }
+    }, 10000);
+    return () => clearTimeout(timer);
+  }, [isAutoFilling, dropdowns.country]);
+
   /* ─── Handlers ─── */
   const handleDetectClick = async () => {
     if (!config.supabaseClient) return;
     const { data: { user } } = await config.supabaseClient.auth.getUser();
-    await detectAndApply(user?.id);
+    await detectAndApply(user?.id, true);
   };
 
   const validate = (field: string, value: string) => {
@@ -230,6 +405,7 @@ export function useStep8Logic() {
     zipCode,
     loading,
     isDetecting,
+    isAutoFilling,
     detectionStatus,
     error,
     touched,

@@ -18,6 +18,7 @@ import NDADocumentModal from "../NDADocumentModal";
 import axios from "axios";
 import config from "../../resources/config/config";
 import { useNavigate } from "react-router-dom";
+import { getContinueOnboardingCta } from "../../services/onboarding/flow";
 
 // Motion components
 const MotionBox = motion(Box);
@@ -263,9 +264,10 @@ const ProfilePage: React.FC = () => {
       };
     }
     if (onboardingStatus.currentStep > 1) {
+      const cta = getContinueOnboardingCta(onboardingStatus.currentStep);
       return { 
-        text: `Continue Onboarding (Step ${onboardingStatus.currentStep})`, 
-        action: () => navigate(`/onboarding/step-${onboardingStatus.currentStep}`) 
+        text: cta.text, 
+        action: () => navigate(cta.route) 
       };
     }
     return { 

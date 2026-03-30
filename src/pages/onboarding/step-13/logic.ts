@@ -5,6 +5,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import config from '../../../resources/config/config';
+import { deriveBankCountry } from '../../../services/onboarding/prefill';
 import { upsertOnboardingData } from '../../../services/onboarding/upsertOnboardingData';
 import { useFooterVisibility } from '../../../utils/useFooterVisibility';
 import { fetchAuthNumbers } from '../../../services/plaid/plaidService';
@@ -188,7 +189,6 @@ export interface Step13Logic {
   accountHolderNameError: string | null;
   accountNumberError: string | null;
   confirmAccountNumberError: string | null;
-  bankCountryError: string | null;
   routingNumberError: string | null;
   isFormValid: () => boolean;
   getUnits: (classId: string) => number;
@@ -202,7 +202,6 @@ export interface Step13Logic {
   setConfirmAccountNumber: (v: string) => void;
   setRoutingNumber: (v: string) => void;
   setBankCity: (v: string) => void;
-  setBankCountry: (v: string) => void;
   setAccountType: (v: 'checking' | 'savings') => void;
   setSelectedAccountIdx: (v: number) => void;
   applyAccountSelection: (account: PlaidAccount) => void;
@@ -239,7 +238,7 @@ export const useStep13Logic = (): Step13Logic => {
   const [confirmAccountNumber, setConfirmAccountNumber] = useState('');
   const [routingNumber, setRoutingNumber] = useState('');
   const [bankCity, setBankCity] = useState('');
-  const [bankCountry, setBankCountry] = useState('');
+  const [bankCountry, setBankCountry] = useState('US');
   const [accountType, setAccountType] = useState<'checking' | 'savings'>('checking');
   const [selectedOnboardingAccountType, setSelectedOnboardingAccountType] = useState('');
 
@@ -311,7 +310,6 @@ export const useStep13Logic = (): Step13Logic => {
   const attemptPlaidAutoFill = async (
     userId: string,
     dbHasBankName: boolean,
-    dbHasCountry: boolean,
   ) => {
     if (!config.supabaseClient) return;
 
@@ -420,10 +418,6 @@ export const useStep13Logic = (): Step13Logic => {
       if (financialData.institution_name && !dbHasBankName && !userModifiedFields.current.has('bankName')) {
         setBankName(financialData.institution_name);
       }
-      if (!dbHasCountry && !userModifiedFields.current.has('bankCountry')) {
-        setBankCountry('US');
-      }
-
       console.log('[Step13] Plaid auto-fill complete:', {
         accountsFound: validAccounts.length,
         institution: financialData.institution_name,
@@ -468,6 +462,7 @@ export const useStep13Logic = (): Step13Logic => {
             class_a_units, class_b_units, class_c_units,
             account_type,
             legal_first_name, legal_last_name,
+            address_country, residence_country,
             bank_name, bank_account_holder_name, bank_account_type,
             bank_routing_number, bank_address_city, bank_address_country
           `)
@@ -475,7 +470,6 @@ export const useStep13Logic = (): Step13Logic => {
           .maybeSingle();
 
         let dbHasBankName = false;
-        let dbHasCountry = false;
 
         if (data) {
           setShareUnits({
@@ -483,6 +477,12 @@ export const useStep13Logic = (): Step13Logic => {
             class_b_units: data.class_b_units || 0,
             class_c_units: data.class_c_units || 0,
           });
+
+          setBankCountry(deriveBankCountry({
+            addressCountry: data.address_country,
+            residenceCountry: data.residence_country,
+            savedBankCountry: data.bank_address_country,
+          }));
 
           if (data.legal_first_name && data.legal_last_name && !data.bank_account_holder_name) {
             setAccountHolderName(`${data.legal_first_name} ${data.legal_last_name}`);
@@ -494,12 +494,11 @@ export const useStep13Logic = (): Step13Logic => {
           if (data.account_type) setSelectedOnboardingAccountType(String(data.account_type));
           if (data.bank_routing_number) setRoutingNumber(data.bank_routing_number);
           if (data.bank_address_city) setBankCity(data.bank_address_city);
-          if (data.bank_address_country) { setBankCountry(data.bank_address_country); dbHasCountry = true; }
         }
 
         const hasBankDataAlready = data?.bank_routing_number;
         if (!hasBankDataAlready) {
-          await attemptPlaidAutoFill(user.id, dbHasBankName, dbHasCountry);
+          await attemptPlaidAutoFill(user.id, dbHasBankName);
         }
       } catch (err) {
         console.error('[Step13] Error loading data:', err);
@@ -529,7 +528,6 @@ export const useStep13Logic = (): Step13Logic => {
   const accountHolderNameError = validateAccountHolderName(accountHolderName);
   const accountNumberError = validateAccountNumber(accountNumber);
   const confirmAccountNumberError = validateConfirmAccountNumber(confirmAccountNumber, accountNumber);
-  const bankCountryError = validateBankCountry(bankCountry);
   const routingNumberError = validateRoutingNumber(routingNumber, bankCountry);
 
   // Check if form is valid
@@ -539,7 +537,6 @@ export const useStep13Logic = (): Step13Logic => {
       !accountHolderNameError &&
       !accountNumberError &&
       !confirmAccountNumberError &&
-      !bankCountryError &&
       !routingNumberError
     );
   };
@@ -560,10 +557,6 @@ export const useStep13Logic = (): Step13Logic => {
     }
     if (accountNumber !== confirmAccountNumber) {
       setError('Account numbers do not match');
-      return;
-    }
-    if (!bankCountry) {
-      setError('Please select your bank country');
       return;
     }
     if (!routingNumber.trim()) {
@@ -595,7 +588,7 @@ export const useStep13Logic = (): Step13Logic => {
       bank_account_number_encrypted: encryptedAccountNumber,
       bank_routing_number: routingNumber.trim(),
       bank_address_city: bankCity.trim() || null,
-      bank_address_country: bankCountry,
+      bank_address_country: bankCountry || 'US',
       bank_account_type: accountType,
       banking_info_skipped: false,
       banking_info_submitted_at: new Date().toISOString(),
@@ -678,7 +671,6 @@ export const useStep13Logic = (): Step13Logic => {
     accountHolderNameError,
     accountNumberError,
     confirmAccountNumberError,
-    bankCountryError,
     routingNumberError,
     isFormValid,
     getUnits,
@@ -692,7 +684,6 @@ export const useStep13Logic = (): Step13Logic => {
     setConfirmAccountNumber,
     setRoutingNumber,
     setBankCity,
-    setBankCountry,
     setAccountType,
     setSelectedAccountIdx,
     applyAccountSelection,

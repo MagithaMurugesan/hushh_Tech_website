@@ -1,8 +1,12 @@
 /**
  * Step 8 — Enter Your Address
  * Premium Hushh design matching Step 1/2/4/5/7.
- * Logic stays in logic.ts — zero logic changes.
- * Uses HushhTechBackHeader + HushhTechCta reusable components.
+ *
+ * GPS Auto-Fill UX:
+ * - On load, GPS data is parsed and all fields are auto-filled
+ * - While cascading dropdowns (country → state → city) load,
+ *   country/state are visually locked with a shimmer/loading indicator
+ * - Once all fields resolve, a success message is shown briefly
  */
 import {
   useStep8Logic,
@@ -24,6 +28,7 @@ export default function OnboardingStep8() {
     zipCode,
     loading,
     isDetecting,
+    isAutoFilling,
     detectionStatus,
     error,
     touched,
@@ -38,6 +43,9 @@ export default function OnboardingStep8() {
     handleAddressLine1Change,
     handleZipCodeChange,
   } = useStep8Logic();
+
+  // Determine if GPS auto-fill completed successfully
+  const isAutoFillComplete = detectionStatus === 'Address auto-filled from GPS' || detectionStatus === 'Address fields populated';
 
   return (
     <div className="bg-white text-gray-900 min-h-screen antialiased flex flex-col selection:bg-hushh-blue selection:text-white">
@@ -79,11 +87,15 @@ export default function OnboardingStep8() {
           </p>
         </section>
 
-        {/* ── Detection Status ── */}
-        {(isDetecting || detectionStatus) && (
-          <div className="flex items-center gap-3 py-4 px-1 mb-4 border-b border-gray-100">
-            <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-              {isDetecting ? (
+        {/* ── Auto-Fill Status Banner ── */}
+        {(isDetecting || isAutoFilling || detectionStatus) && (
+          <div className={`flex items-center gap-3 py-4 px-1 mb-4 border-b transition-colors ${
+            isAutoFillComplete ? 'border-green-100' : 'border-gray-100'
+          }`}>
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+              isAutoFillComplete ? 'bg-green-50' : 'bg-gray-100'
+            }`}>
+              {(isDetecting || isAutoFilling) && !isAutoFillComplete ? (
                 <div className="animate-spin h-5 w-5 border-2 border-hushh-blue border-t-transparent rounded-full" />
               ) : (
                 <span
@@ -94,9 +106,16 @@ export default function OnboardingStep8() {
                 </span>
               )}
             </div>
-            <p className="text-sm font-medium text-gray-700">
-              {detectionStatus}
-            </p>
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-medium ${isAutoFillComplete ? 'text-green-700' : 'text-gray-700'}`}>
+                {detectionStatus}
+              </p>
+              {isAutoFilling && !isAutoFillComplete && (
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Populating country, state, and city...
+                </p>
+              )}
+            </div>
           </div>
         )}
 
@@ -105,7 +124,7 @@ export default function OnboardingStep8() {
           <button
             type="button"
             onClick={handleDetectClick}
-            disabled={isDetecting}
+            disabled={isDetecting || isAutoFilling}
             className="flex items-center gap-4 w-full text-left group disabled:opacity-50"
             aria-label="Use my current location"
           >
@@ -218,8 +237,8 @@ export default function OnboardingStep8() {
 
         {/* ── Country / State / City / ZIP ── */}
         <section className="space-y-0 mb-6">
-          {/* Country */}
-          <div className="border-b border-gray-200">
+          {/* Country — locked while auto-filling */}
+          <div className={`border-b border-gray-200 relative ${isAutoFilling ? 'opacity-70' : ''}`}>
             <SearchableSelect
               id="country"
               label="Country"
@@ -231,12 +250,19 @@ export default function OnboardingStep8() {
               onChange={dropdowns.setCountry}
               placeholder="Search country..."
               required
+              disabled={isAutoFilling}
               autoComplete="country"
             />
+            {isAutoFilling && dropdowns.country && (
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                <div className="animate-spin h-3.5 w-3.5 border-[1.5px] border-hushh-blue border-t-transparent rounded-full" />
+                <span className="text-[10px] text-gray-400 font-medium">GPS</span>
+              </div>
+            )}
           </div>
 
-          {/* State */}
-          <div className="border-b border-gray-200">
+          {/* State — locked while auto-filling */}
+          <div className={`border-b border-gray-200 relative ${isAutoFilling ? 'opacity-70' : ''}`}>
             <SearchableSelect
               id="state"
               label="State / Province"
@@ -246,18 +272,24 @@ export default function OnboardingStep8() {
                 label: s.name,
               }))}
               onChange={dropdowns.setState}
-              placeholder="Search state..."
-              disabled={!dropdowns.country}
+              placeholder={isAutoFilling && dropdowns.loadingStates ? 'Loading states...' : 'Search state...'}
+              disabled={!dropdowns.country || isAutoFilling}
               loading={dropdowns.loadingStates}
               loadError={dropdowns.statesError}
               onRetry={dropdowns.retryStates}
               required
               autoComplete="address-level1"
             />
+            {isAutoFilling && dropdowns.loadingStates && (
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                <div className="animate-spin h-3.5 w-3.5 border-[1.5px] border-hushh-blue border-t-transparent rounded-full" />
+                <span className="text-[10px] text-gray-400 font-medium">Loading</span>
+              </div>
+            )}
           </div>
 
-          {/* City */}
-          <div className="border-b border-gray-200">
+          {/* City — locked while auto-filling */}
+          <div className={`border-b border-gray-200 relative ${isAutoFilling ? 'opacity-70' : ''}`}>
             <SearchableSelect
               id="city"
               label="City"
@@ -267,14 +299,20 @@ export default function OnboardingStep8() {
                 label: c.name,
               }))}
               onChange={dropdowns.setCity}
-              placeholder="Search city..."
-              disabled={!dropdowns.state}
+              placeholder={isAutoFilling && dropdowns.loadingCities ? 'Loading cities...' : 'Search city...'}
+              disabled={!dropdowns.state || isAutoFilling}
               loading={dropdowns.loadingCities}
               loadError={dropdowns.citiesError}
               onRetry={dropdowns.retryCities}
               required
               autoComplete="address-level2"
             />
+            {isAutoFilling && dropdowns.loadingCities && (
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                <div className="animate-spin h-3.5 w-3.5 border-[1.5px] border-hushh-blue border-t-transparent rounded-full" />
+                <span className="text-[10px] text-gray-400 font-medium">Loading</span>
+              </div>
+            )}
           </div>
 
           {/* ZIP Code */}
@@ -325,9 +363,9 @@ export default function OnboardingStep8() {
           <HushhTechCta
             variant={HushhTechCtaVariant.BLACK}
             onClick={handleContinue}
-            disabled={!isValid || loading}
+            disabled={!isValid || loading || isAutoFilling}
           >
-            {loading ? "Saving..." : "Continue"}
+            {loading ? "Saving..." : isAutoFilling ? "Auto-filling..." : "Continue"}
           </HushhTechCta>
 
           <HushhTechCta

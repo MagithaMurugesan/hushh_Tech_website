@@ -67,7 +67,8 @@ export default function OnboardingStep4() {
             </h1>
             <p className="text-sm text-gray-500 mt-4 leading-relaxed font-light">
               We need to know where you live and pay taxes to open your
-              investment account.
+              investment account. Your current location helps with context,
+              but you must confirm citizenship and residence yourself.
             </p>
           </section>
 
@@ -252,13 +253,12 @@ export default function OnboardingStep4() {
 
           {/* ── Detect Location Button ── */}
           {!s.showLocationModal &&
-            !s.isDetectingLocation &&
-            !s.isSuccessStatus && (
+            !s.isDetectingLocation && (
               <div className="py-5 border-b border-gray-200 mb-8">
                 <button
                   onClick={s.handleAllowLocation}
                   className="flex items-center gap-4 w-full text-left group"
-                  aria-label="Detect my location"
+                  aria-label="Refresh current location"
                 >
                   <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0 group-hover:bg-gray-200 transition-colors">
                     <span
@@ -270,10 +270,10 @@ export default function OnboardingStep4() {
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-gray-900">
-                      Detect My Location
+                      Refresh Current Location
                     </p>
                     <p className="text-xs text-gray-500 font-medium">
-                      Auto-fill country using GPS
+                      Re-check your live location using GPS
                     </p>
                   </div>
                 </button>
@@ -327,14 +327,14 @@ export default function OnboardingStep4() {
           {/* Modal card */}
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4 pb-6 sm:pb-0">
             <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-[0_20px_40px_-10px_rgba(0,0,0,0.08),0_0_1px_rgba(0,0,0,0.04)] p-8 flex flex-col items-center text-center border border-gray-100/50">
-              {/* Arrow icon in circle */}
+              {/* Location icon in circle */}
               <div className="mb-8">
                 <div className="w-20 h-20 rounded-full border border-gray-200 bg-white flex items-center justify-center shadow-sm">
                   <span
-                    className="material-symbols-outlined text-black text-[2rem] -rotate-45"
+                    className="material-symbols-outlined text-black text-[2rem]"
                     style={{ fontVariationSettings: "'wght' 200" }}
                   >
-                    arrow_forward
+                    location_on
                   </span>
                 </div>
               </div>

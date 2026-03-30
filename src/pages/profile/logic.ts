@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import config from '../../resources/config/config';
+import { getContinueOnboardingCta } from '../../services/onboarding/flow';
 
 export function useProfileLogic() {
   const navigate = useNavigate();
@@ -120,10 +121,10 @@ export function useProfileLogic() {
       };
     }
     if (onboardingStatus.currentStep > 1) {
+      const cta = getContinueOnboardingCta(onboardingStatus.currentStep);
       return {
-        text: `Continue Onboarding (Step ${onboardingStatus.currentStep})`,
-        action: () =>
-          navigate(`/onboarding/step-${onboardingStatus.currentStep}`),
+        text: cta.text,
+        action: () => navigate(cta.route),
       };
     }
     return {

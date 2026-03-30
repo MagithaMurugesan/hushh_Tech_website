@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import config from '../resources/config/config';
+import { getCanonicalOnboardingRoute } from '../services/onboarding/flow';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -57,9 +58,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
       if (!onboardingData || !onboardingData.is_completed) {
         if (!isOnOnboardingPage) {
-          // Resume from where user left off
           const step = onboardingData?.current_step || 1;
-          navigate(`/onboarding/step-${step}`, { replace: true });
+          navigate(getCanonicalOnboardingRoute(step), { replace: true });
           return;
         }
       }

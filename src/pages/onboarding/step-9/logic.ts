@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import config from '../../../resources/config/config';
+import { getOnboardingDisplayMeta } from '../../../services/onboarding/flow';
 import { upsertOnboardingData } from '../../../services/onboarding/upsertOnboardingData';
 import { useFooterVisibility } from '../../../utils/useFooterVisibility';
 
@@ -13,8 +14,10 @@ import { useFooterVisibility } from '../../../utils/useFooterVisibility';
    CONSTANTS
    ═══════════════════════════════════════════════ */
 
-export const DISPLAY_STEP = 8;
-export const TOTAL_STEPS = 12;
+const DISPLAY_META = getOnboardingDisplayMeta('/onboarding/step-9');
+
+export const DISPLAY_STEP = DISPLAY_META.displayStep;
+export const TOTAL_STEPS = DISPLAY_META.totalSteps;
 export const PROGRESS_PCT = Math.round((DISPLAY_STEP / TOTAL_STEPS) * 100);
 
 export const MONTH_NAMES = [
@@ -181,7 +184,7 @@ export function useStep9Logic() {
       ssn_encrypted: ssn, date_of_birth: isoDob, current_step: 9,
     });
     if (e) { setError('Failed to save data'); setLoading(false); return; }
-    navigate('/onboarding/step-11');
+    navigate('/onboarding/step-10');
   };
 
   const handleSkip = async () => {
@@ -199,7 +202,7 @@ export function useStep9Logic() {
       ssn_encrypted: '999-99-9999', date_of_birth: isoDob, current_step: 9,
     });
     if (e) { setError('Failed to save data'); setLoading(false); return; }
-    navigate('/onboarding/step-11');
+    navigate('/onboarding/step-10');
   };
 
   const handleBack = () => navigate('/onboarding/step-8');

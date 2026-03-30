@@ -18,6 +18,16 @@ export interface LocationData {
   longitude: number;
 }
 
+export type LocationCacheSource = 'gps' | 'ip';
+
+export interface LocationCacheRecord {
+  data: LocationData;
+  source: LocationCacheSource;
+  detectedAt: string;
+  lastCheckedAt: string;
+  signature: string;
+}
+
 // Country for dropdown
 export interface Country {
   isoCode: string;

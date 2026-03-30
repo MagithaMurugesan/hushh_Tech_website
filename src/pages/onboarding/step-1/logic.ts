@@ -6,6 +6,7 @@ import { useEffect, useState, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import config from '../../../resources/config/config';
 import { upsertOnboardingData } from '../../../services/onboarding/upsertOnboardingData';
+import { TOTAL_VISIBLE_ONBOARDING_STEPS } from '../../../services/onboarding/flow';
 import { useFooterVisibility } from '../../../utils/useFooterVisibility';
 
 /* ─── Types & Constants ─── */
@@ -28,7 +29,7 @@ export const SHARE_CLASSES: ShareClass[] = [
     description: 'Standard tier with full access to AI-powered multi-strategy alpha.' },
 ];
 
-export const TOTAL_STEPS = 12;
+export const TOTAL_STEPS = TOTAL_VISIBLE_ONBOARDING_STEPS;
 export const MIN_RECURRING_AMOUNT = 100;
 export const MAX_RECURRING_AMOUNT = 100000000;
 

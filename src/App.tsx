@@ -63,8 +63,9 @@ import OnboardingStep5 from './pages/onboarding/step-5/ui';
 import OnboardingStep7 from './pages/onboarding/step-7/ui';
 import OnboardingStep8 from './pages/onboarding/step-8/ui';
 import OnboardingStep9 from './pages/onboarding/step-9/ui';
-import OnboardingStep11 from './pages/onboarding/step-11/ui';
-import OnboardingStep13 from './pages/onboarding/step-13/ui';
+import OnboardingInvestmentSummaryStep from './pages/onboarding/step-11/ui';
+import OnboardingReviewStep from './pages/onboarding/step-11-review/ui';
+import OnboardingBankDetailsStep from './pages/onboarding/step-13/ui';
 import VerifyIdentityPage from './pages/onboarding/verify-identity/ui';
 import VerifyCompletePage from './pages/onboarding/verify-complete/ui';
 import MeetCeoPage from './pages/onboarding/meet-ceo/ui';
@@ -85,6 +86,7 @@ import HushhStudioApp from './hushh-studio/pages';
 import HushhAgentsApp from './hushh-agents/pages';
 import GlobalNDAGate from './components/GlobalNDAGate';
 import SignNDAPage from './pages/sign-nda';
+import DocumentViewerPage from './pages/document-viewer';
 import NDAAdminPage from './pages/nda-admin';
 
 // Google Analytics configuration
@@ -108,6 +110,7 @@ const ContentWrapper = ({ children }: { children: ReactNode }) => {
   const isStudio = location.pathname.startsWith('/studio');
   const isHushhUserProfile = location.pathname.startsWith('/hushh-user-profile');
   const isSignNda = location.pathname.startsWith('/sign-nda');
+  const isDocumentViewer = location.pathname.startsWith('/document-viewer');
   const isInvestorProfile = location.pathname.startsWith('/investor-profile');
   const isPublicInvestorProfile = location.pathname.startsWith('/investor/');
   const isDiscoverFundA = location.pathname === '/discover-fund-a';
@@ -118,7 +121,7 @@ const ContentWrapper = ({ children }: { children: ReactNode }) => {
   const isProfile = location.pathname === '/profile';
 
   return (
-    <div className={`${isHomePage || isAuthCallback || isUserRegistration || isOnboarding || isKycFlow || isKycDemo || isA2APlayground || isInvestorGuide || isHushhAI || isHushhAgent || isHushhAgents || isKai || isStudio || isHushhUserProfile || isSignNda || isInvestorProfile || isPublicInvestorProfile || isDiscoverFundA || isCommunity || isDeleteAccount || isLogin || isSignup || isProfile ? '' : 'mt-20'}`}>
+    <div className={`${isHomePage || isAuthCallback || isUserRegistration || isOnboarding || isKycFlow || isKycDemo || isA2APlayground || isInvestorGuide || isHushhAI || isHushhAgent || isHushhAgents || isKai || isStudio || isHushhUserProfile || isSignNda || isDocumentViewer || isInvestorProfile || isPublicInvestorProfile || isDiscoverFundA || isCommunity || isDeleteAccount || isLogin || isSignup || isProfile ? '' : 'mt-20'}`}>
       {children}
     </div>
   );
@@ -141,6 +144,7 @@ const useLayoutVisibility = () => {
   const isLogin = location.pathname.toLowerCase() === '/login';
   const isSignup = location.pathname.toLowerCase() === '/signup';
   const isSignNda = location.pathname.startsWith('/sign-nda');
+  const isDocumentViewer = location.pathname.startsWith('/document-viewer');
   const isHushhUserProfile = location.pathname.startsWith('/hushh-user-profile');
 
   // All pages using HushhTechHeader — hide old global Navbar/Footer
@@ -148,7 +152,7 @@ const useLayoutVisibility = () => {
   const isKycDemo = location.pathname.startsWith('/kyc-demo');
   const isA2APlayground = location.pathname.startsWith('/a2a-playground');
   const isPublicInvestorProfile = location.pathname.startsWith('/investor/');
-  const hideOld = isHushhAI || isHushhAgent || isHushhAgents || isKai || isStudio || isHomePage || isOnboarding || isProfile || isFundA || isCommunity || isDeleteAccount || isLogin || isSignup || isSignNda || isHushhUserProfile || isKycFlow || isKycDemo || isA2APlayground || isPublicInvestorProfile;
+  const hideOld = isHushhAI || isHushhAgent || isHushhAgents || isKai || isStudio || isHomePage || isOnboarding || isProfile || isFundA || isCommunity || isDeleteAccount || isLogin || isSignup || isSignNda || isDocumentViewer || isHushhUserProfile || isKycFlow || isKycDemo || isA2APlayground || isPublicInvestorProfile;
   return {
     showNavbar: !hideOld,
     showFooter: !hideOld,
@@ -314,22 +318,22 @@ function App() {
             } />
             <Route path="/onboarding/step-10" element={
               <ProtectedRoute>
-                <Navigate to="/onboarding/step-11" replace />
+                <OnboardingInvestmentSummaryStep />
               </ProtectedRoute>
             } />
             <Route path="/onboarding/step-11" element={
               <ProtectedRoute>
-                <OnboardingStep11 />
+                <OnboardingReviewStep />
               </ProtectedRoute>
             } />
             <Route path="/onboarding/step-12" element={
               <ProtectedRoute>
-                <Navigate to="/onboarding/step-11" replace />
+                <OnboardingBankDetailsStep />
               </ProtectedRoute>
             } />
             <Route path="/onboarding/step-13" element={
               <ProtectedRoute>
-                <OnboardingStep13 />
+                <Navigate to="/onboarding/step-12" replace />
               </ProtectedRoute>
             } />
             <Route path="/onboarding/verify" element={
@@ -450,6 +454,7 @@ function App() {
             <Route path='/studio' element={<HushhStudioApp />} />
             {/* Global NDA Signing Page */}
             <Route path='/sign-nda' element={<SignNDAPage />} />
+            <Route path='/document-viewer' element={<DocumentViewerPage />} />
             {/* NDA Admin Page - Password protected view of all NDA agreements */}
             <Route path='/nda-admin' element={<NDAAdminPage />} />
             {/* Hushh Agents - Multi-lingual AI Chat Platform */}

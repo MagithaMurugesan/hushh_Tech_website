@@ -15,6 +15,7 @@ import { Box, Text, Flex, Spinner, Image } from "@chakra-ui/react";
 import config from "../resources/config/config";
 import { Session } from "@supabase/supabase-js";
 import HushhLogo from "./images/Hushhogo.png";
+import { getContinueOnboardingCta } from "../services/onboarding/flow";
 
 /* ─── iOS Design Tokens ─── */
 const IOS = {
@@ -231,9 +232,10 @@ export default function Hero() {
       return { text: "View Your Profile", action: () => navigate("/hushh-user-profile"), loading: false };
     }
     if (onboardingStatus.currentStep > 1) {
+      const cta = getContinueOnboardingCta(onboardingStatus.currentStep);
       return {
-        text: `Continue Onboarding (Step ${onboardingStatus.currentStep})`,
-        action: () => navigate(`/onboarding/step-${onboardingStatus.currentStep}`),
+        text: cta.text,
+        action: () => navigate(cta.route),
         loading: false,
       };
     }

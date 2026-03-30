@@ -1,161 +1,849 @@
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
 
-
-
-SET statement_timeout = 0;
-SET lock_timeout = 0;
-SET idle_in_transaction_session_timeout = 0;
-SET client_encoding = 'UTF8';
-SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
-SET check_function_bodies = false;
-SET xmloption = content;
-SET client_min_messages = warning;
-SET row_security = off;
-
-
-CREATE SCHEMA IF NOT EXISTS "public";
-
-
-ALTER SCHEMA "public" OWNER TO "pg_database_owner";
-
-
-COMMENT ON SCHEMA "public" IS 'standard public schema';
-
-
-
-CREATE OR REPLACE FUNCTION "public"."set_current_timestamp_updated_at"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    AS $$
-begin
-  new.updated_at = now();
-  return new;
-end;
-$$;
-
-
-ALTER FUNCTION "public"."set_current_timestamp_updated_at"() OWNER TO "postgres";
-
-SET default_tablespace = '';
-
-SET default_table_access_method = "heap";
-
-
-CREATE TABLE IF NOT EXISTS "public"."members" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "name" "text" NOT NULL,
-    "email" "text" NOT NULL,
-    "age" integer NOT NULL,
-    "phone_country_code" "text" NOT NULL,
-    "phone_number" "text" NOT NULL,
-    "organisation" "text",
-    "country" character(2),
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "profile" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
-    "profile_last_updated_at" timestamp with time zone,
-    "profile_source" "text" DEFAULT 'ai_seed'::"text" NOT NULL,
-    CONSTRAINT "members_age_check" CHECK ((("age" >= 13) AND ("age" <= 120))),
-    CONSTRAINT "members_profile_food_diettype_check" CHECK (((("profile" -> 'food'::"text") IS NULL) OR ((("profile" -> 'food'::"text") ->> 'dietType'::"text") = ANY (ARRAY['veg'::"text", 'non_veg'::"text", 'vegan'::"text", 'mixed'::"text", 'unknown'::"text"]))))
+CREATE TABLE public.agent_profiles (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  name text NOT NULL,
+  agency text NOT NULL,
+  photo_url text,
+  verified boolean DEFAULT false,
+  years_experience integer DEFAULT 0,
+  rating numeric DEFAULT 0.0,
+  review_count integer DEFAULT 0,
+  quotes_completed integer DEFAULT 0,
+  specialties ARRAY DEFAULT '{}'::text[],
+  lines_of_authority ARRAY DEFAULT '{}'::text[],
+  licenses jsonb DEFAULT '[]'::jsonb,
+  states_served ARRAY DEFAULT '{}'::text[],
+  languages ARRAY DEFAULT '{English}'::text[],
+  communication_modes ARRAY DEFAULT '{Phone,Email}'::text[],
+  location_tag text,
+  office_address text,
+  service_radius text DEFAULT '25 mi'::text,
+  response_time text DEFAULT '< 2 hrs'::text,
+  response_sla text,
+  about text DEFAULT ''::text,
+  agency_disclosure text DEFAULT ''::text,
+  profile_status text DEFAULT 'active'::text CHECK (profile_status = ANY (ARRAY['active'::text, 'inactive'::text, 'unavailable'::text, 'under_review'::text])),
+  is_online boolean DEFAULT false,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT agent_profiles_pkey PRIMARY KEY (id)
 );
-
-
-ALTER TABLE "public"."members" OWNER TO "postgres";
-
-
-ALTER TABLE ONLY "public"."members"
-    ADD CONSTRAINT "members_email_key" UNIQUE ("email");
-
-
-
-ALTER TABLE ONLY "public"."members"
-    ADD CONSTRAINT "members_phone_unique" UNIQUE ("phone_country_code", "phone_number");
-
-
-
-ALTER TABLE ONLY "public"."members"
-    ADD CONSTRAINT "members_pkey" PRIMARY KEY ("id");
-
-
-
-CREATE INDEX "idx_members_country" ON "public"."members" USING "btree" ("country");
-
-
-
-CREATE INDEX "idx_members_email" ON "public"."members" USING "btree" ("email");
-
-
-
-CREATE INDEX "idx_members_profile_gin" ON "public"."members" USING "gin" ("profile");
-
-
-
-CREATE OR REPLACE TRIGGER "set_timestamp_on_members" BEFORE UPDATE ON "public"."members" FOR EACH ROW EXECUTE FUNCTION "public"."set_current_timestamp_updated_at"();
-
-
-
-CREATE POLICY "Members can insert their own row" ON "public"."members" FOR INSERT TO "authenticated" WITH CHECK (("auth"."uid"() = "id"));
-
-
-
-CREATE POLICY "Members can update their own row" ON "public"."members" FOR UPDATE USING (("auth"."uid"() = "id"));
-
-
-
-CREATE POLICY "Members can view their own row" ON "public"."members" FOR SELECT USING (("auth"."uid"() = "id"));
-
-
-
-ALTER TABLE "public"."members" ENABLE ROW LEVEL SECURITY;
-
-
-GRANT USAGE ON SCHEMA "public" TO "postgres";
-GRANT USAGE ON SCHEMA "public" TO "anon";
-GRANT USAGE ON SCHEMA "public" TO "authenticated";
-GRANT USAGE ON SCHEMA "public" TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."set_current_timestamp_updated_at"() TO "anon";
-GRANT ALL ON FUNCTION "public"."set_current_timestamp_updated_at"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."set_current_timestamp_updated_at"() TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."members" TO "anon";
-GRANT ALL ON TABLE "public"."members" TO "authenticated";
-GRANT ALL ON TABLE "public"."members" TO "service_role";
-
-
-
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "postgres";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "anon";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "authenticated";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "service_role";
-
-
-
-
-
-
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUNCTIONS TO "postgres";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUNCTIONS TO "anon";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUNCTIONS TO "authenticated";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUNCTIONS TO "service_role";
-
-
-
-
-
-
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "postgres";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "anon";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "authenticated";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "service_role";
-
-
-
-
-
-
-
-RESET ALL;
+CREATE TABLE public.agent_reviews (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  agent_id uuid NOT NULL,
+  user_id uuid,
+  author text NOT NULL,
+  rating integer NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  text text DEFAULT ''::text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT agent_reviews_pkey PRIMARY KEY (id),
+  CONSTRAINT agent_reviews_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES public.agent_profiles(id),
+  CONSTRAINT agent_reviews_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.analytics_events (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  event_name text NOT NULL,
+  user_id uuid,
+  agent_id uuid,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT analytics_events_pkey PRIMARY KEY (id),
+  CONSTRAINT analytics_events_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT analytics_events_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES public.agent_profiles(id)
+);
+CREATE TABLE public.app_config (
+  key text NOT NULL,
+  value jsonb NOT NULL DEFAULT '{}'::jsonb,
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT app_config_pkey PRIMARY KEY (key)
+);
+CREATE TABLE public.blocked_agents (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  agent_id uuid NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT blocked_agents_pkey PRIMARY KEY (id),
+  CONSTRAINT blocked_agents_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT blocked_agents_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES public.agent_profiles(id)
+);
+CREATE TABLE public.ceo_meeting_payments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL UNIQUE,
+  stripe_session_id text,
+  stripe_payment_intent text,
+  payment_status text NOT NULL DEFAULT 'pending'::text,
+  amount_cents integer DEFAULT 100,
+  hushh_coins_awarded integer DEFAULT 300000,
+  calendly_booked boolean DEFAULT false,
+  meeting_event_id text,
+  meeting_start_time timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  coupon_code text,
+  payment_method text DEFAULT 'stripe'::text CHECK (payment_method = ANY (ARRAY['stripe'::text, 'coupon'::text])),
+  CONSTRAINT ceo_meeting_payments_pkey PRIMARY KEY (id),
+  CONSTRAINT ceo_meeting_payments_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.community_registrations (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  track text NOT NULL CHECK (track = ANY (ARRAY['engineering'::text, 'mba'::text])),
+  full_name text NOT NULL,
+  university text NOT NULL,
+  roll_number text NOT NULL,
+  university_email text NOT NULL,
+  personal_email text NOT NULL,
+  photo_url text,
+  team_participants text,
+  events ARRAY NOT NULL DEFAULT '{}'::text[],
+  pr_link text,
+  prd_document_url text,
+  demo_link text NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT community_registrations_pkey PRIMARY KEY (id),
+  CONSTRAINT community_registrations_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.consents (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  consent_type text NOT NULL,
+  policy_version text NOT NULL DEFAULT '2.1'::text,
+  accepted_at timestamp with time zone NOT NULL DEFAULT now(),
+  ip_address text,
+  device_info jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT consents_pkey PRIMARY KEY (id),
+  CONSTRAINT consents_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.consumer_profiles (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL UNIQUE,
+  first_name text,
+  last_name text,
+  date_of_birth date,
+  insurance_goals ARRAY DEFAULT '{}'::text[],
+  goal_timeline text DEFAULT 'exploring'::text,
+  household_size integer DEFAULT 1,
+  owns_home boolean DEFAULT false,
+  has_vehicles integer DEFAULT 0,
+  has_pets boolean DEFAULT false,
+  preferred_zip text,
+  service_radius integer DEFAULT 25,
+  service_mode text DEFAULT 'any'::text,
+  push_enabled boolean DEFAULT false,
+  email_enabled boolean DEFAULT true,
+  sms_enabled boolean DEFAULT false,
+  share_profile boolean DEFAULT true,
+  allow_analytics boolean DEFAULT true,
+  share_location boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  coverage_timeline text,
+  currently_insured text,
+  business_size text,
+  current_carrier text,
+  primary_goal text,
+  goal_attributes jsonb,
+  CONSTRAINT consumer_profiles_pkey PRIMARY KEY (id),
+  CONSTRAINT consumer_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.conversations (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  lead_id uuid,
+  consumer_id uuid NOT NULL,
+  agent_id uuid NOT NULL,
+  status text NOT NULL DEFAULT 'active'::text CHECK (status = ANY (ARRAY['active'::text, 'archived'::text, 'blocked'::text])),
+  contact_revealed boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT conversations_pkey PRIMARY KEY (id),
+  CONSTRAINT conversations_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.lead_requests(id),
+  CONSTRAINT conversations_consumer_id_fkey FOREIGN KEY (consumer_id) REFERENCES public.users(id),
+  CONSTRAINT conversations_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES public.agent_profiles(id)
+);
+CREATE TABLE public.delete_requests (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'processing'::text, 'completed'::text, 'cancelled'::text])),
+  reason text,
+  requested_at timestamp with time zone NOT NULL DEFAULT now(),
+  scheduled_at timestamp with time zone NOT NULL DEFAULT (now() + '30 days'::interval),
+  completed_at timestamp with time zone,
+  CONSTRAINT delete_requests_pkey PRIMARY KEY (id),
+  CONSTRAINT delete_requests_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.devices (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  token text NOT NULL,
+  platform text NOT NULL CHECK (platform = ANY (ARRAY['web'::text, 'ios'::text, 'android'::text])),
+  active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT devices_pkey PRIMARY KEY (id),
+  CONSTRAINT devices_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.hushh_agents_agent_swipes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  actor_user_id uuid NOT NULL,
+  target_agent_id text,
+  status text NOT NULL CHECK (status = ANY (ARRAY['selected'::text, 'rejected'::text])),
+  swiped_at timestamp with time zone NOT NULL DEFAULT now(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  target_kind text NOT NULL DEFAULT 'catalog'::text CHECK (target_kind = ANY (ARRAY['catalog'::text, 'profile'::text])),
+  target_profile_user_id uuid,
+  CONSTRAINT hushh_agents_agent_swipes_pkey PRIMARY KEY (id),
+  CONSTRAINT hushh_agents_agent_swipes_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES auth.users(id),
+  CONSTRAINT hushh_agents_agent_swipes_target_profile_user_id_fkey FOREIGN KEY (target_profile_user_id) REFERENCES public.hushh_agents_profiles(user_id)
+);
+CREATE TABLE public.hushh_agents_chat_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  session_id uuid,
+  role text NOT NULL CHECK (role = ANY (ARRAY['user'::text, 'assistant'::text])),
+  content text NOT NULL,
+  content_length integer,
+  agent_id text DEFAULT 'hushh'::text,
+  model_used text,
+  input_tokens integer DEFAULT 0,
+  output_tokens integer DEFAULT 0,
+  response_time_ms integer,
+  language_code text,
+  detected_language text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT hushh_agents_chat_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT hushh_agents_chat_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT hushh_agents_chat_logs_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.hushh_agents_sessions(id)
+);
+CREATE TABLE public.hushh_agents_consumer_profiles (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL UNIQUE,
+  first_name text,
+  last_name text,
+  insurance_goals ARRAY NOT NULL DEFAULT '{}'::text[],
+  goal_timeline text NOT NULL DEFAULT 'exploring'::text CHECK (goal_timeline = ANY (ARRAY['asap'::text, 'this_month'::text, 'exploring'::text])),
+  preferred_zip text,
+  service_mode text NOT NULL DEFAULT 'either'::text CHECK (service_mode = ANY (ARRAY['in_person'::text, 'remote'::text, 'either'::text])),
+  primary_goal text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT hushh_agents_consumer_profiles_pkey PRIMARY KEY (id),
+  CONSTRAINT hushh_agents_consumer_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.hushh_agents_conversations (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  owner_user_id uuid NOT NULL,
+  target_agent_id text,
+  target_agent_name text NOT NULL DEFAULT ''::text,
+  target_agent_location text NOT NULL DEFAULT ''::text,
+  target_agent_photo_url text,
+  status text NOT NULL DEFAULT 'active'::text CHECK (status = ANY (ARRAY['active'::text, 'archived'::text])),
+  last_message_preview text,
+  last_message_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  target_kind text NOT NULL DEFAULT 'catalog'::text CHECK (target_kind = ANY (ARRAY['catalog'::text, 'profile'::text])),
+  target_profile_user_id uuid,
+  CONSTRAINT hushh_agents_conversations_pkey PRIMARY KEY (id),
+  CONSTRAINT hushh_agents_conversations_owner_user_id_fkey FOREIGN KEY (owner_user_id) REFERENCES auth.users(id),
+  CONSTRAINT hushh_agents_conversations_target_profile_user_id_fkey FOREIGN KEY (target_profile_user_id) REFERENCES public.hushh_agents_profiles(user_id)
+);
+CREATE TABLE public.hushh_agents_daily_stats (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  date date NOT NULL UNIQUE,
+  new_users integer DEFAULT 0,
+  active_users integer DEFAULT 0,
+  returning_users integer DEFAULT 0,
+  total_messages integer DEFAULT 0,
+  user_messages integer DEFAULT 0,
+  assistant_messages integer DEFAULT 0,
+  total_tokens integer DEFAULT 0,
+  total_sessions integer DEFAULT 0,
+  avg_session_duration_seconds integer DEFAULT 0,
+  english_messages integer DEFAULT 0,
+  hindi_messages integer DEFAULT 0,
+  tamil_messages integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT hushh_agents_daily_stats_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.hushh_agents_matches (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  owner_user_id uuid NOT NULL,
+  target_agent_id text,
+  status text NOT NULL DEFAULT 'active'::text CHECK (status = ANY (ARRAY['active'::text, 'archived'::text])),
+  matched_at timestamp with time zone NOT NULL DEFAULT now(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  target_kind text NOT NULL DEFAULT 'catalog'::text CHECK (target_kind = ANY (ARRAY['catalog'::text, 'profile'::text])),
+  target_profile_user_id uuid,
+  CONSTRAINT hushh_agents_matches_pkey PRIMARY KEY (id),
+  CONSTRAINT hushh_agents_matches_target_profile_user_id_fkey FOREIGN KEY (target_profile_user_id) REFERENCES public.hushh_agents_profiles(user_id),
+  CONSTRAINT hushh_agents_matches_owner_user_id_fkey FOREIGN KEY (owner_user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.hushh_agents_messages (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  conversation_id uuid NOT NULL,
+  owner_user_id uuid NOT NULL,
+  sender_role text NOT NULL CHECK (sender_role = ANY (ARRAY['owner'::text, 'system'::text])),
+  body text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT hushh_agents_messages_pkey PRIMARY KEY (id),
+  CONSTRAINT hushh_agents_messages_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.hushh_agents_conversations(id),
+  CONSTRAINT hushh_agents_messages_owner_user_id_fkey FOREIGN KEY (owner_user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.hushh_agents_profiles (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL UNIQUE,
+  catalog_agent_id text UNIQUE,
+  business_name text NOT NULL DEFAULT ''::text,
+  alias text,
+  source text NOT NULL DEFAULT 'hushh_agents_app'::text,
+  categories ARRAY NOT NULL DEFAULT '{}'::text[],
+  services ARRAY NOT NULL DEFAULT '{}'::text[],
+  specialties text NOT NULL DEFAULT ''::text,
+  history text NOT NULL DEFAULT ''::text,
+  representative_name text NOT NULL DEFAULT ''::text,
+  representative_role text NOT NULL DEFAULT ''::text,
+  representative_bio text NOT NULL DEFAULT ''::text,
+  representative_photo_url text,
+  phone text NOT NULL DEFAULT ''::text,
+  formatted_phone text NOT NULL DEFAULT ''::text,
+  website_url text NOT NULL DEFAULT ''::text,
+  address1 text NOT NULL DEFAULT ''::text,
+  address2 text NOT NULL DEFAULT ''::text,
+  address3 text NOT NULL DEFAULT ''::text,
+  city text NOT NULL DEFAULT ''::text,
+  state text NOT NULL DEFAULT ''::text,
+  zip text NOT NULL DEFAULT ''::text,
+  country text NOT NULL DEFAULT 'US'::text,
+  latitude double precision,
+  longitude double precision,
+  formatted_address text NOT NULL DEFAULT ''::text,
+  short_address text NOT NULL DEFAULT ''::text,
+  average_rating double precision NOT NULL DEFAULT 0,
+  rounded_rating double precision NOT NULL DEFAULT 0,
+  review_count integer NOT NULL DEFAULT 0,
+  primary_photo_url text,
+  photo_count integer NOT NULL DEFAULT 0,
+  photo_list jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(photo_list) = 'array'::text),
+  is_closed boolean NOT NULL DEFAULT false,
+  is_chain boolean NOT NULL DEFAULT false,
+  is_yelp_guaranteed boolean,
+  hours ARRAY NOT NULL DEFAULT '{}'::text[],
+  year_established integer,
+  messaging_enabled boolean NOT NULL DEFAULT false,
+  messaging_type text NOT NULL DEFAULT 'none'::text,
+  messaging_display_text text NOT NULL DEFAULT ''::text,
+  messaging_response_time text NOT NULL DEFAULT ''::text,
+  messaging_reply_rate text NOT NULL DEFAULT ''::text,
+  annotations jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(annotations) = 'array'::text),
+  business_url text NOT NULL DEFAULT ''::text,
+  share_url text NOT NULL DEFAULT ''::text,
+  profile_status text NOT NULL DEFAULT 'draft'::text CHECK (profile_status = ANY (ARRAY['draft'::text, 'discoverable'::text, 'hidden'::text])),
+  discovery_enabled boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT hushh_agents_profiles_pkey PRIMARY KEY (id),
+  CONSTRAINT hushh_agents_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT hushh_agents_profiles_catalog_agent_id_fkey FOREIGN KEY (catalog_agent_id) REFERENCES public.kirkland_agents(id)
+);
+CREATE TABLE public.hushh_agents_sessions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  started_at timestamp with time zone DEFAULT now(),
+  ended_at timestamp with time zone,
+  duration_seconds integer,
+  messages_sent integer DEFAULT 0,
+  messages_received integer DEFAULT 0,
+  tokens_used integer DEFAULT 0,
+  agent_id text DEFAULT 'hushh'::text,
+  language_code text DEFAULT 'en-US'::text,
+  user_agent text,
+  ip_address text,
+  device_type text CHECK (device_type = ANY (ARRAY['desktop'::text, 'mobile'::text, 'tablet'::text])),
+  metadata jsonb DEFAULT '{}'::jsonb,
+  CONSTRAINT hushh_agents_sessions_pkey PRIMARY KEY (id),
+  CONSTRAINT hushh_agents_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.hushh_agents_user_agent_selections (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  agent_id text NOT NULL,
+  status text NOT NULL CHECK (status = ANY (ARRAY['selected'::text, 'rejected'::text])),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT hushh_agents_user_agent_selections_pkey PRIMARY KEY (id),
+  CONSTRAINT hushh_agents_user_agent_selections_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT hushh_agents_user_agent_selections_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES public.kirkland_agents(id)
+);
+CREATE TABLE public.hushh_agents_users (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL UNIQUE,
+  email text,
+  name text,
+  avatar_url text,
+  first_access_at timestamp with time zone DEFAULT now(),
+  last_access_at timestamp with time zone DEFAULT now(),
+  total_sessions integer DEFAULT 1,
+  total_messages_sent integer DEFAULT 0,
+  total_tokens_used integer DEFAULT 0,
+  preferred_language text DEFAULT 'en-US'::text,
+  subscription_tier text DEFAULT 'limited'::text CHECK (subscription_tier = ANY (ARRAY['limited'::text, 'pro'::text])),
+  device_info jsonb DEFAULT '{}'::jsonb,
+  referral_source text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  full_name text,
+  phone text,
+  zip_code text,
+  onboarding_step text DEFAULT 'welcome'::text CHECK (onboarding_step = ANY (ARRAY['welcome'::text, 'profile'::text, 'expertise'::text, 'presence'::text, 'complete'::text])),
+  onboarding_deferred_at timestamp with time zone,
+  onboarding_completed_at timestamp with time zone,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  account_role text DEFAULT 'advisor'::text CHECK (account_role = 'advisor'::text),
+  profile_visibility text DEFAULT 'draft'::text CHECK (profile_visibility = ANY (ARRAY['draft'::text, 'discoverable'::text, 'hidden'::text])),
+  discovery_enabled boolean DEFAULT true,
+  CONSTRAINT hushh_agents_users_pkey PRIMARY KEY (id),
+  CONSTRAINT hushh_agents_users_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.identity_verifications (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  stripe_session_id text UNIQUE,
+  stripe_verification_flow_id text,
+  status text NOT NULL DEFAULT 'pending'::text,
+  verified_first_name text,
+  verified_last_name text,
+  verified_date_of_birth date,
+  verified_id_number text,
+  verified_document_type text,
+  verified_document_country text,
+  verified_address_line1 text,
+  verified_address_city text,
+  verified_address_state text,
+  verified_address_postal_code text,
+  verified_address_country text,
+  document_verified boolean DEFAULT false,
+  selfie_verified boolean DEFAULT false,
+  raw_response jsonb,
+  last_error text,
+  error_code text,
+  verification_type text DEFAULT 'document'::text,
+  initiated_from text DEFAULT 'onboarding'::text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT identity_verifications_pkey PRIMARY KEY (id),
+  CONSTRAINT identity_verifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.investor_profiles (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL UNIQUE,
+  name text DEFAULT ''::text,
+  email text DEFAULT ''::text,
+  age integer DEFAULT 30 CHECK (age >= 18 AND age <= 120),
+  phone_country_code text DEFAULT '+1'::text,
+  phone_number text DEFAULT ''::text,
+  organisation text,
+  derived_context jsonb DEFAULT '{}'::jsonb,
+  investor_profile jsonb,
+  is_ai_prefilled boolean DEFAULT true,
+  user_confirmed boolean DEFAULT true,
+  confirmed_at timestamp with time zone,
+  slug text,
+  is_public boolean DEFAULT true,
+  privacy_settings jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  shadow_profile jsonb,
+  CONSTRAINT investor_profiles_pkey PRIMARY KEY (id),
+  CONSTRAINT investor_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.kirkland_agents (
+  id text NOT NULL,
+  name text NOT NULL,
+  alias text,
+  phone text,
+  localized_phone text,
+  address1 text,
+  address2 text,
+  city text,
+  state text,
+  zip text,
+  country text DEFAULT 'US'::text,
+  latitude double precision,
+  longitude double precision,
+  avg_rating double precision,
+  review_count integer DEFAULT 0,
+  categories ARRAY DEFAULT '{}'::text[],
+  is_closed boolean DEFAULT false,
+  photo_url text,
+  created_at timestamp with time zone DEFAULT now(),
+  email text,
+  website text,
+  bio text,
+  services ARRAY DEFAULT ARRAY[]::text[],
+  license_number text,
+  years_in_business integer,
+  contact_person text,
+  status text DEFAULT 'active'::text,
+  onboarded_at timestamp with time zone,
+  activated_at timestamp with time zone,
+  activation_token text,
+  photos ARRAY DEFAULT ARRAY[]::text[],
+  CONSTRAINT kirkland_agents_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.kyc_profiles (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id text NOT NULL UNIQUE,
+  full_name text NOT NULL,
+  email text NOT NULL,
+  phone text NOT NULL DEFAULT ''::text,
+  date_of_birth text,
+  street text NOT NULL DEFAULT ''::text,
+  apartment text,
+  city text NOT NULL DEFAULT ''::text,
+  state text NOT NULL DEFAULT ''::text,
+  zip_code text NOT NULL DEFAULT ''::text,
+  country text NOT NULL DEFAULT 'US'::text,
+  plaid_connected boolean NOT NULL DEFAULT false,
+  plaid_item_id text,
+  plaid_institution_name text,
+  plaid_account_count integer NOT NULL DEFAULT 0,
+  plaid_total_balance double precision NOT NULL DEFAULT 0.0,
+  selected_tickets_json text NOT NULL DEFAULT '[]'::text,
+  payment_completed boolean NOT NULL DEFAULT false,
+  payment_id text,
+  kyc_status text NOT NULL DEFAULT 'incomplete'::text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT kyc_profiles_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.lead_events (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  lead_id uuid NOT NULL,
+  status text NOT NULL,
+  message text NOT NULL,
+  agent_note text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT lead_events_pkey PRIMARY KEY (id),
+  CONSTRAINT lead_events_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.lead_requests(id)
+);
+CREATE TABLE public.lead_requests (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  agent_id uuid NOT NULL,
+  message text NOT NULL,
+  preferred_channel text DEFAULT 'chat'::text,
+  callback_time text DEFAULT 'asap'::text,
+  urgency text DEFAULT 'normal'::text,
+  want_multiple_agents boolean DEFAULT false,
+  contact_reveal boolean DEFAULT false,
+  attachment_url text,
+  status text NOT NULL DEFAULT 'requested'::text CHECK (status = ANY (ARRAY['requested'::text, 'viewed'::text, 'need_info'::text, 'in_review'::text, 'quote_sent'::text, 'closed_won'::text, 'closed_lost'::text, 'archived'::text])),
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT lead_requests_pkey PRIMARY KEY (id),
+  CONSTRAINT lead_requests_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT lead_requests_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES public.agent_profiles(id)
+);
+CREATE TABLE public.messages (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  conversation_id uuid NOT NULL,
+  sender_id uuid NOT NULL,
+  sender_role text NOT NULL CHECK (sender_role = ANY (ARRAY['consumer'::text, 'agent'::text, 'system'::text])),
+  body text NOT NULL,
+  attachment_url text,
+  attachment_type text,
+  read_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT messages_pkey PRIMARY KEY (id),
+  CONSTRAINT messages_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(id),
+  CONSTRAINT messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.nda_signatures (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL UNIQUE,
+  signer_name text NOT NULL,
+  signer_email text,
+  signer_ip text DEFAULT 'unknown'::text,
+  nda_version text DEFAULT 'v1.0'::text,
+  pdf_url text,
+  signed_at timestamp with time zone DEFAULT now(),
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT nda_signatures_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.notifications (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid,
+  channel text NOT NULL CHECK (channel = ANY (ARRAY['sms'::text, 'email'::text, 'push'::text])),
+  recipient text NOT NULL,
+  subject text,
+  body text NOT NULL,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'sent'::text, 'failed'::text])),
+  metadata jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT notifications_pkey PRIMARY KEY (id),
+  CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.onboarding_data (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL UNIQUE,
+  account_type text CHECK (account_type = ANY (ARRAY['wealth_1m'::text, 'wealth_5m'::text, 'ultra_25m'::text, 'general'::text, 'retirement'::text, 'individual'::text, 'joint'::text, 'trust'::text])),
+  selected_fund text DEFAULT 'hushh_fund_a'::text,
+  class_a_units integer DEFAULT 0 CHECK (class_a_units >= 0),
+  class_b_units integer DEFAULT 0 CHECK (class_b_units >= 0),
+  class_c_units integer DEFAULT 0 CHECK (class_c_units >= 0),
+  referral_source text CHECK (referral_source = ANY (ARRAY['podcast'::text, 'social_media_influencer'::text, 'social_media_ad'::text, 'yahoo_finance'::text, 'ai_tool'::text, 'website_blog_article'::text, 'penny_hoarder'::text, 'family_friend'::text, 'tv_radio'::text, 'other'::text])),
+  referral_source_other text,
+  citizenship_country text DEFAULT 'united_states'::text,
+  residence_country text DEFAULT 'united_states'::text,
+  account_structure text CHECK (account_structure = ANY (ARRAY['individual'::text, 'other'::text])),
+  phone_number text,
+  phone_country_code text DEFAULT '+1'::text,
+  legal_first_name text,
+  legal_last_name text,
+  address_line_1 text,
+  address_line_2 text,
+  city text,
+  state text,
+  zip_code text,
+  address_country text DEFAULT 'United States'::text,
+  address_phone_number text,
+  address_phone_country_code text DEFAULT '+1'::text,
+  ssn_encrypted text,
+  date_of_birth text,
+  initial_investment_amount numeric,
+  recurring_investment_enabled boolean DEFAULT false,
+  recurring_frequency text CHECK (recurring_frequency = ANY (ARRAY['once_a_month'::text, 'twice_a_month'::text, 'weekly'::text, 'every_other_week'::text])),
+  recurring_amount numeric,
+  recurring_day text,
+  recurring_day_of_month integer,
+  current_step integer DEFAULT 1 CHECK (current_step >= 1 AND current_step <= 13),
+  completed_steps ARRAY DEFAULT ARRAY[]::integer[],
+  is_completed boolean DEFAULT false,
+  completed_at timestamp with time zone,
+  ai_prefilled boolean DEFAULT false,
+  ai_prefilled_at timestamp with time zone,
+  gps_latitude double precision,
+  gps_longitude double precision,
+  gps_city text,
+  gps_state text,
+  gps_country text,
+  gps_zip_code text,
+  gps_full_address text,
+  gps_detected_at timestamp with time zone,
+  ai_dob_detected text,
+  ai_dob_confidence double precision,
+  ai_dob_source text,
+  shadow_profile jsonb,
+  nda_signed_at timestamp with time zone,
+  nda_pdf_url text,
+  nda_version text DEFAULT 'v1.0'::text,
+  nda_signer_name text,
+  nda_signer_ip text,
+  privacy_accepted boolean DEFAULT false,
+  privacy_accepted_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  bank_name text,
+  bank_account_holder_name text,
+  bank_account_number_encrypted text,
+  bank_routing_number text,
+  bank_swift_code text,
+  bank_address_city text,
+  bank_address_country text,
+  bank_account_type text CHECK (bank_account_type = ANY (ARRAY['checking'::text, 'savings'::text, 'wire'::text])),
+  CONSTRAINT onboarding_data_pkey PRIMARY KEY (id),
+  CONSTRAINT onboarding_data_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.otp_codes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  email text NOT NULL,
+  code text NOT NULL,
+  expires_at timestamp with time zone NOT NULL,
+  used boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT otp_codes_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.plaid_accounts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  plaid_item_id text NOT NULL,
+  plaid_account_id text NOT NULL UNIQUE,
+  name text,
+  official_name text,
+  type text,
+  subtype text,
+  current_balance numeric,
+  available_balance numeric,
+  iso_currency_code text DEFAULT 'USD'::text,
+  mask text,
+  last_synced_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT plaid_accounts_pkey PRIMARY KEY (id),
+  CONSTRAINT plaid_accounts_plaid_item_id_fkey FOREIGN KEY (plaid_item_id) REFERENCES public.plaid_items(plaid_item_id)
+);
+CREATE TABLE public.plaid_items (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id text NOT NULL,
+  plaid_item_id text NOT NULL UNIQUE,
+  plaid_access_token_encrypted text NOT NULL,
+  institution_id text,
+  institution_name text,
+  status text DEFAULT 'active'::text CHECK (status = ANY (ARRAY['active'::text, 'error'::text, 'expired'::text, 'revoked'::text])),
+  consent_expiration timestamp with time zone,
+  error_code text,
+  error_message text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT plaid_items_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.plaid_sync_cursors (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  plaid_item_id text NOT NULL UNIQUE,
+  cursor text NOT NULL DEFAULT ''::text,
+  last_synced_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT plaid_sync_cursors_pkey PRIMARY KEY (id),
+  CONSTRAINT plaid_sync_cursors_plaid_item_id_fkey FOREIGN KEY (plaid_item_id) REFERENCES public.plaid_items(plaid_item_id)
+);
+CREATE TABLE public.plaid_transactions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  plaid_account_id text NOT NULL,
+  plaid_transaction_id text NOT NULL UNIQUE,
+  amount numeric NOT NULL,
+  iso_currency_code text DEFAULT 'USD'::text,
+  date date NOT NULL,
+  name text,
+  merchant_name text,
+  category ARRAY,
+  pending boolean DEFAULT false,
+  payment_channel text,
+  transaction_type text,
+  location jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT plaid_transactions_pkey PRIMARY KEY (id),
+  CONSTRAINT plaid_transactions_plaid_account_id_fkey FOREIGN KEY (plaid_account_id) REFERENCES public.plaid_accounts(plaid_account_id)
+);
+CREATE TABLE public.swipe_actions (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  agent_id uuid NOT NULL,
+  action text NOT NULL CHECK (action = ANY (ARRAY['pass'::text, 'interested'::text, 'priority'::text])),
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT swipe_actions_pkey PRIMARY KEY (id),
+  CONSTRAINT swipe_actions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT swipe_actions_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES public.agent_profiles(id)
+);
+CREATE TABLE public.user_agent_selections (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  agent_id text NOT NULL,
+  status text NOT NULL CHECK (status = ANY (ARRAY['selected'::text, 'rejected'::text])),
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT user_agent_selections_pkey PRIMARY KEY (id),
+  CONSTRAINT user_agent_selections_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT user_agent_selections_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES public.kirkland_agents(id)
+);
+CREATE TABLE public.user_enriched_profiles (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL UNIQUE,
+  search_query text,
+  search_email text,
+  search_phone text,
+  enriched_name text,
+  enriched_company text,
+  enriched_title text,
+  enriched_location text,
+  enriched_bio text,
+  enriched_linkedin_url text,
+  enriched_twitter_url text,
+  enriched_github_url text,
+  enriched_website_url text,
+  enriched_avatar_url text,
+  enriched_address_line1 text,
+  enriched_address_city text,
+  enriched_address_state text,
+  enriched_address_zip text,
+  enriched_address_country text,
+  raw_enrichment_data jsonb,
+  enrichment_source text DEFAULT 'web_search'::text,
+  confidence_score double precision DEFAULT 0.0,
+  status text DEFAULT 'complete'::text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT user_enriched_profiles_pkey PRIMARY KEY (id),
+  CONSTRAINT user_enriched_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.user_financial_data (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL UNIQUE,
+  plaid_item_id text,
+  plaid_access_token text,
+  institution_name text,
+  institution_id text,
+  balances jsonb,
+  asset_report jsonb,
+  asset_report_token text,
+  investments jsonb,
+  available_products jsonb DEFAULT '{"assets": false, "balance": false, "investments": false}'::jsonb,
+  status text DEFAULT 'pending'::text,
+  fetch_errors jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  identity_data jsonb,
+  identity_match_scores jsonb,
+  signal_prepared boolean DEFAULT false,
+  auth_numbers jsonb,
+  identity_match jsonb,
+  nws_score integer,
+  nws_breakdown jsonb,
+  nws_grade text,
+  nws_calculated_at timestamp with time zone,
+  asset_report_id text,
+  asset_report_status text DEFAULT 'pending'::text,
+  asset_report_days_requested integer DEFAULT 60,
+  asset_report_fast_token text,
+  audit_copy_token text,
+  asset_report_refreshed_at timestamp with time zone,
+  asset_report_insights jsonb,
+  income_data jsonb,
+  investment_transactions jsonb,
+  liabilities_data jsonb,
+  transactions_data jsonb,
+  CONSTRAINT user_financial_data_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.user_product_usage (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  product_name text NOT NULL,
+  usage_count integer DEFAULT 0,
+  last_used_at timestamp with time zone DEFAULT now(),
+  metadata jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT user_product_usage_pkey PRIMARY KEY (id),
+  CONSTRAINT user_product_usage_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.users (
+  id uuid NOT NULL,
+  email text,
+  phone text,
+  full_name text,
+  avatar_url text,
+  zip_code text,
+  onboarding_step text DEFAULT 'landing'::text,
+  house_rules_accepted_at timestamp with time zone,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT users_pkey PRIMARY KEY (id),
+  CONSTRAINT users_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
+);

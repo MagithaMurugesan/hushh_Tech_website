@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from '@chakra-ui/react';
 import config from '../../resources/config/config';
 import { signNDA, sendNDANotification, generateNDAPdf, uploadSignedNDA } from '../../services/nda/ndaService';
+import { resolveSignNDASession } from './sessionBootstrap';
 import HushhTechHeader from '../../components/hushh-tech-header/HushhTechHeader';
 import HushhTechFooter from '../../components/hushh-tech-footer/HushhTechFooter';
 import HushhTechCta, { HushhTechCtaVariant } from '../../components/hushh-tech-cta/HushhTechCta';
@@ -105,40 +106,55 @@ const SignNDAPage: React.FC = () => {
 
   /* Cleanup on unmount */
   useEffect(() => {
+    isMountedRef.current = true;
     return () => { isMountedRef.current = false; };
   }, []);
 
   /* Auth lifecycle */
   useEffect(() => {
-    if (!config.supabaseClient) {
-      if (isMountedRef.current) setIsLoading(false);
-      return;
-    }
+    let cancelled = false;
 
-    const {
-      data: { subscription },
-    } = config.supabaseClient.auth.onAuthStateChange(async (_event, session) => {
-      if (!isMountedRef.current) return;
+    const bootstrapSession = async () => {
+      const result = await resolveSignNDASession(config.supabaseClient);
 
-      if (!session?.user) {
-        navigate('/login', { replace: true });
+      if (cancelled || !isMountedRef.current) {
         return;
       }
 
-      setUserId(session.user.id);
-      setUserEmail(session.user.email || null);
+      if (result.session?.user) {
+        const { user } = result.session;
 
-      const fullName =
-        session.user.user_metadata?.full_name ||
-        session.user.user_metadata?.name || '';
-      if (fullName && !signerName) {
-        setSignerName(fullName);
+        setUserId(user.id);
+        setUserEmail(user.email || null);
+
+        const fullName =
+          user.user_metadata?.full_name ||
+          user.user_metadata?.name ||
+          '';
+
+        if (fullName) {
+          setSignerName((currentName) => currentName || fullName);
+        }
+
+        setIsLoading(false);
+        return;
+      }
+
+      if (result.source === 'error' && result.error) {
+        console.error('[SignNDA] Failed to bootstrap session:', result.error);
+      } else if (result.source === 'timeout') {
+        console.warn('[SignNDA] Timed out waiting for session hydration');
       }
 
       setIsLoading(false);
-    });
+      navigate('/login', { replace: true });
+    };
 
-    return () => subscription?.unsubscribe();
+    void bootstrapSession();
+
+    return () => {
+      cancelled = true;
+    };
   }, [navigate]);
 
   /* Toggle individual document acknowledgment */
@@ -152,6 +168,13 @@ const SignNDAPage: React.FC = () => {
     a.href = url;
     a.download = name;
     a.click();
+  }, []);
+
+  const handleReadDocument = useCallback((url: string, title: string) => {
+    const readerUrl = new URL('/document-viewer', window.location.origin);
+    readerUrl.searchParams.set('src', url);
+    readerUrl.searchParams.set('title', title);
+    window.open(readerUrl.toString(), '_blank', 'noopener,noreferrer');
   }, []);
 
   const validateForm = useCallback((): boolean => {
@@ -429,7 +452,7 @@ const SignNDAPage: React.FC = () => {
                       : 'border-gray-200 bg-white'
                   }`}
                 >
-                  {/* Top row: icon + name + download */}
+                  {/* Top row: icon + name + actions */}
                   <div className="flex items-start gap-3 mb-3">
                     <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
                       <span
@@ -447,16 +470,28 @@ const SignNDAPage: React.FC = () => {
                         {doc.description}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleDownload(doc.url, `${doc.fullName}.docx`)}
-                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black text-white text-[11px] font-medium hover:bg-black/80 transition-colors"
-                      aria-label={`Download ${doc.name}`}
-                      tabIndex={0}
-                    >
-                      <span className="material-symbols-outlined text-sm">download</span>
-                      Download
-                    </button>
+                    <div className="shrink-0 flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <button
+                        type="button"
+                        onClick={() => handleReadDocument(doc.url, doc.name)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-700 text-[11px] font-medium hover:border-gray-300 hover:bg-gray-50 transition-colors"
+                        aria-label={`Read ${doc.name}`}
+                        tabIndex={0}
+                      >
+                        <span className="material-symbols-outlined text-sm">menu_book</span>
+                        Read
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDownload(doc.url, `${doc.fullName}.docx`)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black text-white text-[11px] font-medium hover:bg-black/80 transition-colors"
+                        aria-label={`Download ${doc.name}`}
+                        tabIndex={0}
+                      >
+                        <span className="material-symbols-outlined text-sm">download</span>
+                        Download
+                      </button>
+                    </div>
                   </div>
 
                   {/* Acknowledge checkbox */}

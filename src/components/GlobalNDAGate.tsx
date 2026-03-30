@@ -30,6 +30,7 @@ const AUTH_ROUTES = [
   '/Signup',
   '/auth/callback',
   '/sign-nda',
+  '/document-viewer',
 ];
 
 // Public routes accessible WITHOUT authentication
@@ -87,37 +88,54 @@ const GlobalNDAGate: React.FC<GlobalNDAGateProps> = ({ children, session }) => {
   const [hasSignedNDA, setHasSignedNDA] = useState<boolean | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     const checkNDA = async () => {
       const pathname = location.pathname;
-      
+
       // Always allow auth-related routes (login, signup, sign-nda, callback)
       if (isAuthRoute(pathname)) {
-        setIsChecking(false);
-        setHasSignedNDA(true);
+        if (!cancelled) {
+          setIsChecking(false);
+          setHasSignedNDA(true);
+        }
         return;
       }
 
       // Always allow public profile routes (shared investor profiles)
       // These must be accessible by ANYONE — authenticated or not, NDA or not
       if (isPublicProfileRoute(pathname)) {
-        setIsChecking(false);
-        setHasSignedNDA(true);
+        if (!cancelled) {
+          setIsChecking(false);
+          setHasSignedNDA(true);
+        }
         return;
       }
 
       // If no session (not logged in), allow access to public pages
       if (!session?.user?.id) {
         // Allow public marketing pages for non-authenticated users
-        setIsChecking(false);
-        setHasSignedNDA(true);
+        if (!cancelled) {
+          setIsChecking(false);
+          setHasSignedNDA(true);
+        }
         return;
+      }
+
+      if (!cancelled) {
+        setIsChecking(true);
+        setHasSignedNDA(null);
       }
 
       // USER IS AUTHENTICATED - Check NDA status
       try {
         const status = await checkNDAStatus(session.user.id);
+        if (cancelled) {
+          return;
+        }
+
         setHasSignedNDA(status.hasSignedNda);
-        
+
         // If NDA not signed, redirect to NDA page
         if (!status.hasSignedNda) {
           // Store the intended destination for redirect after signing
@@ -125,25 +143,27 @@ const GlobalNDAGate: React.FC<GlobalNDAGateProps> = ({ children, session }) => {
           navigate('/sign-nda', { replace: true });
         }
       } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
         console.error('Error checking NDA status:', error);
         // On error, redirect to NDA page to be safe
         sessionStorage.setItem('nda_redirect_after', pathname);
         navigate('/sign-nda', { replace: true });
       } finally {
-        setIsChecking(false);
+        if (!cancelled) {
+          setIsChecking(false);
+        }
       }
     };
 
-    checkNDA();
-  }, [session, location.pathname, navigate]);
+    void checkNDA();
 
-  // Re-check when session changes (user logs in/out)
-  useEffect(() => {
-    if (session?.user?.id) {
-      setIsChecking(true);
-      setHasSignedNDA(null);
-    }
-  }, [session?.user?.id]);
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id, location.pathname, navigate]);
 
   // Show loading state while checking - Apple-style black/white design
   if (isChecking) {

@@ -4,4 +4,5 @@
  */
 
 export { LocationService, locationService } from './locationService';
+export * from './cache';
 export * from './types';

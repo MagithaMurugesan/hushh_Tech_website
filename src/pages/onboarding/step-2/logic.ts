@@ -6,11 +6,12 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import config from '../../../resources/config/config';
 import { upsertOnboardingData } from '../../../services/onboarding/upsertOnboardingData';
+import { TOTAL_VISIBLE_ONBOARDING_STEPS } from '../../../services/onboarding/flow';
 import type { ReferralSource } from '../../../types/onboarding';
 import { useFooterVisibility } from '../../../utils/useFooterVisibility';
 
 export const CURRENT_STEP = 2;
-export const TOTAL_STEPS = 12;
+export const TOTAL_STEPS = TOTAL_VISIBLE_ONBOARDING_STEPS;
 export const PROGRESS_PCT = Math.round((CURRENT_STEP / TOTAL_STEPS) * 100);
 
 export interface ReferralOption {

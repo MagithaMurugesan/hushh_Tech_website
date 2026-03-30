@@ -2,15 +2,22 @@
  * Step 4 — All Business Logic
  * Country/residence detection, GPS/IP location, Supabase upsert
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import config from '../../../resources/config/config';
+import { TOTAL_VISIBLE_ONBOARDING_STEPS } from '../../../services/onboarding/flow';
+import { resolveOnboardingPrefill } from '../../../services/onboarding/prefill';
 import { upsertOnboardingData } from '../../../services/onboarding/upsertOnboardingData';
 import { useFooterVisibility } from '../../../utils/useFooterVisibility';
-import { locationService, type LocationData, COUNTRY_CODE_TO_NAME } from '../../../services/location';
+import {
+  locationService,
+  type LocationCacheRecord,
+  type LocationData,
+  COUNTRY_CODE_TO_NAME,
+} from '../../../services/location';
 
 export const CURRENT_STEP = 4;
-export const TOTAL_STEPS = 12;
+export const TOTAL_STEPS = TOTAL_VISIBLE_ONBOARDING_STEPS;
 export const PROGRESS_PCT = Math.round((CURRENT_STEP / TOTAL_STEPS) * 100);
 
 export const countries = [
@@ -61,8 +68,71 @@ export interface Step4Logic {
   setShowPermissionHelp: (v: boolean) => void;
 }
 
+export const mergeDetectedCountryIntoStep4Fields = ({
+  citizenshipCountry,
+  residenceCountry,
+}: {
+  citizenshipCountry: string;
+  residenceCountry: string;
+}): { citizenshipCountry: string; residenceCountry: string } => {
+  return {
+    citizenshipCountry,
+    residenceCountry,
+  };
+};
+
+export const getTrustedStep4Countries = (onboardingData: {
+  citizenship_country?: string | null;
+  residence_country?: string | null;
+  current_step?: number | null;
+} | null | undefined): {
+  citizenship_country?: string;
+  residence_country?: string;
+} => {
+  if (!onboardingData) return {};
+
+  const currentStep =
+    typeof onboardingData.current_step === 'number'
+      ? onboardingData.current_step
+      : Number(onboardingData.current_step || 0);
+
+  // Ignore schema/default country values before Step 4 has actually been reached.
+  if (!Number.isFinite(currentStep) || currentStep < 4) {
+    return {};
+  }
+
+  return {
+    citizenship_country: onboardingData.citizenship_country || undefined,
+    residence_country: onboardingData.residence_country || undefined,
+  };
+};
+
+export const getStep4StatusFromCacheRecord = (
+  cacheRecord: LocationCacheRecord | null
+): LocationStatus => {
+  if (!cacheRecord) return null;
+  return cacheRecord.source === 'gps' ? 'success' : 'ip-success';
+};
+
+/** Check browser geolocation permission state without triggering the prompt. */
+const checkGeoPermission = async (): Promise<'granted' | 'denied' | 'prompt'> => {
+  try {
+    if (navigator.permissions && navigator.permissions.query) {
+      const result = await navigator.permissions.query({ name: 'geolocation' });
+      return result.state as 'granted' | 'denied' | 'prompt';
+    }
+  } catch {
+    // Permissions API not supported (e.g. older Safari)
+  }
+  // Default to 'prompt' so we show the modal
+  return 'prompt';
+};
+
 export const useStep4Logic = (): Step4Logic => {
   const navigate = useNavigate();
+  const autoDetectionStartedRef = useRef(false);
+  const citizenshipCountryRef = useRef('');
+  const residenceCountryRef = useRef('');
   const [userId, setUserId] = useState<string | null>(null);
   const [citizenshipCountry, setCitizenshipCountry] = useState('');
   const [residenceCountry, setResidenceCountry] = useState('');
@@ -70,21 +140,82 @@ export const useStep4Logic = (): Step4Logic => {
   const isFooterVisible = useFooterVisibility();
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [locationDetected, setLocationDetected] = useState(false);
-  const [userManuallyChanged, setUserManuallyChanged] = useState(false);
   const [locationStatus, setLocationStatus] = useState<LocationStatus>(null);
   const [detectedLocation, setDetectedLocation] = useState('');
   const [userConfirmedManual, setUserConfirmedManual] = useState(false);
   const [showPermissionHelp, setShowPermissionHelp] = useState(false);
-  const [hasPreviousData, setHasPreviousData] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
 
-  const canContinue = locationDetected || userConfirmedManual;
+  const canContinue = Boolean(citizenshipCountry && residenceCountry);
   const isErrorStatus = locationStatus === 'denied' || locationStatus === 'failed';
   const isSuccessStatus = locationStatus === 'success' || locationStatus === 'ip-success';
-  const shouldShowForm = Boolean(locationStatus || hasPreviousData);
-  const canConfirmSelection = Boolean(citizenshipCountry && residenceCountry && !userConfirmedManual);
+  const shouldShowForm = true;
+  const canConfirmSelection = false;
 
   useEffect(() => { window.scrollTo(0, 0); }, []);
+
+  useEffect(() => { citizenshipCountryRef.current = citizenshipCountry; }, [citizenshipCountry]);
+  useEffect(() => { residenceCountryRef.current = residenceCountry; }, [residenceCountry]);
+
+  const applyDetectedLocation = (locationData: LocationData, status: LocationStatus) => {
+    const countryName = COUNTRY_CODE_TO_NAME[locationData.countryCode] || locationData.country;
+    const matchedCountry = countries.includes(countryName) ? countryName : '';
+
+    // Pre-populate citizenship country from GPS if the user hasn't picked one yet
+    if (!citizenshipCountryRef.current && matchedCountry) {
+      citizenshipCountryRef.current = matchedCountry;
+      setCitizenshipCountry(matchedCountry);
+    }
+
+    // Pre-populate residence country from GPS if the user hasn't picked one yet
+    if (!residenceCountryRef.current && matchedCountry) {
+      residenceCountryRef.current = matchedCountry;
+      setResidenceCountry(matchedCountry);
+    }
+
+    setDetectedLocation(
+      locationData.formattedAddress ||
+      locationData.city ||
+      locationData.state ||
+      countryName
+    );
+    setLocationDetected(true);
+    setLocationStatus(status);
+  };
+
+  const refreshLocation = async (uid: string) => {
+    setIsDetectingLocation(true);
+    setLocationStatus('detecting');
+
+    try {
+      const result = await locationService.refreshStep4Location(uid);
+
+      if (result.fresh) {
+        applyDetectedLocation(
+          result.fresh.data,
+          result.fresh.source === 'gps' ? 'success' : 'ip-success'
+        );
+        return;
+      }
+
+      if (result.cached) {
+        applyDetectedLocation(result.cached.data, getStep4StatusFromCacheRecord(result.cached));
+        return;
+      }
+
+      setLocationStatus('failed');
+    } catch (error) {
+      console.error('[Step4] Location refresh error:', error);
+      const cachedRecord = await locationService.readSharedLocationCache(uid);
+      if (cachedRecord) {
+        applyDetectedLocation(cachedRecord.data, getStep4StatusFromCacheRecord(cachedRecord));
+      } else {
+        setLocationStatus('failed');
+      }
+    } finally {
+      setIsDetectingLocation(false);
+    }
+  };
 
   useEffect(() => {
     const getCurrentUser = async () => {
@@ -92,47 +223,94 @@ export const useStep4Logic = (): Step4Logic => {
       const { data: { user } } = await config.supabaseClient.auth.getUser();
       if (!user) { navigate('/login'); return; }
       setUserId(user.id);
-      const { data } = await config.supabaseClient.from('onboarding_data').select('*').eq('user_id', user.id).maybeSingle();
-      if (data) {
-        if (data.citizenship_country) { setCitizenshipCountry(data.citizenship_country); setUserManuallyChanged(true); setHasPreviousData(true); }
-        if (data.residence_country) setResidenceCountry(data.residence_country);
+
+      const [onboardingResult, sharedCache] = await Promise.all([
+        config.supabaseClient
+          .from('onboarding_data')
+          .select('citizenship_country, residence_country, current_step')
+          .eq('user_id', user.id)
+          .maybeSingle(),
+        locationService.readSharedLocationCache(user.id),
+      ]);
+      const cachedLocation = sharedCache?.data || await locationService.getCachedLocation(user.id);
+
+      const onboardingData = onboardingResult.data || null;
+      const trustedCountries = getTrustedStep4Countries(onboardingData);
+      const resolved = resolveOnboardingPrefill({
+        onboardingData: trustedCountries,
+        locationData: cachedLocation || undefined,
+      });
+
+      if (resolved.values.citizenship_country) {
+        citizenshipCountryRef.current = resolved.values.citizenship_country;
+        setCitizenshipCountry(resolved.values.citizenship_country);
+      }
+      if (resolved.values.residence_country) {
+        residenceCountryRef.current = resolved.values.residence_country;
+        setResidenceCountry(resolved.values.residence_country);
+      }
+
+      // Fallback: if prefill didn't set countries but we have cached GPS data, extract country
+      if (cachedLocation) {
+        const cachedCountryName =
+          COUNTRY_CODE_TO_NAME[cachedLocation.countryCode] || cachedLocation.country;
+        const matchedCached = countries.includes(cachedCountryName) ? cachedCountryName : '';
+
+        if (!citizenshipCountryRef.current && matchedCached) {
+          citizenshipCountryRef.current = matchedCached;
+          setCitizenshipCountry(matchedCached);
+        }
+        if (!residenceCountryRef.current && matchedCached) {
+          residenceCountryRef.current = matchedCached;
+          setResidenceCountry(matchedCached);
+        }
+
+        setDetectedLocation(
+          cachedLocation.formattedAddress ||
+          cachedLocation.city ||
+          cachedLocation.state ||
+          cachedLocation.country
+        );
+        setLocationDetected(true);
+        setLocationStatus(getStep4StatusFromCacheRecord(sharedCache) || 'ip-success');
+      }
+
+      // Check geolocation permission before auto-detecting
+      if (!autoDetectionStartedRef.current) {
+        autoDetectionStartedRef.current = true;
+
+        // If we already have cached location data, just refresh silently
+        if (cachedLocation) {
+          void refreshLocation(user.id);
+        } else {
+          // No cached data — check if browser permission is already granted
+          const permState = await checkGeoPermission();
+          if (permState === 'granted') {
+            // Permission already granted, detect silently
+            void refreshLocation(user.id);
+          } else {
+            // Permission not yet granted ('prompt') or denied — show our modal
+            setShowLocationModal(true);
+          }
+        }
       }
     };
     getCurrentUser();
     return () => { locationService.cancel(); };
   }, [navigate]);
 
-  useEffect(() => {
-    if (!locationStatus && !hasPreviousData && userId) setShowLocationModal(true);
-  }, [userId, locationStatus, hasPreviousData]);
-
-  const detectLocation = async (uid: string) => {
-    setIsDetectingLocation(true); setLocationStatus('detecting');
-    try {
-      const result = await locationService.detectLocation();
-      if ((result.source === 'detected' || result.source === 'ip-detected') && result.data) {
-        const locationData: LocationData = result.data;
-        const countryName = COUNTRY_CODE_TO_NAME[locationData.countryCode] || locationData.country;
-        if (countries.includes(countryName)) { setCitizenshipCountry(countryName); setResidenceCountry(countryName); }
-        setDetectedLocation(locationData.city || locationData.state || countryName);
-        setLocationDetected(true);
-        setLocationStatus(result.source === 'detected' ? 'success' : 'ip-success');
-        setHasPreviousData(false);
-        try { await locationService.saveLocationToOnboarding(uid, locationData); } catch (e) { console.warn('[Step4] Cache failed:', e); }
-      } else if (result.source === 'denied') { setLocationStatus('denied'); }
-      else { setLocationStatus('failed'); }
-    } catch (error) { console.error('[Step4] Location error:', error); setLocationStatus('failed'); }
-    finally { setIsDetectingLocation(false); }
-  };
-
   const handleCitizenshipChange = (value: string) => {
-    setCitizenshipCountry(value); setUserManuallyChanged(true);
-    if (userConfirmedManual) { setUserConfirmedManual(false); setLocationStatus('manual'); }
+    citizenshipCountryRef.current = value;
+    setCitizenshipCountry(value);
+    setUserConfirmedManual(true);
+    setLocationStatus('manual');
   };
 
   const handleResidenceChange = (value: string) => {
-    setResidenceCountry(value); setUserManuallyChanged(true);
-    if (userConfirmedManual) { setUserConfirmedManual(false); setLocationStatus('manual'); }
+    residenceCountryRef.current = value;
+    setResidenceCountry(value);
+    setUserConfirmedManual(true);
+    setLocationStatus('manual');
   };
 
   const handleConfirmManualSelection = () => {
@@ -140,11 +318,11 @@ export const useStep4Logic = (): Step4Logic => {
   };
 
   const handleRetry = async () => {
-    setLocationDetected(false); setUserManuallyChanged(false); setUserConfirmedManual(false);
-    if (userId) await detectLocation(userId);
+    setUserConfirmedManual(false);
+    if (userId) await refreshLocation(userId);
   };
 
-  const handleAllowLocation = async () => { if (!userId) return; setShowLocationModal(false); await detectLocation(userId); };
+  const handleAllowLocation = async () => { if (!userId) return; setShowLocationModal(false); await refreshLocation(userId); };
   const handleDontAllow = () => { setShowLocationModal(false); setLocationStatus('manual'); };
 
   const handleContinue = async () => {

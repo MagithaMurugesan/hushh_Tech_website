@@ -5,6 +5,7 @@
 import { useState, useEffect, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import config from '../../../resources/config/config';
+import { getOnboardingDisplayMeta } from '../../../services/onboarding/flow';
 import { upsertOnboardingData } from '../../../services/onboarding/upsertOnboardingData';
 import { useFooterVisibility } from '../../../utils/useFooterVisibility';
 
@@ -49,8 +50,10 @@ export const SHARE_CLASSES: ShareClassInfo[] = [
 export const MIN_RECURRING_AMOUNT = 100;
 export const MAX_RECURRING_AMOUNT = 100000000;
 
-export const DISPLAY_STEP = 10;
-export const PROG_TOTAL = 12;
+const DISPLAY_META = getOnboardingDisplayMeta('/onboarding/step-10');
+
+export const DISPLAY_STEP = DISPLAY_META.displayStep;
+export const PROG_TOTAL = DISPLAY_META.totalSteps;
 export const PROG_PCT = Math.round((DISPLAY_STEP / PROG_TOTAL) * 100);
 
 export const FREQUENCY_OPTIONS: { value: RecurringFrequency; label: string }[] = [
@@ -432,7 +435,7 @@ export const useStep11Logic = (): Step11Logic => {
       return;
     }
 
-    navigate('/onboarding/step-13');
+    navigate('/onboarding/step-11');
   };
 
   // Get units for a class
@@ -458,7 +461,7 @@ export const useStep11Logic = (): Step11Logic => {
   };
 
   const handleSkip = () => {
-    navigate('/onboarding/step-13');
+    navigate('/onboarding/step-11');
   };
 
   // Generate units summary text

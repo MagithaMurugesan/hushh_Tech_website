@@ -9,7 +9,8 @@
  * - Error Handling (4 tests)
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { resolveSignNDASession } from '../src/pages/sign-nda/sessionBootstrap';
 
 // ============================================================
 // Type Definitions (mirrors the service types)
@@ -51,6 +52,7 @@ const PUBLIC_ROUTES = [
   '/hushhid',
   '/investor',
   '/sign-nda',
+  '/document-viewer',
   '/hushh-ai',
   '/hushh-agent',
   '/kai',
@@ -206,6 +208,23 @@ function mockSignNDA(
     ndaVersion,
   });
 }
+
+function createMockSession(overrides: Record<string, unknown> = {}) {
+  return {
+    user: {
+      id: 'test-user-123',
+      email: 'test@example.com',
+      user_metadata: {
+        full_name: 'Test User',
+      },
+    },
+    ...overrides,
+  } as any;
+}
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 // ============================================================
 // Test Suite 1: Public Route Detection (8 tests)
@@ -615,5 +634,107 @@ describe('Integration Patterns', () => {
     // No NDA check needed for public routes
     // User can access without any NDA status check
     expect(isPublic).toBe(true);
+  });
+});
+
+// ============================================================
+// Test Suite 10: Sign NDA Session Bootstrap (4 tests)
+// ============================================================
+
+describe('resolveSignNDASession', () => {
+  it('should use the current session immediately when one exists on mount', async () => {
+    const onAuthStateChange = vi.fn();
+    const session = createMockSession();
+    const client = {
+      auth: {
+        getSession: vi.fn().mockResolvedValue({ data: { session } }),
+        onAuthStateChange,
+      },
+    };
+
+    const result = await resolveSignNDASession(client as any, 25);
+
+    expect(result.source).toBe('current_session');
+    expect(result.session?.user.id).toBe('test-user-123');
+    expect(onAuthStateChange).not.toHaveBeenCalled();
+  });
+
+  it('should wait briefly for a late auth event when no current session exists', async () => {
+    vi.useFakeTimers();
+
+    const lateSession = createMockSession({
+      user: {
+        id: 'late-user-456',
+        email: 'late@example.com',
+        user_metadata: {
+          name: 'Late User',
+        },
+      },
+    });
+    const unsubscribe = vi.fn();
+    const client = {
+      auth: {
+        getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
+        onAuthStateChange: vi.fn((callback: (event: string, session: any) => void) => {
+          setTimeout(() => callback('SIGNED_IN', lateSession), 25);
+          return {
+            data: {
+              subscription: {
+                unsubscribe,
+              },
+            },
+          };
+        }),
+      },
+    };
+
+    const resultPromise = resolveSignNDASession(client as any, 100);
+    await vi.advanceTimersByTimeAsync(25);
+    const result = await resultPromise;
+
+    expect(result.source).toBe('auth_event');
+    expect(result.session?.user.id).toBe('late-user-456');
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('should resolve to a redirect path when no session arrives before timeout', async () => {
+    vi.useFakeTimers();
+
+    const unsubscribe = vi.fn();
+    const client = {
+      auth: {
+        getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
+        onAuthStateChange: vi.fn(() => ({
+          data: {
+            subscription: {
+              unsubscribe,
+            },
+          },
+        })),
+      },
+    };
+
+    const resultPromise = resolveSignNDASession(client as any, 50);
+    await vi.advanceTimersByTimeAsync(50);
+    const result = await resultPromise;
+
+    expect(result.source).toBe('timeout');
+    expect(result.session).toBeNull();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('should resolve with an error state instead of hanging when bootstrap throws', async () => {
+    const client = {
+      auth: {
+        getSession: vi.fn().mockRejectedValue(new Error('bootstrap failed')),
+        onAuthStateChange: vi.fn(),
+      },
+    };
+
+    const result = await resolveSignNDASession(client as any, 25);
+
+    expect(result.source).toBe('error');
+    expect(result.session).toBeNull();
+    expect(result.error?.message).toBe('bootstrap failed');
   });
 });

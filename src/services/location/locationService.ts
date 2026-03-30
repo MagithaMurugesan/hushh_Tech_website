@@ -6,8 +6,16 @@
  */
 
 import config from '../../resources/config/config';
+import { upsertOnboardingData } from '../onboarding/upsertOnboardingData';
+import {
+  buildLocationSignature,
+  readLocationCache,
+  writeLocationCache,
+} from './cache';
 import {
   LocationData,
+  LocationCacheRecord,
+  LocationCacheSource,
   Country,
   State,
   City,
@@ -120,6 +128,96 @@ export class LocationService {
     if (!str) return '';
     const last = str.includes('-') ? str.split('-').pop() : str;
     return (last || '').toUpperCase();
+  }
+
+  private toCacheSource(
+    source: LocationDetectionResult['source'] | LocationCacheSource
+  ): LocationCacheSource {
+    return source === 'detected' || source === 'gps' ? 'gps' : 'ip';
+  }
+
+  private createLocationCacheRecord(
+    locationData: LocationData,
+    source: LocationCacheSource,
+    previous?: LocationCacheRecord | null
+  ): LocationCacheRecord {
+    const signature = buildLocationSignature(locationData);
+    const now = new Date().toISOString();
+
+    return {
+      data: locationData,
+      source,
+      signature,
+      detectedAt:
+        previous && previous.signature === signature ? previous.detectedAt : now,
+      lastCheckedAt: now,
+    };
+  }
+
+  private buildLocationFromOnboardingRow(data: Record<string, unknown>): LocationData | null {
+    if ((data as any)?.gps_location_data) {
+      return (data as any).gps_location_data as LocationData;
+    }
+
+    const lat = (data as any).gps_latitude;
+    const lon = (data as any).gps_longitude;
+    if (typeof lat !== 'number' || typeof lon !== 'number') return null;
+
+    const country = String((data as any).gps_country || '');
+    const inferredCountryCode = this.mapCountryToIsoCode(country);
+
+    return {
+      country,
+      countryCode: inferredCountryCode,
+      state: String((data as any).gps_state || ''),
+      stateCode: '',
+      city: String((data as any).gps_city || ''),
+      postalCode: String((data as any).gps_zip_code || ''),
+      phoneDialCode: this.getDialCodeForCountry(inferredCountryCode),
+      timezone: this.getDeviceTimezone(),
+      formattedAddress: String((data as any).gps_full_address || ''),
+      latitude: lat,
+      longitude: lon,
+    };
+  }
+
+  private buildCacheRecordFromOnboardingRow(
+    data: Record<string, unknown>
+  ): LocationCacheRecord | null {
+    const locationData = this.buildLocationFromOnboardingRow(data);
+    if (!locationData) return null;
+
+    const signature = buildLocationSignature(locationData);
+    const detectedAt =
+      typeof (data as any).gps_detected_at === 'string' && (data as any).gps_detected_at
+        ? String((data as any).gps_detected_at)
+        : new Date().toISOString();
+
+    return {
+      data: locationData,
+      source: 'gps',
+      detectedAt,
+      lastCheckedAt: detectedAt,
+      signature,
+    };
+  }
+
+  async readSharedLocationCache(userId: string): Promise<LocationCacheRecord | null> {
+    return readLocationCache(userId);
+  }
+
+  async writeSharedLocationCache(
+    userId: string,
+    record: LocationCacheRecord
+  ): Promise<void> {
+    await writeLocationCache(userId, record);
+  }
+
+  hasLocationChanged(
+    previous: LocationCacheRecord | null,
+    next: LocationCacheRecord
+  ): boolean {
+    return !previous || previous.signature !== next.signature;
   }
 
   /** Cancel any pending requests */
@@ -573,15 +671,23 @@ export class LocationService {
   /**
    * Save GPS location data to onboarding_data table
    */
-  async saveLocationToOnboarding(userId: string, locationData: LocationData): Promise<void> {
+  async saveLocationToOnboarding(
+    userId: string,
+    locationData: LocationData,
+    source: LocationCacheSource = 'gps'
+  ): Promise<LocationCacheRecord> {
+    const existingRecord = await this.readSharedLocationCache(userId);
+    const cacheRecord = this.createLocationCacheRecord(locationData, source, existingRecord);
+    await this.writeSharedLocationCache(userId, cacheRecord);
+
     if (!config.supabaseClient) {
-      throw new Error('Supabase client not configured');
+      console.warn('[LocationService] Supabase client not configured; location mirrored only to shared cache');
+      return cacheRecord;
     }
 
-    const now = new Date().toISOString();
     const countryName = COUNTRY_CODE_TO_NAME[locationData.countryCode] || locationData.country;
 
-    const updateV2 = {
+    const payload = {
       // Matches the current onboarding_data schema (gps_* columns).
       gps_latitude: locationData.latitude,
       gps_longitude: locationData.longitude,
@@ -590,11 +696,6 @@ export class LocationService {
       gps_country: countryName || locationData.country || null,
       gps_zip_code: locationData.postalCode || null,
       gps_full_address: locationData.formattedAddress || null,
-      gps_detected_at: now,
-      updated_at: now,
-    } satisfies Record<string, unknown>;
-
-    const updateLegacy = {
       // Backward-compatible payload for older schemas that stored the full JSON blob.
       gps_location_data: locationData,
       gps_detected_country: countryName,
@@ -603,42 +704,29 @@ export class LocationService {
       gps_detected_postal_code: locationData.postalCode,
       gps_detected_phone_dial_code: locationData.phoneDialCode,
       gps_detected_timezone: locationData.timezone,
-      updated_at: now,
+      gps_detected_at: cacheRecord.lastCheckedAt,
+      updated_at: cacheRecord.lastCheckedAt,
     } satisfies Record<string, unknown>;
 
-    const tryUpdate = async (payload: Record<string, unknown>) => {
-      const { error } = await config.supabaseClient
-        .from('onboarding_data')
-        .update(payload)
-        .eq('user_id', userId);
-      return error;
-    };
-
-    const errorV2 = await tryUpdate(updateV2);
-    if (!errorV2) {
-      console.log('[LocationService] Location saved to onboarding_data (gps_* columns)');
-      return;
+    const { error } = await upsertOnboardingData(userId, payload);
+    if (error) {
+      console.error('[LocationService] Failed to save location:', error);
+      throw new Error(error.message);
     }
 
-    // If columns are missing (schema mismatch), try the legacy JSON columns.
-    if (errorV2.code === 'PGRST204' || errorV2.message?.toLowerCase().includes('schema cache')) {
-      const errorLegacy = await tryUpdate(updateLegacy);
-      if (!errorLegacy) {
-        console.log('[LocationService] Location saved to onboarding_data (legacy gps_location_data columns)');
-        return;
-      }
-      console.error('[LocationService] Failed to save location (legacy):', errorLegacy);
-      throw errorLegacy;
-    }
-
-    console.error('[LocationService] Failed to save location:', errorV2);
-    throw errorV2;
+    console.log('[LocationService] Location saved to onboarding_data and shared cache');
+    return cacheRecord;
   }
 
   /**
    * Get cached GPS location data from onboarding_data
    */
   async getCachedLocation(userId: string): Promise<LocationData | null> {
+    const sharedCache = await this.readSharedLocationCache(userId);
+    if (sharedCache) {
+      return sharedCache.data;
+    }
+
     if (!config.supabaseClient) return null;
 
     const { data, error } = await config.supabaseClient
@@ -649,31 +737,40 @@ export class LocationService {
 
     if (error || !data) return null;
 
-    // Prefer the richer legacy JSON blob if present.
-    if ((data as any)?.gps_location_data) {
-      return (data as any).gps_location_data as LocationData;
+    const mirroredRecord = this.buildCacheRecordFromOnboardingRow(data as Record<string, unknown>);
+    if (!mirroredRecord) return null;
+
+    try {
+      await this.writeSharedLocationCache(userId, mirroredRecord);
+    } catch (cacheError) {
+      console.warn('[LocationService] Failed to hydrate shared cache from onboarding data:', cacheError);
     }
 
-    // Otherwise, reconstruct from gps_* columns if present.
-    const lat = (data as any).gps_latitude;
-    const lon = (data as any).gps_longitude;
-    if (typeof lat !== 'number' || typeof lon !== 'number') return null;
+    return mirroredRecord.data;
+  }
 
-    const country = String((data as any).gps_country || '');
-    const inferredCountryCode = this.mapCountryToIsoCode(country);
+  async refreshStep4Location(userId: string): Promise<{
+    cached: LocationCacheRecord | null;
+    fresh: LocationCacheRecord | null;
+    changed: boolean;
+  }> {
+    const cached = await this.readSharedLocationCache(userId);
+    const detection = await this.detectLocation();
+
+    if (!detection.data || (detection.source !== 'detected' && detection.source !== 'ip-detected')) {
+      return { cached, fresh: null, changed: false };
+    }
+
+    const fresh = await this.saveLocationToOnboarding(
+      userId,
+      detection.data,
+      this.toCacheSource(detection.source)
+    );
 
     return {
-      country,
-      countryCode: inferredCountryCode,
-      state: String((data as any).gps_state || ''),
-      stateCode: '',
-      city: String((data as any).gps_city || ''),
-      postalCode: String((data as any).gps_zip_code || ''),
-      phoneDialCode: this.getDialCodeForCountry(inferredCountryCode),
-      timezone: this.getDeviceTimezone(),
-      formattedAddress: String((data as any).gps_full_address || ''),
-      latitude: lat,
-      longitude: lon,
+      cached,
+      fresh,
+      changed: this.hasLocationChanged(cached, fresh),
     };
   }
 

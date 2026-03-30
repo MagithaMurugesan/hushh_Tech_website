@@ -14,6 +14,10 @@ import HushhTechBackHeader from '../../../components/hushh-tech-back-header/Hush
 import HushhTechCta, {
   HushhTechCtaVariant,
 } from '../../../components/hushh-tech-cta/HushhTechCta';
+import { getOnboardingDisplayMeta } from '../../../services/onboarding/flow';
+
+const DISPLAY_META = getOnboardingDisplayMeta('/onboarding/step-12');
+const PROGRESS_PCT = Math.round((DISPLAY_META.displayStep / DISPLAY_META.totalSteps) * 100);
 
 export default function OnboardingStep13() {
   const {
@@ -41,7 +45,6 @@ export default function OnboardingStep13() {
     accountHolderNameError,
     accountNumberError,
     confirmAccountNumberError,
-    bankCountryError,
     routingNumberError,
     isFormValid,
     getUnits,
@@ -55,7 +58,6 @@ export default function OnboardingStep13() {
     setConfirmAccountNumber,
     setRoutingNumber,
     setBankCity,
-    setBankCountry,
     setAccountType,
     setSelectedAccountIdx,
     applyAccountSelection,
@@ -71,11 +73,11 @@ export default function OnboardingStep13() {
         {/* ── Progress Bar ── */}
         <div className="py-4">
           <div className="flex justify-between text-[11px] font-semibold tracking-wide text-gray-500 mb-3">
-            <span>Step 12/12</span>
-            <span>100% Complete</span>
+            <span>Step {DISPLAY_META.displayStep}/{DISPLAY_META.totalSteps}</span>
+            <span>{PROGRESS_PCT}% Complete</span>
           </div>
           <div className="h-0.5 w-full bg-gray-200 rounded-full overflow-hidden">
-            <div className="h-full bg-hushh-blue w-full" />
+            <div className="h-full bg-hushh-blue" style={{ width: `${PROGRESS_PCT}%` }} />
           </div>
         </div>
 
@@ -259,31 +261,21 @@ export default function OnboardingStep13() {
                 </div>
               </div>
 
-              {/* Country — overlay select */}
-              <div className="relative py-5 border-b border-gray-200 cursor-pointer">
-                <div className="flex items-center gap-4 pointer-events-none">
+              <div className="py-5 border-b border-gray-200">
+                <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
                     <span className="material-symbols-outlined text-gray-700 text-lg" style={{ fontVariationSettings: "'wght' 400" }}>public</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="text-sm font-semibold text-gray-900 block mb-1">Country</span>
                     <span className="text-sm text-gray-700 font-medium">
-                      {COUNTRIES.find(c => c.code === bankCountry)?.name || 'Select country'}
+                      {COUNTRIES.find(c => c.code === bankCountry)?.name || bankCountry}
+                    </span>
+                    <span className="text-xs text-gray-400 font-medium block mt-1">
+                      Derived from your verified residence details
                     </span>
                   </div>
-                  <span className="material-symbols-outlined text-gray-400 text-lg" style={{ fontVariationSettings: "'wght' 400" }}>expand_more</span>
                 </div>
-                <select
-                  value={bankCountry}
-                  onChange={(e) => { userModifiedFields.current.add('bankCountry'); setBankCountry(e.target.value); handleBlur('bankCountry'); }}
-                  onBlur={() => handleBlur('bankCountry')}
-                  aria-label="Bank country"
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                >
-                  {COUNTRIES.map((c) => (
-                    <option key={c.code} value={c.code} disabled={c.code === ''}>{c.name}</option>
-                  ))}
-                </select>
               </div>
             </section>
 
