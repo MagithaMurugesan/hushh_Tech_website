@@ -1,5 +1,7 @@
 // investments-holdings — Fetch investment holdings from Plaid
 import { corsHeaders } from '../_shared/cors.ts';
+import { getPlaidConfig } from '../_shared/plaid.ts';
+import { authenticateEdgeRequest } from '../_shared/security.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -7,6 +9,11 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const authFailure = await authenticateEdgeRequest(req, {
+      label: 'investments-holdings',
+    });
+    if (authFailure) return authFailure;
+
     const body = await req.json();
     const accessToken = body.accessToken || body.access_token;
 
@@ -17,17 +24,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    const PLAID_CLIENT_ID = Deno.env.get('PLAID_CLIENT_ID');
-    const PLAID_SECRET = Deno.env.get('PLAID_SECRET');
-    const PLAID_ENV = Deno.env.get('PLAID_ENV') || 'sandbox';
-    const baseUrl = `https://${PLAID_ENV}.plaid.com`;
+    const plaid = getPlaidConfig();
 
-    const response = await fetch(`${baseUrl}/investments/holdings/get`, {
+    const response = await fetch(`${plaid.baseUrl}/investments/holdings/get`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        client_id: PLAID_CLIENT_ID,
-        secret: PLAID_SECRET,
+        client_id: plaid.clientId,
+        secret: plaid.secret,
         access_token: accessToken,
       }),
     });

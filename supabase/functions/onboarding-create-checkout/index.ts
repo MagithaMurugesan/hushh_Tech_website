@@ -3,6 +3,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import Stripe from "https://esm.sh/stripe@14.5.0?target=deno";
+import { getTrustedOrigin } from "../_shared/security.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -91,7 +92,7 @@ Deno.serve(async (req) => {
     }
 
     // Get current URL for success/cancel redirects
-    const origin = req.headers.get('origin') || 'https://hushhtech.com';
+    const origin = getTrustedOrigin(req);
     const successUrl = `${origin}/onboarding/meet-ceo?payment=success&session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${origin}/onboarding/meet-ceo?payment=cancel`;
 

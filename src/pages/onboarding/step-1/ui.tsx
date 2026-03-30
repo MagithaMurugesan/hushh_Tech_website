@@ -51,6 +51,8 @@ export default function OnboardingStep1() {
     error,
     isLoading,
     hasSelection,
+    recurringEnabled,
+    toggleRecurring,
     handleUnitChange,
     handleAmountClick,
     handleCustomAmountChange,
@@ -199,11 +201,33 @@ export default function OnboardingStep1() {
             >
               Recurring Investment
             </h3>
-            <span className="px-2.5 py-1 bg-red-50 text-red-600 text-[10px] font-semibold rounded-full border border-red-200 uppercase tracking-wide">
-              Required
-            </span>
+            {/* Toggle switch */}
+            <button
+              onClick={toggleRecurring}
+              className="relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-hushh-blue focus:ring-offset-2"
+              style={{ backgroundColor: recurringEnabled ? '#3b82f6' : '#d1d5db' }}
+              role="switch"
+              aria-checked={recurringEnabled}
+              aria-label="Toggle recurring investment"
+              tabIndex={0}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition-transform duration-300 ${
+                  recurringEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
           </div>
 
+          {/* Show subtitle when toggle is OFF */}
+          {!recurringEnabled && (
+            <p className="text-xs text-gray-400 font-medium -mt-4 mb-4">
+              Enable to set up automatic recurring investments
+            </p>
+          )}
+
+          {/* Recurring options — only visible when toggle is ON */}
+          {recurringEnabled && (
           <div className="space-y-0">
             {/* ── Frequency: selectable pills ── */}
             <div className="py-5 border-b border-gray-100">
@@ -344,6 +368,7 @@ export default function OnboardingStep1() {
               </div>
             </div>
           </div>
+          )}
         </section>
 
         {/* ── Error message ── */}

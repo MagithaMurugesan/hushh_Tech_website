@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import services from "../services/services";
 import HushhLogo from "../components/images/Hushhogo.png";
 import config from "../resources/config/config";
+import { DEFAULT_AUTH_REDIRECT, sanitizeInternalRedirect } from "../utils/security";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -18,7 +19,7 @@ export default function Login() {
   // Stable redirect path — computed once from URL params
   const redirectPath = React.useMemo(() => {
     const params = new URLSearchParams(window.location.search);
-    return params.get("redirect") || "/hushh-user-profile";
+    return sanitizeInternalRedirect(params.get("redirect"), DEFAULT_AUTH_REDIRECT);
   }, []);
 
   useEffect(() => {

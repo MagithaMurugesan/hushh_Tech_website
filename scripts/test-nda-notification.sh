@@ -14,13 +14,13 @@ echo -e "${YELLOW}🧪 Testing NDA Signed Notification Function${NC}"
 echo "================================================"
 
 # Supabase project settings
-SUPABASE_URL="${VITE_SUPABASE_URL:-}"
+SUPABASE_URL="${SUPABASE_URL:-${VITE_SUPABASE_URL:-}}"
 FUNCTION_URL="${SUPABASE_URL}/functions/v1/nda-signed-notification"
 
-SUPABASE_ANON_KEY="${VITE_SUPABASE_ANON_KEY:-}"
+SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY:-${VITE_SUPABASE_ANON_KEY:-}}"
 
 if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
-  echo -e "${RED}❌ Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY before running this script.${NC}"
+  echo -e "${RED}❌ Set SUPABASE_URL/SUPABASE_ANON_KEY or VITE_SUPABASE_URL/VITE_SUPABASE_ANON_KEY before running this script.${NC}"
   exit 1
 fi
 

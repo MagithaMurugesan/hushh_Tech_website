@@ -115,6 +115,11 @@ export const useHushhUserProfileLogic = () => {
   const [isApplePassLoading, setIsApplePassLoading] = useState(false);
   const [isGooglePassLoading, setIsGooglePassLoading] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
+  // Dirty tracking — true when user manually edits any form field
+  const [isDirty, setIsDirty] = useState(false);
+  // Dirty tracking for AI profile field edits (separate from form edits)
+  const [isAiProfileDirty, setIsAiProfileDirty] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   // Shadow Investigator state
   const [shadowProfile, setShadowProfile] = useState<ShadowProfile | null>(null);
   const [shadowLoading, setShadowLoading] = useState(false);
@@ -235,6 +240,9 @@ export const useHushhUserProfileLogic = () => {
       },
     });
     setEditingField(null);
+    // Mark AI profile as dirty so Save Changes can persist it
+    setIsAiProfileDirty(true);
+    setIsDirty(true);
   };
 
   // Handle multi-select toggle
@@ -261,6 +269,9 @@ export const useHushhUserProfileLogic = () => {
         value: newValues,
       },
     });
+    // Mark AI profile as dirty so Save Changes can persist it
+    setIsAiProfileDirty(true);
+    setIsDirty(true);
   };
 
   // Profile URL for sharing
@@ -393,14 +404,14 @@ export const useHushhUserProfileLogic = () => {
                 user_id: user.id,
                 name: userName,
                 email: user.email || "",
-                age: userAge,
+                age: Math.max(18, Math.min(120, userAge)), // Clamp to DB constraint range
                 phone_country_code: onboardingData.phone_country_code || "+1",
                 phone_number: onboardingData.phone_number || "",
                 organisation: null,
                 investor_profile: null, // No AI profile yet, just basic row for slug
                 is_public: true, // Public by default so shared links work
                 user_confirmed: false,
-              })
+              }, { onConflict: 'user_id' })
               .select("slug")
               .maybeSingle();
 
@@ -474,6 +485,8 @@ export const useHushhUserProfileLogic = () => {
       if (digitsOnly.length > 15) return;
     }
     setForm((prev) => ({ ...prev, [key]: key === "age" || key === "initialInvestmentAmount" ? Number(value) || "" : value }));
+    // Mark form as dirty when user edits any field
+    setIsDirty(true);
   };
 
   // Helper: save partial profile data to Supabase (called by each API independently)
@@ -498,7 +511,7 @@ export const useHushhUserProfileLogic = () => {
           user_confirmed: true,
           confirmed_at: new Date().toISOString(),
           ...partialPayload,
-        })
+        }, { onConflict: 'user_id' })
         .select("slug")
         .maybeSingle();
       if (data?.slug) setProfileSlug(data.slug);
@@ -540,8 +553,8 @@ export const useHushhUserProfileLogic = () => {
     }
 
     const ageNum = typeof form.age === "number" ? form.age : Number(form.age);
-    if (isNaN(ageNum) || ageNum < 1 || ageNum > 120) {
-      toast({ title: "Invalid age", description: "Age must be between 1 and 120", status: "warning", duration: 4000 });
+    if (isNaN(ageNum) || ageNum < 18 || ageNum > 120) {
+      toast({ title: "Invalid age", description: "Age must be between 18 and 120", status: "warning", duration: 4000 });
       return;
     }
 
@@ -584,8 +597,11 @@ export const useHushhUserProfileLogic = () => {
       console.error("[Profile] Investor profile exception:", err);
       toast({ title: "Investor profile failed", description: "Network error — will retry later", status: "warning", duration: 4000 });
     }).finally(() => {
-      // Check if both are done
-      setShadowStatus((prev) => { checkAllDone('done', prev); return prev; });
+      // Use actual investor status (done or error) to check completion
+      setInvestorStatus((invActual) => {
+        setShadowStatus((shdActual) => { checkAllDone(invActual, shdActual); return shdActual; });
+        return invActual;
+      });
     });
 
     // ── API 2: Shadow Investigator (fire-and-forget) ──
@@ -616,8 +632,11 @@ export const useHushhUserProfileLogic = () => {
       setShadowLoading(false);
       console.error("[Profile] Shadow investigator exception:", err);
     }).finally(() => {
-      // Check if both are done
-      setInvestorStatus((prev) => { checkAllDone(prev, 'done'); return prev; });
+      // Use actual shadow status (done or error) to check completion
+      setShadowStatus((shdActual) => {
+        setInvestorStatus((invActual) => { checkAllDone(invActual, shdActual); return invActual; });
+        return shdActual;
+      });
     });
   };
 
@@ -634,6 +653,7 @@ export const useHushhUserProfileLogic = () => {
   };
 
   // handleSave — directly calls handleSubmit (no <form> tag needed)
+  // Used by "Enhance with AI" button — triggers AI generation
   const handleSave = () => {
     if (loading || isProcessing) return;
     if (!userId) {
@@ -642,6 +662,50 @@ export const useHushhUserProfileLogic = () => {
     }
     // Call handleSubmit directly — no form element needed
     handleSubmit({ preventDefault: () => {} } as React.FormEvent);
+  };
+
+  /**
+   * handleSaveChanges — saves manual form edits + AI profile edits to Supabase
+   * No AI generation calls. Just a simple upsert of editable fields.
+   * Also persists AI profile field edits if user modified them.
+   * Only enabled when isDirty === true (user has edited something).
+   */
+  const handleSaveChanges = async () => {
+    if (isSaving || !isDirty || !userId) return;
+
+    // Validate required fields before saving
+    if (!form.name?.trim()) {
+      toast({ title: "Name required", description: "Please enter your name before saving", status: "warning", duration: 3000 });
+      return;
+    }
+    if (form.email?.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(form.email.trim())) {
+        toast({ title: "Invalid email", description: "Please enter a valid email address", status: "warning", duration: 3000 });
+        return;
+      }
+    }
+
+    const supabase = resources.config.supabaseClient;
+    if (!supabase) return;
+
+    setIsSaving(true);
+    try {
+      // Include AI profile in payload if user edited any AI fields
+      const payload: Record<string, unknown> = {};
+      if (isAiProfileDirty && investorProfile) {
+        payload.investor_profile = investorProfile;
+      }
+      await saveToSupabase(payload);
+      setIsDirty(false);
+      setIsAiProfileDirty(false);
+      toast({ title: "Changes saved", description: "Your profile details have been updated", status: "success", duration: 3000 });
+    } catch (err) {
+      console.error("[Profile] Save changes failed:", err);
+      toast({ title: "Save failed", description: "Could not save your changes. Please try again.", status: "error", duration: 4000 });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Handle Apple Wallet pass download
@@ -814,6 +878,7 @@ export const useHushhUserProfileLogic = () => {
     editingField, setEditingField, shadowProfile, shadowLoading, nwsResult, nwsLoading,
     isFooterVisible, hasCopied, onCopy, profileUrl, navigate, toast,
     FIELD_OPTIONS, MULTI_SELECT_FIELDS, COUNTRIES, defaultFormState,
+    isDirty, isSaving, handleSaveChanges,
     handleUpdateAIField, handleMultiSelectToggle, handleChange, handleSubmit,
     handleBack, handleSave, handleAppleWalletPass, handleGoogleWalletPass,
     handleShareWhatsApp, handleShareX, handleShareEmail, handleShareLinkedIn, handleOpenProfile,

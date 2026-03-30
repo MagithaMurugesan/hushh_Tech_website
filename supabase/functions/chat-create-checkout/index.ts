@@ -4,6 +4,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@14.5.0?target=deno";
+import { getTrustedOrigin } from "../_shared/security.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -54,7 +55,7 @@ serve(async (req) => {
     }
 
     // Get current URL for success/cancel redirects
-    const origin = req.headers.get('origin') || 'https://hushhtech.com';
+    const origin = getTrustedOrigin(req);
     const successUrl = `${origin}/investor/${slug}?payment=success&session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${origin}/investor/${slug}?payment=cancel`;
 

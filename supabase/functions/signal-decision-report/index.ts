@@ -1,5 +1,6 @@
 // signal-decision-report — Report whether an ACH transaction was initiated
 import { corsHeaders } from '../_shared/cors.ts';
+import { getPlaidConfig } from '../_shared/plaid.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -18,14 +19,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    const PLAID_CLIENT_ID = Deno.env.get('PLAID_CLIENT_ID');
-    const PLAID_SECRET = Deno.env.get('PLAID_SECRET');
-    const PLAID_ENV = Deno.env.get('PLAID_ENV') || 'sandbox';
-    const baseUrl = `https://${PLAID_ENV}.plaid.com`;
+    const plaid = getPlaidConfig();
 
     const plaidBody: Record<string, any> = {
-      client_id: PLAID_CLIENT_ID,
-      secret: PLAID_SECRET,
+      client_id: plaid.clientId,
+      secret: plaid.secret,
       client_transaction_id: clientTransactionId,
       initiated: initiated,
     };
@@ -38,7 +36,7 @@ Deno.serve(async (req) => {
       plaidBody.amount_instantly_available = body.amount_instantly_available;
     }
 
-    const response = await fetch(`${baseUrl}/signal/decision/report`, {
+    const response = await fetch(`${plaid.baseUrl}/signal/decision/report`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(plaidBody),

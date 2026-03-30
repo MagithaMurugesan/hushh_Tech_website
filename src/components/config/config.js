@@ -1,18 +1,19 @@
 import { createClient } from "@supabase/supabase-js";
 
 const env = typeof import.meta !== "undefined" ? import.meta.env : {};
-const supabaseUrl = env?.VITE_SUPABASE_URL?.trim?.() || "";
-const supabaseAnonKey = env?.VITE_SUPABASE_ANON_KEY?.trim?.() || "";
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error(
-    "[Config] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. Set them in .env.local or your deployment environment."
-  );
+function readClientEnv(value, name, fallback = "") {
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value.trim();
+  }
+
+  console.error(`[Config] Missing required client environment variable: ${name}`);
+  return fallback;
 }
 
 const config = {
-  SUPABASE_URL: supabaseUrl,
-  SUPABASE_ANON_KEY: supabaseAnonKey,
+  SUPABASE_URL: readClientEnv(env?.VITE_SUPABASE_URL, "VITE_SUPABASE_URL"),
+  SUPABASE_ANON_KEY: readClientEnv(env?.VITE_SUPABASE_ANON_KEY, "VITE_SUPABASE_ANON_KEY"),
   guestModeAccessToken: env?.VITE_GUEST_MODE_ACCESS_TOKEN || "",
   redirect_url:
     env?.VITE_SUPABASE_REDIRECT_URL ||

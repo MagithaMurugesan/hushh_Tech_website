@@ -8,18 +8,18 @@ interface Config {
   supabaseClient?: SupabaseClient;
 }
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim() || "";
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim() || "";
+function readClientEnv(value: string | undefined, name: string, fallback = ""): string {
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value.trim();
+  }
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error(
-    "[Config] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. Set them in .env.local or your deployment environment."
-  );
+  console.error(`[Config] Missing required client environment variable: ${name}`);
+  return fallback;
 }
 
 const config: Config = {
-  SUPABASE_URL: supabaseUrl,
-  SUPABASE_ANON_KEY: supabaseAnonKey,
+  SUPABASE_URL: readClientEnv(import.meta.env.VITE_SUPABASE_URL, "VITE_SUPABASE_URL"),
+  SUPABASE_ANON_KEY: readClientEnv(import.meta.env.VITE_SUPABASE_ANON_KEY, "VITE_SUPABASE_ANON_KEY"),
   // Use platform-aware redirect URL for iOS Universal Links support
   redirect_url:
     import.meta.env.VITE_SUPABASE_REDIRECT_URL || getOAuthRedirectUrl(),

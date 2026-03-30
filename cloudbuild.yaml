@@ -1,0 +1,99 @@
+# =============================================================================
+# Google Cloud Build — CI/CD Pipeline for Hushh Tech Website
+# Trigger: Push to main branch → Build Docker image → Deploy to Cloud Run
+#
+# Setup:
+#   1. gcloud builds triggers create github \
+#        --repo-name=hushh_Tech_website \
+#        --repo-owner=hushh-labs \
+#        --branch-pattern='^main$' \
+#        --build-config=cloudbuild.yaml \
+#        --substitutions=_REGION=us-central1,_SERVICE_NAME=hushh-tech-website
+#
+#   2. Set substitution variables in the trigger for all VITE_* and server env vars
+# =============================================================================
+
+steps:
+  # Step 1: Build Docker image with build args for VITE_* env vars
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile.gcp'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:$COMMIT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:latest'
+      # Build args for Vite (compile-time env vars)
+      - '--build-arg'
+      - 'VITE_SUPABASE_URL=${_VITE_SUPABASE_URL}'
+      - '--build-arg'
+      - 'VITE_SUPABASE_ANON_KEY=${_VITE_SUPABASE_ANON_KEY}'
+      - '--build-arg'
+      - 'VITE_SUPABASE_REDIRECT_URL=${_VITE_SUPABASE_REDIRECT_URL}'
+      - '--build-arg'
+      - 'VITE_KYC_ENV=${_VITE_KYC_ENV}'
+      - '--build-arg'
+      - 'VITE_KYC_DEMO_MODE=${_VITE_KYC_DEMO_MODE}'
+      - '--build-arg'
+      - 'VITE_KYC_API_BASE=${_VITE_KYC_API_BASE}'
+      - '--build-arg'
+      - 'VITE_GEMINI_API_KEY=${_VITE_GEMINI_API_KEY}'
+      - '--build-arg'
+      - 'VITE_FIREBASE_API_KEY=${_VITE_FIREBASE_API_KEY}'
+      - '--build-arg'
+      - 'VITE_FIREBASE_AUTH_DOMAIN=${_VITE_FIREBASE_AUTH_DOMAIN}'
+      - '--build-arg'
+      - 'VITE_FIREBASE_PROJECT_ID=${_VITE_FIREBASE_PROJECT_ID}'
+      - '.'
+
+  # Step 2: Push Docker image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:$COMMIT_SHA']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:latest']
+
+  # Step 3: Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:$COMMIT_SHA'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--memory'
+      - '512Mi'
+      - '--cpu'
+      - '1'
+      - '--min-instances'
+      - '0'
+      - '--max-instances'
+      - '10'
+      - '--concurrency'
+      - '250'
+      - '--timeout'
+      - '60s'
+      - '--set-env-vars'
+      - 'NODE_ENV=production,OPENAI_API_KEY=${_OPENAI_API_KEY},GEMINI_API_KEY=${_GEMINI_API_KEY},GEMINI_API_KEY_2=${_GEMINI_API_KEY_2},GEMINI_API_KEY_3=${_GEMINI_API_KEY_3},GEMINI_API_KEY_4=${_GEMINI_API_KEY_4},GMAIL_USER=${_GMAIL_USER},GMAIL_APP_PASSWORD=${_GMAIL_APP_PASSWORD},GOOGLE_APPS_SCRIPT_URL=${_GOOGLE_APPS_SCRIPT_URL},SUPABASE_SERVICE_ROLE_KEY=${_SUPABASE_SERVICE_ROLE_KEY}'
+
+# Substitution defaults (override in Cloud Build trigger settings)
+substitutions:
+  _SERVICE_NAME: hushh-tech-website
+  _REGION: us-central1
+  _VITE_KYC_ENV: production
+  _VITE_KYC_DEMO_MODE: 'false'
+
+# Build timeout
+timeout: '1200s'
+
+# Store the image in GCR
+images:
+  - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:latest'

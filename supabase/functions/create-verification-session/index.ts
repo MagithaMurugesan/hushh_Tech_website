@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@14.10.0";
+import { sanitizeReturnUrl } from "../_shared/security.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -59,6 +60,11 @@ serve(async (req) => {
     const verificationFlowId = Deno.env.get("STRIPE_VERIFICATION_FLOW_ID") || "vf_1SdqC9LYaD0u4Aj1BB7NFhbN";
 
     // Create Stripe Identity Verification Session
+    const safeReturnUrl = sanitizeReturnUrl(
+      returnUrl,
+      "/onboarding/verify-complete",
+    );
+
     const verificationSession = await stripe.identity.verificationSessions.create({
       verification_flow: verificationFlowId,
       provided_details: {
@@ -66,7 +72,7 @@ serve(async (req) => {
         ...(phone && { phone }),
       },
       client_reference_id: user.id,
-      return_url: returnUrl || `${Deno.env.get("SITE_URL") || "https://hushhtech.com"}/onboarding/verify-complete`,
+      return_url: safeReturnUrl,
       metadata: {
         user_id: user.id,
         ...metadata,

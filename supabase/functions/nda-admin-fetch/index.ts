@@ -9,7 +9,7 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
-const ADMIN_PASSWORD = '123456';
+const getAdminPassword = () => Deno.env.get("NDA_ADMIN_PASSWORD") || "123456";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -37,7 +37,7 @@ serve(async (req: Request) => {
     const { password, highlightUserId } = body;
 
     // Verify password
-    if (password !== ADMIN_PASSWORD) {
+    if (password !== getAdminPassword()) {
       return new Response(
         JSON.stringify({ error: "Unauthorized - incorrect password" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }

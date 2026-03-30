@@ -27,7 +27,7 @@ read_env_var() {
 TEAM_ID="${APPLE_TEAM_ID:-$(read_env_var APPLE_TEAM_ID)}"
 KEY_ID="${APPLE_KEY_ID:-$(read_env_var APPLE_KEY_ID)}"
 CLIENT_ID="${APPLE_CLIENT_ID:-$(read_env_var APPLE_CLIENT_ID)}"
-KEY_FILE_PATH="${APPLE_KEY_FILE_PATH:-$(read_env_var APPLE_KEY_FILE_PATH)}"
+KEY_FILE_PATH="${APPLE_KEY_FILE_PATH:-${APPLE_PRIVATE_KEY_PATH:-$(read_env_var APPLE_KEY_FILE_PATH)}}"
 
 if [ -z "$TEAM_ID" ] || [ -z "$KEY_ID" ] || [ -z "$CLIENT_ID" ]; then
     echo "❌ Error: Missing APPLE_TEAM_ID, APPLE_KEY_ID, or APPLE_CLIENT_ID."
@@ -50,7 +50,7 @@ fi
 # Check if .p8 file exists
 if [ ! -f "$KEY_FILE_PATH" ]; then
     echo "❌ Error: Key file not found at $KEY_FILE_PATH"
-    echo "   Set APPLE_KEY_FILE_PATH or place AuthKey_${KEY_ID}.p8 in ~/.private_keys/"
+    echo "   Set APPLE_KEY_FILE_PATH or APPLE_PRIVATE_KEY_PATH, or place AuthKey_${KEY_ID}.p8 in ~/.private_keys/"
     exit 1
 fi
 

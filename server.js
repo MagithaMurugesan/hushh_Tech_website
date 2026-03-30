@@ -1,0 +1,146 @@
+/**
+ * Express Server for GCP Cloud Run
+ * Serves the Vite SPA build + API routes
+ * 
+ * This replaces Vercel's hosting by combining:
+ * - Static file serving (dist/)
+ * - API serverless functions (api/)
+ * - SPA fallback routing
+ * - Security headers
+ */
+
+import express from 'express';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const app = express();
+const PORT = process.env.PORT || 8080;
+const DIST_DIR = join(__dirname, 'dist');
+
+// ---------------------------------------------------------------------------
+// Middleware
+// ---------------------------------------------------------------------------
+
+// Parse JSON & URL-encoded bodies
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+// Global security headers (mirrors vercel.json)
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.plaid.com https://*.plaid.com https://www.google.com https://www.gstatic.com https://www.googletagmanager.com https://www.google-analytics.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.plaid.com",
+      "font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com data:",
+      "img-src 'self' data: blob: https: http:",
+      "connect-src 'self' https://*.plaid.com https://*.supabase.co wss://*.supabase.co https://www.google.com https://www.gstatic.com https://www.google-analytics.com https://www.googletagmanager.com https://api.emailjs.com https://generativelanguage.googleapis.com https://*.googleapis.com https://www.walletlink.org wss://www.walletlink.org wss://mainnet.infura.io wss://*.infura.io https://*.seondnsresolve.com https://www.recaptcha.net",
+      "frame-src 'self' https://cdn.plaid.com https://*.plaid.com https://www.google.com https://www.gstatic.com https://calendly.com",
+      "media-src 'self' blob: data:",
+      "worker-src 'self' blob:",
+      "child-src 'self' blob: https://cdn.plaid.com https://*.plaid.com",
+    ].join('; ')
+  );
+  res.setHeader(
+    'Permissions-Policy',
+    'camera=*, microphone=(), geolocation=(self), encrypted-media=*, accelerometer=*'
+  );
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  res.setHeader('X-DNS-Prefetch-Control', 'on');
+  next();
+});
+
+// ---------------------------------------------------------------------------
+// API Routes — adapt Vercel handler(req, res) → Express route
+// ---------------------------------------------------------------------------
+
+// Helper: wrap a Vercel-style handler into an Express route
+const wrapHandler = (handlerModule) => async (req, res) => {
+  try {
+    const handler = handlerModule.default || handlerModule;
+    await handler(req, res);
+  } catch (err) {
+    console.error('API route error:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+};
+
+// Lazy-import API handlers (keeps startup fast)
+const loadApi = async (name) => import(`./api/${name}.js`);
+
+app.all('/api/career-application', async (req, res) => wrapHandler(await loadApi('career-application'))(req, res));
+app.all('/api/enrich-preferences', async (req, res) => wrapHandler(await loadApi('enrich-preferences'))(req, res));
+app.all('/api/gemini-chat', async (req, res) => wrapHandler(await loadApi('gemini-chat'))(req, res));
+app.all('/api/gemini-ephemeral-token', async (req, res) => wrapHandler(await loadApi('gemini-ephemeral-token'))(req, res));
+app.all('/api/generate-investor-profile', async (req, res) => wrapHandler(await loadApi('generate-investor-profile'))(req, res));
+app.all('/api/send-email-notification', async (req, res) => wrapHandler(await loadApi('send-email-notification'))(req, res));
+app.all('/api/wallet-pass', async (req, res) => wrapHandler(await loadApi('wallet-pass'))(req, res));
+
+// ---------------------------------------------------------------------------
+// .well-known routes (Apple App Site Association, etc.)
+// ---------------------------------------------------------------------------
+app.use('/.well-known', express.static(join(DIST_DIR, '.well-known'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('apple-app-site-association')) {
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Cache-Control', 'max-age=3600');
+    }
+  },
+}));
+
+// ---------------------------------------------------------------------------
+// Static Assets — hashed files get immutable cache, HTML gets no-cache
+// ---------------------------------------------------------------------------
+
+// Hashed assets (JS, CSS, images in /assets/) → long cache
+app.use('/assets', express.static(join(DIST_DIR, 'assets'), {
+  maxAge: '1y',
+  immutable: true,
+}));
+
+// Other static files (favicon, robots.txt, sitemap.xml, PDFs, images, etc.)
+app.use(express.static(DIST_DIR, {
+  maxAge: '1h',
+  // Don't serve index.html for directory requests — we handle SPA fallback below
+  index: false,
+}));
+
+// ---------------------------------------------------------------------------
+// SPA Fallback — all non-API, non-asset routes serve index.html
+// ---------------------------------------------------------------------------
+
+// No-cache pages (auth, profile, onboarding, etc.)
+const NO_CACHE_PATHS = [
+  '/login', '/signup', '/onboarding', '/hushh-user-profile',
+  '/discover-fund-a', '/profile', '/community', '/delete-account', '/sign-nda',
+];
+
+app.get('*', (req, res) => {
+  // Set no-cache for dynamic pages
+  const isNoCachePath = NO_CACHE_PATHS.some((p) => req.path === p || req.path.startsWith(p + '/'));
+  if (isNoCachePath || req.path === '/' || req.path === '/index.html') {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+
+  res.sendFile(join(DIST_DIR, 'index.html'));
+});
+
+// ---------------------------------------------------------------------------
+// Start Server
+// ---------------------------------------------------------------------------
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Hushh Tech Website running on port ${PORT}`);
+  console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
+});

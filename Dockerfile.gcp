@@ -1,0 +1,81 @@
+# =============================================================================
+# Hushh Tech Website — GCP Cloud Run Dockerfile
+# Multi-stage build: Stage 1 builds the Vite SPA, Stage 2 runs the Express server
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Stage 1: Build the Vite frontend
+# ---------------------------------------------------------------------------
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files first for better Docker layer caching
+COPY package.json package-lock.json ./
+
+# Install ALL dependencies (including devDependencies needed for build)
+RUN npm ci
+
+# Copy source code needed for build
+COPY index.html vite.config.ts tsconfig.json tsconfig.app.json tsconfig.node.json ./
+COPY postcss.config.js tailwind.config.js ./
+COPY src/ src/
+COPY public/ public/
+COPY files/ files/
+COPY scripts/generate-sitemap.js scripts/generate-robots.js scripts/
+
+# Build args for VITE_* env vars (injected at build time)
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+ARG VITE_SUPABASE_REDIRECT_URL
+ARG VITE_KYC_ENV=production
+ARG VITE_KYC_DEMO_MODE=false
+ARG VITE_KYC_API_BASE
+ARG VITE_FINNHUB_API_KEY
+ARG VITE_GEMINI_API_KEY
+ARG VITE_GEMINI_API_KEY_FALLBACK_1
+ARG VITE_GEMINI_API_KEY_FALLBACK_2
+ARG VITE_GEMINI_API_KEY_FALLBACK_3
+ARG VITE_FIREBASE_API_KEY
+ARG VITE_FIREBASE_AUTH_DOMAIN
+ARG VITE_FIREBASE_PROJECT_ID
+ARG VITE_FIREBASE_STORAGE_BUCKET
+ARG VITE_FIREBASE_MESSAGING_SENDER_ID
+ARG VITE_FIREBASE_APP_ID
+ARG VITE_N8N_WEBHOOK_URL
+ARG VITE_OPENAI_API_KEY
+ARG VITE_VOICE_AGENT_URL
+
+# Run build (skips tests in Docker — tests run in CI before Docker build)
+RUN npx vite build && node scripts/generate-sitemap.js && node scripts/generate-robots.js
+
+# ---------------------------------------------------------------------------
+# Stage 2: Production runtime
+# ---------------------------------------------------------------------------
+FROM node:20-alpine AS runtime
+
+WORKDIR /app
+
+# Install only the server-side dependencies (npm install since no lock file)
+COPY package-server.json package.json
+RUN npm install --omit=dev --no-audit --no-fund
+
+# Copy built static files from builder stage
+COPY --from=builder /app/dist/ dist/
+
+# Copy server and API routes
+COPY server.js ./
+COPY api/ api/
+
+# Cloud Run expects port 8080
+ENV PORT=8080
+ENV NODE_ENV=production
+
+EXPOSE 8080
+
+# Health check for Cloud Run
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
+  CMD wget -qO- http://localhost:8080/ || exit 1
+
+# Start the Express server
+CMD ["node", "server.js"]

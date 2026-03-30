@@ -3,8 +3,16 @@
  * Run with: node src/scripts/testReportsApi.js
  */
 
-const API_BASE_URL = process.env.MARKET_SUPABASE_API_BASE_URL || '';
-const API_KEY = process.env.MARKET_SUPABASE_ANON_KEY || '';
+const MARKET_SUPABASE_URL =
+  process.env.MARKET_SUPABASE_URL || process.env.VITE_MARKET_SUPABASE_URL || '';
+const API_BASE_URL =
+  process.env.MARKET_SUPABASE_API_BASE_URL ||
+  process.env.MARKET_SUPABASE_API_BASE ||
+  (MARKET_SUPABASE_URL ? `${MARKET_SUPABASE_URL}/rest/v1` : '');
+const API_KEY =
+  process.env.MARKET_SUPABASE_ANON_KEY ||
+  process.env.VITE_MARKET_SUPABASE_KEY ||
+  '';
 
 // Storage bucket URLs for testing images and videos
 const STORAGE_BUCKETS = {

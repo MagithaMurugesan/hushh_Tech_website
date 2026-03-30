@@ -25,6 +25,7 @@ interface ImportMetaEnv {
 
   // OpenAI
   readonly VITE_OPENAI_API_KEY?: string;
+  readonly VITE_ALLOW_INSECURE_BROWSER_LLM?: string;
 
   // n8n Webhook
   readonly VITE_N8N_WEBHOOK_URL?: string;

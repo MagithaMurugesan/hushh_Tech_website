@@ -1,12 +1,12 @@
 /**
- * HushhUserProfile — Revamped
- * Apple iOS colors, Playfair Display headings, proper English capitalization.
- * Matches Home + Fund A + Community + Profile design language.
+ * HushhUserProfile — Revamped UI
+ * Clear separation: "Enhance with AI" (BLACK) vs "Save Changes" (WHITE)
+ * Edit indicators on all editable fields.
  * Logic stays in logic.ts.
  */
 import React from "react";
-import { useHushhUserProfileLogic } from "./logic";
-import { Copy, Check } from "lucide-react";
+import { useHushhUserProfileLogic, FIELD_LABELS, VALUE_LABELS } from "./logic";
+import { Copy, Check, Pencil } from "lucide-react";
 import { FaApple } from "react-icons/fa";
 import { FcGoogle } from "react-icons/fc";
 import HushhTechBackHeader from "../../components/hushh-tech-back-header/HushhTechBackHeader";
@@ -17,11 +17,15 @@ import NWSScoreBadge from "../../components/profile/NWSScoreBadge";
 /* ── Playfair heading style ── */
 const playfair = { fontFamily: "'Playfair Display', serif" };
 
-/* ── Tiny reusable row (settings-style) ── */
+/* ── Tiny reusable row (settings-style) with edit indicator ── */
 const FieldRow = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="group flex items-center justify-between gap-4 border-b border-gray-100 py-4 hover:bg-gray-50/50 transition-colors">
     <span className="text-sm text-gray-500 font-light shrink-0">{label}</span>
-    <div className="flex items-center gap-2 text-right min-w-0 flex-1 justify-end">{children}</div>
+    <div className="flex items-center gap-2 text-right min-w-0 flex-1 justify-end">
+      {children}
+      {/* Subtle edit pencil — visible on hover */}
+      <Pencil className="w-3 h-3 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+    </div>
   </div>
 );
 
@@ -38,8 +42,12 @@ const HushhUserProfilePage: React.FC = () => {
     form, investorProfile, loading, loadingSeconds, isProcessing, investorStatus, shadowStatus,
     hasOnboardingData, isApplePassLoading, isGooglePassLoading, nwsResult, nwsLoading,
     hasCopied, onCopy, profileUrl, navigate,
-    handleChange, handleSubmit, handleBack, handleSave,
+    handleChange, handleBack, handleSave,
+    isDirty, isSaving, handleSaveChanges,
     handleAppleWalletPass, handleGoogleWalletPass, COUNTRIES,
+    editingField, setEditingField, FIELD_OPTIONS, MULTI_SELECT_FIELDS,
+    handleUpdateAIField, handleMultiSelectToggle, getConfidenceLabel, getConfidenceBadgeClass,
+    shadowProfile, shadowConfidenceLabel, shadowLifestyleTags, shadowBrandTags, shadowKnownForTags,
   } = useHushhUserProfileLogic();
 
   const firstName = form.name?.split(" ")[0] || "Investor";
@@ -140,7 +148,7 @@ const HushhUserProfilePage: React.FC = () => {
             {loading
               ? `Generating... ${loadingSeconds}s`
               : investorProfile
-              ? "Update Profile"
+              ? "Re-enhance with AI"
               : hasOnboardingData
               ? "Enhance with AI"
               : "Generate Investor Profile"}
@@ -148,8 +156,186 @@ const HushhUserProfilePage: React.FC = () => {
           </HushhTechCta>
         </section>
 
-        {/* ── Your Hushh Profile ── */}
-        <section className="mb-12">
+        {/* ── AI-Generated Investment Profile ── */}
+        {investorProfile && Object.keys(investorProfile).length > 0 && (
+          <section className="mb-12">
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-2xl font-medium text-black tracking-tight font-serif" style={playfair}>
+                  Investment{" "}
+                  <span className="text-gray-400 italic font-light">Profile.</span>
+                </h2>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-hushh-blue/20 bg-hushh-blue/5">
+                  <span className="w-1.5 h-1.5 bg-hushh-blue rounded-full" />
+                  <span className="text-[10px] tracking-[0.14em] uppercase text-hushh-blue font-medium">AI Analyzed</span>
+                </span>
+              </div>
+              <p className="text-gray-500 text-xs leading-relaxed">
+                AI-detected preferences based on your profile data. Tap any field to adjust.
+              </p>
+            </div>
+
+            <div className="py-1">
+              <SectionLabel>AI Preferences</SectionLabel>
+              {Object.entries(investorProfile).map(([fieldName, fieldData]: [string, any]) => {
+                if (!fieldData || typeof fieldData !== 'object') return null;
+                const label = FIELD_LABELS[fieldName as keyof typeof FIELD_LABELS] || fieldName;
+                const valueText = Array.isArray(fieldData.value)
+                  ? fieldData.value.map((v: string) => VALUE_LABELS[v as keyof typeof VALUE_LABELS] || v).join(", ")
+                  : VALUE_LABELS[fieldData.value as keyof typeof VALUE_LABELS] || fieldData.value;
+                const confidence = fieldData.confidence || 0;
+                const confLabel = getConfidenceLabel(confidence);
+                const isEditing = editingField === fieldName;
+                const options = FIELD_OPTIONS[fieldName];
+                const isMulti = MULTI_SELECT_FIELDS.includes(fieldName);
+
+                return (
+                  <div key={fieldName}>
+                    <div
+                      className="group flex items-center justify-between gap-4 border-b border-gray-100 py-4 hover:bg-gray-50/50 transition-colors cursor-pointer"
+                      onClick={() => options && setEditingField(isEditing ? null : fieldName)}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Edit ${label}`}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && options) setEditingField(isEditing ? null : fieldName); }}
+                    >
+                      <span className="text-sm text-gray-500 font-light shrink-0">{label}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-black truncate max-w-[140px]">{valueText || "—"}</span>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full border shrink-0 ${getConfidenceBadgeClass(confidence)}`}>
+                          {confLabel}
+                        </span>
+                        {options && (
+                          <Pencil className="w-3 h-3 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                        )}
+                      </div>
+                    </div>
+                    {/* Inline edit when tapped */}
+                    {isEditing && options && (
+                      <div className="px-1 pb-4 pt-1" onClick={(e) => e.stopPropagation()}>
+                        {isMulti ? (
+                          <div className="flex flex-wrap gap-1.5 mb-2">
+                            {options.map((opt) => {
+                              const currentVals = Array.isArray(fieldData.value) ? fieldData.value : [];
+                              const isSelected = currentVals.includes(opt.value);
+                              return (
+                                <button
+                                  key={opt.value}
+                                  onClick={() => handleMultiSelectToggle(fieldName, opt.value)}
+                                  className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                                    isSelected ? 'bg-black text-white border-black' : 'bg-white text-gray-600 border-gray-200'
+                                  }`}
+                                >
+                                  {opt.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="relative mb-2">
+                            <select
+                              value={fieldData.value || ""}
+                              onChange={(e) => handleUpdateAIField(fieldName, e.target.value)}
+                              className="appearance-none w-full bg-transparent border-none focus:ring-0 p-0 pr-6 text-sm font-medium text-black text-right cursor-pointer"
+                            >
+                              {options.map((opt) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))}
+                            </select>
+                            <span className="material-symbols-outlined text-gray-300 text-lg absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none">expand_more</span>
+                          </div>
+                        )}
+                        <button onClick={() => setEditingField(null)} className="text-[10px] uppercase tracking-widest text-gray-400 font-medium">Done</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* ── Deep Profile Intelligence ── */}
+        {shadowProfile && (
+          <section className="mb-12">
+            <div className="mb-8">
+              <h2 className="text-2xl font-medium text-black tracking-tight mb-2 font-serif" style={playfair}>
+                Deep{" "}
+                <span className="text-gray-400 italic font-light">Intelligence.</span>
+              </h2>
+              <p className="text-gray-500 text-xs leading-relaxed">
+                Insights gathered by our Shadow Investigator AI.
+              </p>
+            </div>
+
+            <div className="py-1">
+              <SectionLabel>Identity</SectionLabel>
+              {shadowProfile.occupation && (
+                <FieldRow label="Occupation">
+                  <span className="text-sm font-medium text-black">{shadowProfile.occupation}</span>
+                </FieldRow>
+              )}
+              {shadowProfile.nationality && (
+                <FieldRow label="Nationality">
+                  <span className="text-sm font-medium text-black">{shadowProfile.nationality}</span>
+                </FieldRow>
+              )}
+              {shadowProfile.netWorthScore > 0 && (
+                <FieldRow label="Wealth Score">
+                  <span className="text-sm font-medium text-black">{shadowProfile.netWorthScore}/100</span>
+                </FieldRow>
+              )}
+            </div>
+
+            {/* Lifestyle */}
+            {shadowLifestyleTags.length > 0 && (
+              <div className="py-4">
+                <SectionLabel>Lifestyle</SectionLabel>
+                <div className="flex flex-wrap gap-2">
+                  {shadowLifestyleTags.map((tag, i) => (
+                    <span key={i} className="text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-700 bg-gray-50">{tag}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Brands */}
+            {shadowBrandTags.length > 0 && (
+              <div className="py-4">
+                <SectionLabel>Brands</SectionLabel>
+                <div className="flex flex-wrap gap-2">
+                  {shadowBrandTags.map((brand, i) => (
+                    <span key={i} className="text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-700 bg-gray-50">{brand}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Known For */}
+            {shadowKnownForTags.length > 0 && (
+              <div className="py-4">
+                <SectionLabel>Known For</SectionLabel>
+                {shadowKnownForTags.map((item, i) => (
+                  <FieldRow key={i} label={`#${i + 1}`}>
+                    <span className="text-sm font-medium text-black">{item}</span>
+                  </FieldRow>
+                ))}
+              </div>
+            )}
+
+            {/* Confidence */}
+            <div className="border-t border-gray-100 mt-2 pt-4 flex items-center justify-between">
+              <span className="text-sm text-gray-500 font-light">AI Confidence</span>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-gray-200 bg-gray-50">
+                <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                <span className="text-[10px] tracking-[0.14em] uppercase text-gray-500 font-medium">{shadowConfidenceLabel}</span>
+              </span>
+            </div>
+          </section>
+        )}
+
+        {/* ── Your Hushh Profile (editable section) ── */}
+        <section className="mb-6">
           <div className="mb-8">
             <h2
               className="text-2xl font-medium text-black tracking-tight mb-2 font-serif"
@@ -159,8 +345,13 @@ const HushhUserProfilePage: React.FC = () => {
               <span className="text-gray-400 italic font-light">Profile.</span>
             </h2>
             <p className="text-gray-500 text-xs leading-relaxed">
-              Review and update your details to keep your investor profile complete.
+              Tap any field to edit your details. Changes are saved separately from AI analysis.
             </p>
+            {/* Edit hint banner */}
+            <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50 border border-gray-100">
+              <Pencil className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+              <span className="text-[11px] text-gray-400">Tap any field to edit · click "Save Changes" to update</span>
+            </div>
           </div>
 
           {/* Personal Information */}
@@ -262,6 +453,19 @@ const HushhUserProfilePage: React.FC = () => {
               <input type="text" value={form.zipCode} onChange={(e) => handleChange("zipCode", e.target.value)} className={inlineInput} placeholder="560001" />
             </FieldRow>
           </div>
+
+          {/* Save Changes button — right after editable fields, WHITE variant */}
+          <div className="mt-6">
+            <HushhTechCta variant={HushhTechCtaVariant.WHITE} onClick={handleSaveChanges} disabled={!isDirty || isSaving}>
+              {isSaving ? (
+                <>Saving... <span className="material-symbols-outlined text-lg animate-spin">progress_activity</span></>
+              ) : isDirty ? (
+                <>Save Changes <span className="material-symbols-outlined text-lg">save</span></>
+              ) : (
+                <>Profile Saved <Check className="w-4 h-4 text-gray-400" /></>
+              )}
+            </HushhTechCta>
+          </div>
         </section>
 
         {/* ── Profile Link + Wallet ── */}
@@ -285,11 +489,8 @@ const HushhUserProfilePage: React.FC = () => {
           </div>
         </section>
 
-        {/* ── CTAs ── */}
-        <section className="pb-12 space-y-3">
-          <HushhTechCta variant={HushhTechCtaVariant.BLACK} onClick={handleSave} disabled={loading}>
-            {loading ? "Saving..." : "Save Changes"}
-          </HushhTechCta>
+        {/* ── Bottom CTA ── */}
+        <section className="pb-12">
           <HushhTechCta variant={HushhTechCtaVariant.WHITE} onClick={() => navigate("/")}>
             Go to Home
           </HushhTechCta>

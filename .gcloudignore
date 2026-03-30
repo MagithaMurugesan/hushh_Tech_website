@@ -1,0 +1,49 @@
+# Override .gitignore for dist/ — we NEED it in the container
+!dist/
+!dist
+
+# Only upload what the runtime-only Dockerfile needs:
+# Dockerfile, dist/, server.js, package-server.json, api/
+# Everything else is excluded for fast uploads
+
+node_modules/
+.git/
+.github/
+.vscode/
+.cursor/
+src/
+android/
+ios/
+supabase/
+tests/
+docs/
+scripts/
+files/
+hushh_api_reports/
+playstore-assets/
+public/
+cloud-run/
+*.sql
+*.md
+*.yml
+*.yaml
+!Dockerfile
+tsconfig*.json
+vite.config.ts
+vitest.config.ts
+eslint.config.js
+postcss.config.js
+tailwind.config.js
+contentlayer.config.js
+capacitor.config.ts
+dangerfile.ts
+custom.d.ts
+/index.html
+package-lock.json
+.env*
+.cursorrules
+.coderabbit.yaml
+.gitignore
+*.sh
+*.txt
+*.tsbuildinfo

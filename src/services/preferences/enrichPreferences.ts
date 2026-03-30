@@ -120,10 +120,13 @@ Rules:
 export default async function enrichPreferences(
   seed: PreferenceSeedInput
 ): Promise<UserPreferenceProfile> {
-  // If a serverless endpoint is available, prefer it.
+  // Server-side enrichment is the production-safe path.
+  // Browser-direct OpenAI is opt-in only for local debugging.
   const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+  const allowInsecureBrowserLlm =
+    import.meta.env.VITE_ALLOW_INSECURE_BROWSER_LLM === "true";
 
-  if (!apiKey) {
+  if (!apiKey || !allowInsecureBrowserLlm) {
     const response = await fetch("/api/enrich-preferences", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -145,7 +148,7 @@ export default async function enrichPreferences(
     return data.preferences;
   }
 
-  // Direct call to OpenAI when VITE_OPENAI_API_KEY is present (dev fallback).
+  // Direct call to OpenAI is intentionally opt-in and should stay disabled in production.
   const completionResponse = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {

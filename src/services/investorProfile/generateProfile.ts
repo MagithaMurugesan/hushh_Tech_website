@@ -204,6 +204,15 @@ export async function generateInvestorProfile(
   input: InvestorProfileInput,
   context: DerivedContext
 ): Promise<InvestorProfile> {
+  const allowInsecureBrowserLlm =
+    import.meta.env.VITE_ALLOW_INSECURE_BROWSER_LLM === "true";
+
+  if (!allowInsecureBrowserLlm) {
+    throw new Error(
+      "Direct browser OpenAI calls are disabled. Use the secure investor profile API client instead."
+    );
+  }
+
   const apiKey =
     (import.meta as any).env.VITE_OPENAI_API_KEY ||
     (typeof window !== "undefined" ? (window as any).__OPENAI_API_KEY__ : undefined);

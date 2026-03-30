@@ -1,4 +1,5 @@
 import resources from "../../resources/resources";
+import { sanitizeInternalRedirect } from "../../utils/security";
 
 // Initiates Supabase OAuth flow for Apple sign-in.
 export default async function appleSignIn() {
@@ -14,7 +15,10 @@ export default async function appleSignIn() {
 
     // Preserve redirect parameter from current URL (for Hushh AI and other modules)
     const currentParams = new URLSearchParams(window.location.search);
-    const redirectPath = currentParams.get('redirect');
+    const rawRedirectPath = currentParams.get('redirect');
+    const redirectPath = rawRedirectPath
+      ? sanitizeInternalRedirect(rawRedirectPath)
+      : null;
 
     // Force redirect to /auth/callback to ensure we handle MFA/Onboarding checks
     let redirectTo = baseRedirectUrl;

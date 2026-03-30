@@ -1,0 +1,59 @@
+# =============================================================================
+# Docker Ignore — excludes files from Docker build context
+# NOTE: src/, *.ts, public/ etc. are NEEDED by the builder stage (Vite compile)
+# Only exclude files that no stage needs
+# =============================================================================
+
+# Dependencies (npm ci runs inside Docker)
+node_modules/
+
+# Git
+.git/
+.github/
+.gitignore
+
+# IDE & editor
+.vscode/
+.cursor/
+.cursorrules
+.coderabbit.yaml
+
+# Tests
+tests/
+vitest.config.ts
+dangerfile.ts
+
+# Mobile apps
+android/
+ios/
+capacitor.config.ts
+
+# Documentation
+docs/
+README.md
+
+# SQL migration files
+*.sql
+supabase/
+
+# Dev config
+.env*
+!.env.local.example
+eslint.config.js
+.prettierrc
+
+# Misc assets not needed for web
+playstore-assets/
+hushh_api_reports/
+prompts.txt
+PLAY_STORE_RELEASE_NOTES.txt
+monitor-domain-verification.sh
+
+# Docker meta (don't recursively include)
+Dockerfile*
+docker-compose*
+.dockerignore
+cloudbuild.yaml
+
+# Build output — keep dist/ for runtime-only Dockerfile
+# dist/

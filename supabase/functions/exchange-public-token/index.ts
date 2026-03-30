@@ -1,5 +1,7 @@
 // exchange-public-token — Exchange Plaid public token for access token
 import { corsHeaders } from '../_shared/cors.ts';
+import { getPlaidConfig } from '../_shared/plaid.ts';
+import { authenticateEdgeRequest } from '../_shared/security.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -11,6 +13,12 @@ Deno.serve(async (req) => {
     const publicToken = body.publicToken || body.public_token;
     const userId = body.userId || body.user_id;
 
+    const authFailure = await authenticateEdgeRequest(req, {
+      label: 'exchange-public-token',
+      expectedUserId: userId || null,
+    });
+    if (authFailure) return authFailure;
+
     if (!publicToken) {
       return new Response(
         JSON.stringify({ error: 'publicToken is required' }),
@@ -18,17 +26,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    const PLAID_CLIENT_ID = Deno.env.get('PLAID_CLIENT_ID');
-    const PLAID_SECRET = Deno.env.get('PLAID_SECRET');
-    const PLAID_ENV = Deno.env.get('PLAID_ENV') || 'sandbox';
-    const baseUrl = `https://${PLAID_ENV}.plaid.com`;
+    const plaid = getPlaidConfig();
 
-    const response = await fetch(`${baseUrl}/item/public_token/exchange`, {
+    const response = await fetch(`${plaid.baseUrl}/item/public_token/exchange`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        client_id: PLAID_CLIENT_ID,
-        secret: PLAID_SECRET,
+        client_id: plaid.clientId,
+        secret: plaid.secret,
         public_token: publicToken,
       }),
     });

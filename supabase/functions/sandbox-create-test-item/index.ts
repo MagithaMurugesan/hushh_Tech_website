@@ -8,6 +8,7 @@
  * SANDBOX ONLY — will fail in production.
  */
 import { corsHeaders } from '../_shared/cors.ts';
+import { getPlaidConfig } from '../_shared/plaid.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 Deno.serve(async (req) => {
@@ -27,13 +28,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    const PLAID_CLIENT_ID = Deno.env.get('PLAID_CLIENT_ID');
-    const PLAID_SECRET = Deno.env.get('PLAID_SECRET');
-    const PLAID_ENV = Deno.env.get('PLAID_ENV') || 'sandbox';
-    const baseUrl = `https://${PLAID_ENV}.plaid.com`;
+    const plaid = getPlaidConfig();
 
     // Only allow in sandbox
-    if (PLAID_ENV !== 'sandbox') {
+    if (plaid.env !== 'sandbox') {
       return new Response(
         JSON.stringify({ error: 'This endpoint is only available in sandbox mode' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
@@ -43,12 +41,12 @@ Deno.serve(async (req) => {
     console.log(`[sandbox-test] Creating test item for user ${userId} at ${institutionId}`);
 
     // ─── Step 1: Create sandbox public token ───
-    const createRes = await fetch(`${baseUrl}/sandbox/public_token/create`, {
+    const createRes = await fetch(`${plaid.baseUrl}/sandbox/public_token/create`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        client_id: PLAID_CLIENT_ID,
-        secret: PLAID_SECRET,
+        client_id: plaid.clientId,
+        secret: plaid.secret,
         institution_id: institutionId,
         initial_products: ['assets', 'auth', 'transactions', 'investments'],
         options: {
@@ -71,12 +69,12 @@ Deno.serve(async (req) => {
     console.log('[sandbox-test] ✅ Public token created');
 
     // ─── Step 2: Exchange for access token ───
-    const exchangeRes = await fetch(`${baseUrl}/item/public_token/exchange`, {
+    const exchangeRes = await fetch(`${plaid.baseUrl}/item/public_token/exchange`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        client_id: PLAID_CLIENT_ID,
-        secret: PLAID_SECRET,
+        client_id: plaid.clientId,
+        secret: plaid.secret,
         public_token: publicToken,
       }),
     });
@@ -96,26 +94,26 @@ Deno.serve(async (req) => {
 
     // ─── Step 3: Fetch all 3 products in parallel ───
     const plaidHeaders = { 'Content-Type': 'application/json' };
-    const authBody = JSON.stringify({ client_id: PLAID_CLIENT_ID, secret: PLAID_SECRET, access_token: accessToken });
+    const authBody = JSON.stringify({ client_id: plaid.clientId, secret: plaid.secret, access_token: accessToken });
 
     const [balanceRes, investRes, assetRes] = await Promise.allSettled([
       // Balance
-      fetch(`${baseUrl}/accounts/balance/get`, {
+      fetch(`${plaid.baseUrl}/accounts/balance/get`, {
         method: 'POST', headers: plaidHeaders, body: authBody,
       }).then(r => r.json()),
 
       // Investments
-      fetch(`${baseUrl}/investments/holdings/get`, {
+      fetch(`${plaid.baseUrl}/investments/holdings/get`, {
         method: 'POST', headers: plaidHeaders, body: authBody,
       }).then(r => r.json()),
 
       // Asset Report (create)
-      fetch(`${baseUrl}/asset_report/create`, {
+      fetch(`${plaid.baseUrl}/asset_report/create`, {
         method: 'POST',
         headers: plaidHeaders,
         body: JSON.stringify({
-          client_id: PLAID_CLIENT_ID,
-          secret: PLAID_SECRET,
+          client_id: plaid.clientId,
+          secret: plaid.secret,
           access_tokens: [accessToken],
           days_requested: 90,
         }),

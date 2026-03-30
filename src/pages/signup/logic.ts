@@ -10,6 +10,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import services from "../../services/services";
 import config from "../../resources/config/config";
+import { DEFAULT_AUTH_REDIRECT, sanitizeInternalRedirect } from "../../utils/security";
 
 /* ─── Types ─── */
 export interface SignupLogic {
@@ -28,7 +29,7 @@ export const useSignupLogic = (): SignupLogic => {
   // Stable redirect path — computed once from URL params
   const redirectPath = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
-    return params.get("redirect") || "/hushh-user-profile";
+    return sanitizeInternalRedirect(params.get("redirect"), DEFAULT_AUTH_REDIRECT);
   }, []);
 
   /* Auth session listener — redirect if already logged in */

@@ -79,21 +79,28 @@ export const createLinkToken = async (
   redirectUri?: string,
   receivedRedirectUri?: string,
 ) => {
+  console.log('[Plaid:createLinkToken] 🚀 Starting...', { userId: userId?.slice(0, 8), userEmail, redirectUri, receivedRedirectUri: receivedRedirectUri?.slice(0, 50) });
   const token = await getUserAccessToken();
+  console.log('[Plaid:createLinkToken] Auth token:', token ? `${token.slice(0, 20)}...` : 'MISSING');
   const body: Record<string, any> = { userId, userEmail };
   if (redirectUri) body.redirectUri = redirectUri;
   if (receivedRedirectUri) body.receivedRedirectUri = receivedRedirectUri;
 
+  console.log('[Plaid:createLinkToken] POST', `${getFunctionsUrl()}/create-link-token`, body);
   const res = await fetch(`${getFunctionsUrl()}/create-link-token`, {
     method: 'POST',
     headers: getHeaders(token),
     body: JSON.stringify(body),
   });
+  console.log('[Plaid:createLinkToken] Response status:', res.status, res.statusText);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
+    console.error('[Plaid:createLinkToken] ❌ FAILED:', err);
     throw new Error(err.error || 'Failed to create link token');
   }
-  return res.json() as Promise<{ link_token: string; expiration: string }>;
+  const result = await res.json();
+  console.log('[Plaid:createLinkToken] ✅ Got link_token:', result.link_token?.slice(0, 30), '| expires:', result.expiration);
+  return result as { link_token: string; expiration: string };
 };
 
 /** Exchange public token for access token */
