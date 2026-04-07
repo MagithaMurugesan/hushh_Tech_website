@@ -79,6 +79,7 @@ import SignNDAPage from './pages/sign-nda';
 import DocumentViewerPage from './pages/document-viewer';
 import NDAAdminPage from './pages/nda-admin';
 import { AuthSessionProvider, useAuthSession } from './auth/AuthSessionProvider';
+import AuthRequiredRoute from './components/AuthRequiredRoute';
 
 // Google Analytics configuration
 const GA_TRACKING_ID = 'G-R58S9WWPM0';
@@ -202,7 +203,9 @@ function App() {
             <Route path='/Signup' element={<SignupPage />} />
             <Route path='/faq' element={<Faq />} />
             <Route path='/profile' element={
-              <Profile />
+              <AuthRequiredRoute>
+                <Profile />
+              </AuthRequiredRoute>
             } />
             <Route path="/career" element={<Career />} />
             <Route path="/career/*" element={<Career />} />
@@ -213,7 +216,11 @@ function App() {
             } />
             <Route path='/california-privacy-policy' element={<CaliforniaPrivacyPolicy />} />
             <Route path='/eu-uk-jobs-privacy-policy' element={<EUUKPrivacyPolicy />} />
-            <Route path='/delete-account' element={<DeleteAccountPage />} />
+            <Route path='/delete-account' element={
+              <AuthRequiredRoute>
+                <DeleteAccountPage />
+              </AuthRequiredRoute>
+            } />
             <Route path="/community/*" element={
               <CommunityPostPage />
             } />
@@ -326,7 +333,11 @@ function App() {
                 <PrivacyControlsPage />
               </ProtectedRoute>
             } />
-            <Route path="/profile/:id" element={<ViewPreferencesPage />} />
+            <Route path="/profile/:id" element={
+              <AuthRequiredRoute>
+                <ViewPreferencesPage />
+              </AuthRequiredRoute>
+            } />
             <Route path="/hushhid/:id" element={<PublicHushhProfilePage />} />
             <Route path="/hushhid-hero-demo" element={<HushhIDHeroDemo />} />
             {/* <Route path="/solutions" element={<SolutionsPage />} /> */}
@@ -361,18 +372,19 @@ function App() {
               </ProtectedRoute>
             } />
             <Route path='/nda-form' element={
-
-              <NDARequestModalComponent
-                session={session}
-                onSubmit={(result: string) => {
-                  console.log("NDA submission result:", result);
-                  // Handle post-submission actions here
-                  if (result === "Approved" || result === "Pending" || result === "Requested permission") {
-                    // Redirect to appropriate page on success
-                    window.location.href = "/";
-                  }
-                }}
-              />
+              <AuthRequiredRoute>
+                <NDARequestModalComponent
+                  session={session}
+                  onSubmit={(result: string) => {
+                    console.log("NDA submission result:", result);
+                    // Handle post-submission actions here
+                    if (result === "Approved" || result === "Pending" || result === "Requested permission") {
+                      // Redirect to appropriate page on success
+                      window.location.href = "/";
+                    }
+                  }}
+                />
+              </AuthRequiredRoute>
 
             } />
             <Route path='/investor-profile' element={
@@ -382,14 +394,14 @@ function App() {
             } />
             <Route path='/investor/:slug' element={<PublicInvestorProfilePage />} />
             <Route path='/user-profile' element={
-
-              <UserProfilePage />
-
+              <AuthRequiredRoute>
+                <UserProfilePage />
+              </AuthRequiredRoute>
             } />
             <Route path='/your-profile' element={
-
-              <YourProfilePage />
-
+              <AuthRequiredRoute>
+                <YourProfilePage />
+              </AuthRequiredRoute>
             } />
             <Route path='/kyc-demo' element={<KYCDemoPage />} />
             <Route path='/kyc-flow' element={<KycFlowPage />} />

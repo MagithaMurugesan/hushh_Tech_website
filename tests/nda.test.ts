@@ -11,6 +11,11 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { resolveSignNDASession } from '../src/pages/sign-nda/sessionBootstrap';
+import {
+  canGuestAccessRoute,
+  isAuthenticatedAccountRoute,
+  isPublicSharedProfileRoute,
+} from '../src/auth/routePolicy';
 
 // ============================================================
 // Type Definitions (mirrors the service types)
@@ -36,43 +41,12 @@ interface SignNDAResult {
 // These mirror the logic in the actual components
 // ============================================================
 
-// PUBLIC_ROUTES from GlobalNDAGate.tsx
-const PUBLIC_ROUTES = [
-  '/',
-  '/Login',
-  '/Signup',
-  '/auth/callback',
-  '/privacy-policy',
-  '/faq',
-  '/carrer-privacy-policy',
-  '/california-privacy-policy',
-  '/eu-uk-jobs-privacy-policy',
-  '/delete-account',
-  '/investor-guide',
-  '/hushhid',
-  '/investor',
-  '/sign-nda',
-  '/document-viewer',
-  '/hushh-ai',
-  '/hushh-agent',
-  '/kai',
-  '/kai-india',
-  '/studio',
-];
-
 /**
  * Check if a path matches any public route pattern
- * Note: This logic mirrors GlobalNDAGate.tsx exactly
+ * Note: This logic now delegates to the shared route policy.
  */
 function isPublicRoute(pathname: string): boolean {
-  return PUBLIC_ROUTES.some(route => {
-    // Exact match for home route
-    if (route === '/') {
-      return pathname === '/';
-    }
-    // For other routes, check exact match or sub-routes
-    return pathname === route || pathname.startsWith(`${route}/`);
-  });
+  return canGuestAccessRoute(pathname);
 }
 
 /**
@@ -266,6 +240,8 @@ describe('isPublicRoute', () => {
   // Test 7: User profile is NOT public (requires NDA)
   it('should return false for user profile routes', () => {
     expect(isPublicRoute('/hushh-user-profile')).toBe(false);
+    expect(isAuthenticatedAccountRoute('/hushh-user-profile')).toBe(true);
+    expect(isAuthenticatedAccountRoute('/delete-account')).toBe(true);
   });
 
   // Test 8: Protected dashboard routes are NOT public
@@ -530,10 +506,12 @@ describe('Redirect Logic', () => {
 
   // Test 35: Public routes should not trigger redirect
   it('should allow access to public routes without redirect', () => {
-    const publicPaths = ['/Login', '/Signup', '/privacy-policy', '/sign-nda'];
+    const publicPaths = ['/Login', '/Signup', '/privacy-policy', '/sign-nda', '/investor/test-slug', '/hushhid/test-id'];
     publicPaths.forEach(path => {
       expect(isPublicRoute(path)).toBe(true);
     });
+    expect(isPublicSharedProfileRoute('/investor/test-slug')).toBe(true);
+    expect(isPublicSharedProfileRoute('/hushhid/test-id')).toBe(true);
   });
 });
 

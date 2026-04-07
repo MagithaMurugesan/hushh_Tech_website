@@ -11,6 +11,8 @@ import { generateInvestorProfile } from '../../services/investorProfile/apiClien
 import { downloadHushhGoldPass, launchGoogleWalletPass } from '../../services/walletPass';
 import { InvestorProfile, FIELD_LABELS, VALUE_LABELS } from '../../types/investorProfile';
 import { calculateNWSFromDB, NWSResult } from '../../services/networkScore/calculateNWS';
+import { useAuthSession } from '../../auth/AuthSessionProvider';
+import { buildLoginRedirectPath } from '../../auth/routePolicy';
 
 // Re-export types for UI
 export type { InvestorProfile, NWSResult };
@@ -100,6 +102,7 @@ export const useHushhUserProfileLogic = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const isFooterVisible = useFooterVisibility();
+  const { session, status, user } = useAuthSession();
   const [form, setForm] = useState<FormState>(defaultFormState);
   const [userId, setUserId] = useState<string | null>(null);
   const [investorProfile, setInvestorProfile] = useState<InvestorProfile | null>(null);
@@ -300,11 +303,18 @@ export const useHushhUserProfileLogic = () => {
     const checkAuth = async () => {
       try {
         const supabase = resources.config.supabaseClient;
-        if (!supabase) return;
+        if (!supabase) {
+          setNwsLoading(false);
+          return;
+        }
 
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          navigate("/login");
+        if (status === 'booting') {
+          return;
+        }
+
+        if (status !== 'authenticated' || !user) {
+          navigate(buildLoginRedirectPath('/hushh-user-profile'), { replace: true });
+          setNwsLoading(false);
           return;
         }
 
@@ -453,22 +463,19 @@ export const useHushhUserProfileLogic = () => {
               });
 
               // Send NWS score email notification (fire-and-forget)
-              if (nws.score > 0) {
-                const { data: { session: sess } } = await supabase.auth.getSession();
-                if (sess) {
-                  fetch(`${resources.config.SUPABASE_URL}/functions/v1/nws-score-notification`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sess.access_token}` },
-                    body: JSON.stringify({
-                      recipientEmail: user.email,
-                      recipientName: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Investor',
-                      nwsScore: nws.score,
-                      nwsGrade: nws.grade,
-                      nwsLabel: nws.label,
-                      breakdown: nws.breakdown,
-                    }),
-                  }).then(() => console.log('[Profile] NWS email sent')).catch(() => {});
-                }
+              if (nws.score > 0 && session?.access_token) {
+                fetch(`${resources.config.SUPABASE_URL}/functions/v1/nws-score-notification`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                  body: JSON.stringify({
+                    recipientEmail: user.email,
+                    recipientName: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Investor',
+                    nwsScore: nws.score,
+                    nwsGrade: nws.grade,
+                    nwsLabel: nws.label,
+                    breakdown: nws.breakdown,
+                  }),
+                }).then(() => console.log('[Profile] NWS email sent')).catch(() => {});
               }
             }
           }
@@ -484,7 +491,7 @@ export const useHushhUserProfileLogic = () => {
     };
 
     checkAuth();
-  }, [navigate]);
+  }, [navigate, session?.access_token, status, user]);
 
   const handleChange = (key: keyof FormState, value: string) => {
     if (key === "phoneNumber") {

@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@chakra-ui/react";
 import resources from "../../resources/resources";
 import { PrivacySettings } from "../../types/investorProfile";
+import { useAuthSession } from "../../auth/AuthSessionProvider";
+import { buildLoginRedirectPath } from "../../auth/routePolicy";
 
 export const TOKENS = {
   label: "#000000",
@@ -70,51 +72,58 @@ function getDefaultPrivacySettings(): PrivacySettings {
 export function usePrivacyControlsLogic() {
   const navigate = useNavigate();
   const toast = useToast();
+  const { status, user } = useAuthSession();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [privacySettings, setPrivacySettings] = useState<PrivacySettings | null>(null);
 
   useEffect(() => {
-    fetchPrivacySettings();
-  }, []);
+    const fetchPrivacySettings = async () => {
+      try {
+        if (status === "booting") {
+          return;
+        }
 
-  const fetchPrivacySettings = async () => {
-    try {
-      const supabase = resources.config.supabaseClient;
-      const { data: { user } } = await supabase.auth.getUser();
+        const supabase = resources.config.supabaseClient;
+        if (!supabase) {
+          throw new Error("Supabase client not available");
+        }
 
-      if (!user) {
+        if (status !== "authenticated" || !user) {
+          toast({
+            title: "Authentication Required",
+            description: "Please log in to manage privacy settings",
+            status: "error",
+            duration: 5000,
+          });
+          navigate(buildLoginRedirectPath('/hushh-user-profile/privacy'), { replace: true });
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("investor_profiles")
+          .select("privacy_settings")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        setPrivacySettings(data.privacy_settings || getDefaultPrivacySettings());
+      } catch (error: any) {
+        console.error("Error fetching privacy settings:", error);
         toast({
-          title: "Authentication Required",
-          description: "Please log in to manage privacy settings",
+          title: "Error",
+          description: "Failed to load privacy settings",
           status: "error",
           duration: 5000,
         });
-        navigate("/login");
-        return;
+      } finally {
+        setLoading(false);
       }
+    };
 
-      const { data, error } = await supabase
-        .from("investor_profiles")
-        .select("privacy_settings")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (error) throw error;
-
-      setPrivacySettings(data.privacy_settings || getDefaultPrivacySettings());
-    } catch (error: any) {
-      console.error("Error fetching privacy settings:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load privacy settings",
-        status: "error",
-        duration: 5000,
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+    void fetchPrivacySettings();
+  }, [navigate, status, toast, user]);
 
   const handleToggle = (section: keyof PrivacySettings, field: string) => {
     if (!privacySettings) return;
@@ -132,9 +141,9 @@ export function usePrivacyControlsLogic() {
     setSaving(true);
     try {
       const supabase = resources.config.supabaseClient;
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (!user) throw new Error("Not authenticated");
+      if (!supabase || status !== "authenticated" || !user) {
+        throw new Error("Not authenticated");
+      }
 
       const { error } = await supabase
         .from("investor_profiles")

@@ -22,7 +22,7 @@ const DeleteAccountModal = ({
 }: DeleteAccountModalProps) => {
   const { t } = useTranslation();
   const toast = useToast();
-  const { handleAccountDeleted } = useAuthSession();
+  const { session, revalidateSession, handleAccountDeleted } = useAuthSession();
   const [confirmText, setConfirmText] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -42,22 +42,24 @@ const DeleteAccountModal = ({
       const { data: refreshData, error: refreshError } =
         await config.supabaseClient.auth.refreshSession();
 
-      let accessToken: string | null = null;
+      let accessToken: string | null = session?.access_token || null;
 
       if (refreshError) {
         console.error("[DeleteAccount] Session refresh failed:", refreshError);
-        const {
-          data: { session: fallbackSession },
-        } = await config.supabaseClient.auth.getSession();
+        if (!accessToken) {
+          const snapshot = await revalidateSession();
+          if (snapshot.status === "authenticated") {
+            accessToken = snapshot.session?.access_token || null;
+          }
+        }
 
-        if (!fallbackSession?.access_token) {
+        if (!accessToken) {
           throw new Error(
             "Session expired. Please log out and log in again to delete your account."
           );
         }
 
-        console.log("[DeleteAccount] Using fallback session...");
-        accessToken = fallbackSession.access_token;
+        console.log("[DeleteAccount] Using validated fallback session...");
       } else if (refreshData.session?.access_token) {
         console.log("[DeleteAccount] Session refreshed successfully");
         accessToken = refreshData.session.access_token;

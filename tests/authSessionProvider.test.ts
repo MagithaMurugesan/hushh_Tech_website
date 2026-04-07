@@ -3,7 +3,7 @@
 import React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -48,6 +48,8 @@ import {
   AuthSessionProvider,
   useAuthSession,
 } from "../src/auth/AuthSessionProvider";
+import AuthRequiredRoute from "../src/components/AuthRequiredRoute";
+import HushhTechFooter from "../src/components/hushh-tech-footer/HushhTechFooter";
 import HushhTechNavDrawer from "../src/components/hushh-tech-nav-drawer/HushhTechNavDrawer";
 
 function AuthHarness() {
@@ -90,6 +92,15 @@ function AuthHarness() {
 
 function renderWithProvider(node: React.ReactNode) {
   return React.createElement(AuthSessionProvider, null, node);
+}
+
+function LocationHarness() {
+  const location = useLocation();
+  return React.createElement(
+    "span",
+    { "data-testid": "location" },
+    `${location.pathname}${location.search}`
+  );
 }
 
 describe("AuthSessionProvider", () => {
@@ -349,5 +360,169 @@ describe("HushhTechNavDrawer auth gating", () => {
     await flush();
 
     expect(mockSignOut).toHaveBeenCalled();
+  });
+});
+
+describe("auth-aware guest routing", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  const flush = async () => {
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    mockOnAuthStateChange.mockImplementation(() => ({
+      data: { subscription: { unsubscribe: unsubscribeMock } },
+    }));
+    mockSignOut.mockResolvedValue({ error: null });
+  });
+
+  afterEach(async () => {
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it("shows a Log In footer tab for guests and routes it to the profile login redirect", async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: null },
+      error: null,
+    });
+    mockGetUser.mockResolvedValue({
+      data: { user: null },
+      error: null,
+    });
+
+    await act(async () => {
+      root.render(
+        renderWithProvider(
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ["/"] },
+            React.createElement(
+              React.Fragment,
+              null,
+              React.createElement(HushhTechFooter),
+              React.createElement(LocationHarness)
+            )
+          )
+        )
+      );
+    });
+    await flush();
+
+    expect(container.textContent).toContain("Log In");
+    expect(container.textContent).not.toContain("Profile");
+
+    const buttons = Array.from(container.querySelectorAll("button"));
+    const loginTab = buttons.find((button) =>
+      button.textContent?.includes("Log In")
+    );
+
+    await act(async () => {
+      loginTab?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flush();
+
+    expect(container.querySelector('[data-testid="location"]')?.textContent).toBe(
+      "/login?redirect=%2Fprofile"
+    );
+  });
+
+  it("redirects guests away from /profile to /login with the route preserved", async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: null },
+      error: null,
+    });
+    mockGetUser.mockResolvedValue({
+      data: { user: null },
+      error: null,
+    });
+
+    await act(async () => {
+      root.render(
+        renderWithProvider(
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ["/profile"] },
+            React.createElement(
+              Routes,
+              null,
+              React.createElement(Route, {
+                path: "/profile",
+                element: React.createElement(
+                  AuthRequiredRoute,
+                  null,
+                  React.createElement("div", null, "protected")
+                ),
+              }),
+              React.createElement(Route, {
+                path: "/login",
+                element: React.createElement(LocationHarness),
+              })
+            )
+          )
+        )
+      );
+    });
+    await flush();
+
+    expect(container.querySelector('[data-testid="location"]')?.textContent).toBe(
+      "/login?redirect=%2Fprofile"
+    );
+  });
+
+  it("redirects guests away from /delete-account to /login with the route preserved", async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: null },
+      error: null,
+    });
+    mockGetUser.mockResolvedValue({
+      data: { user: null },
+      error: null,
+    });
+
+    await act(async () => {
+      root.render(
+        renderWithProvider(
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: ["/delete-account"] },
+            React.createElement(
+              Routes,
+              null,
+              React.createElement(Route, {
+                path: "/delete-account",
+                element: React.createElement(
+                  AuthRequiredRoute,
+                  null,
+                  React.createElement("div", null, "protected")
+                ),
+              }),
+              React.createElement(Route, {
+                path: "/login",
+                element: React.createElement(LocationHarness),
+              })
+            )
+          )
+        )
+      );
+    });
+    await flush();
+
+    expect(container.querySelector('[data-testid="location"]')?.textContent).toBe(
+      "/login?redirect=%2Fdelete-account"
+    );
   });
 });

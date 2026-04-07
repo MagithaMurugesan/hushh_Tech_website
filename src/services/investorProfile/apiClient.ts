@@ -5,6 +5,7 @@
 import { InvestorProfileInput, DerivedContext, InvestorProfile } from "../../types/investorProfile";
 import { enrichContext, enrichWithPlaidData } from "./enrichContext";
 import resources from "../../resources/resources";
+import { getAuthenticatedSession } from "../../auth/session";
 
 export interface GenerateProfileResponse {
   success: boolean;
@@ -26,15 +27,10 @@ export async function generateInvestorProfile(
     }
 
     // 1. Get authenticated user session for Authorization header
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    
-    if (sessionError) {
-      throw new Error(`Auth session error: ${sessionError.message}`);
-    }
-    
-    if (!session?.access_token) {
-      throw new Error("User not logged in. Please sign in to generate investor profile.");
-    }
+    const session = await getAuthenticatedSession(
+      supabase,
+      "User not logged in. Please sign in to generate investor profile."
+    );
 
     // 2. Enrich the context from the input
     const context: Record<string, any> = await enrichContext(input);

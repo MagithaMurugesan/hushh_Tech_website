@@ -1,17 +1,20 @@
 /**
  * HushhTechFooter — Reusable bottom navigation bar
- * Floating dark rounded bar with center Hushh logo and 4 nav tabs.
+ * Floating dark rounded bar with 4 nav tabs.
  *
  * Usage:
  *   <HushhTechFooter
  *     activeTab={HushhFooterTab.HOME}
  *     onTabChange={(tab) => navigate(tab)}
- *     onLogoClick={() => navigate('/')}
  *   />
  */
 import React from "react";
-import { useNavigate } from "react-router-dom";
-import hushhLogo from "../images/Hushhogo.png";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useAuthSession } from "../../auth/AuthSessionProvider";
+import {
+  buildLoginRedirectPath,
+  isGuestAuthRoute,
+} from "../../auth/routePolicy";
 
 /** Enum for footer navigation tabs */
 export enum HushhFooterTab {
@@ -26,19 +29,23 @@ interface HushhTechFooterProps {
   activeTab?: HushhFooterTab;
   /** Callback when a tab is tapped */
   onTabChange?: (tab: HushhFooterTab) => void;
-  /** Callback when center logo is tapped */
-  onLogoClick?: () => void;
   /** Extra classes on root container */
   className?: string;
 }
 
-/** Tab configuration */
-const TABS = [
+/** Static tab configuration */
+const STATIC_TABS = [
   { id: HushhFooterTab.HOME, icon: "home", label: "Home" },
   { id: HushhFooterTab.FUND_A, icon: null, label: "Fund A" },
   { id: HushhFooterTab.COMMUNITY, icon: "groups", label: "Comm" },
-  { id: HushhFooterTab.PROFILE, icon: "person", label: "Profile" },
 ];
+
+type FooterTabConfig = {
+  id: HushhFooterTab;
+  icon: string | null;
+  label: string;
+  path: string;
+};
 
 /** Fund A has a custom icon (circle with line) */
 const FundAIcon: React.FC<{ isActive: boolean }> = ({ isActive }) => {
@@ -61,44 +68,48 @@ const FundAIcon: React.FC<{ isActive: boolean }> = ({ isActive }) => {
   );
 };
 
-/** Default route map for each tab */
-const TAB_ROUTES: Record<HushhFooterTab, string> = {
-  [HushhFooterTab.HOME]: "/",
-  [HushhFooterTab.FUND_A]: "/discover-fund-a",
-  [HushhFooterTab.COMMUNITY]: "/community",
-  [HushhFooterTab.PROFILE]: "/profile",
-};
-
 const HushhTechFooter: React.FC<HushhTechFooterProps> = ({
   activeTab,
   onTabChange,
-  onLogoClick,
   className = "",
 }) => {
   const navigate = useNavigate();
-  const leftTabs = TABS.slice(0, 2);
-  const rightTabs = TABS.slice(2);
+  const location = useLocation();
+  const { status } = useAuthSession();
+  const isAuthenticated = status === "authenticated";
+
+  const tabs: FooterTabConfig[] = [
+    { ...STATIC_TABS[0], path: "/" },
+    { ...STATIC_TABS[1], path: "/discover-fund-a" },
+    { ...STATIC_TABS[2], path: "/community" },
+    {
+      id: HushhFooterTab.PROFILE,
+      icon: isAuthenticated ? "person" : "login",
+      label: isAuthenticated ? "Profile" : "Log In",
+      path: isAuthenticated
+        ? "/profile"
+        : buildLoginRedirectPath("/profile"),
+    },
+  ];
+
+  const resolvedActiveTab =
+    activeTab ??
+    (!isAuthenticated && isGuestAuthRoute(location.pathname)
+      ? HushhFooterTab.PROFILE
+      : undefined);
 
   /** Handle tab click — use parent callback if provided, else navigate */
-  const handleTabClick = (tabId: HushhFooterTab) => {
+  const handleTabClick = (tab: FooterTabConfig) => {
     if (onTabChange) {
-      onTabChange(tabId);
+      onTabChange(tab.id);
+      return;
     } else {
-      navigate(TAB_ROUTES[tabId]);
+      navigate(tab.path);
     }
   };
 
-  /** Handle logo click — use parent callback if provided, else go home */
-  const handleLogoClick = () => {
-    if (onLogoClick) {
-      onLogoClick();
-    } else {
-      navigate("/");
-    }
-  };
-
-  const renderTab = (tab: (typeof TABS)[number]) => {
-    const isActive = activeTab === tab.id;
+  const renderTab = (tab: FooterTabConfig) => {
+    const isActive = resolvedActiveTab === tab.id;
 
     // Text color: active = white, inactive = gray with hover
     const textColor = isActive
@@ -112,7 +123,7 @@ const HushhTechFooter: React.FC<HushhTechFooterProps> = ({
     return (
       <button
         key={tab.id}
-        onClick={() => handleTabClick(tab.id)}
+        onClick={() => handleTabClick(tab)}
         className="flex flex-col items-center gap-1 group cursor-pointer bg-transparent border-none outline-none"
         aria-label={tab.label}
         tabIndex={0}
@@ -140,38 +151,9 @@ const HushhTechFooter: React.FC<HushhTechFooterProps> = ({
       className={`fixed bottom-0 left-0 right-0 z-50 px-4 pb-6 pt-4 pointer-events-none ${className}`}
     >
       <div className="relative max-w-md mx-auto pointer-events-auto">
-        <div className="h-[72px] bg-[#050505] rounded-[2rem] flex items-center justify-between px-8 relative shadow-2xl">
-          {/* Center Hushh logo button */}
-          <div className="absolute left-1/2 -top-6 -translate-x-1/2 z-10">
-            <button
-              onClick={handleLogoClick}
-              className="w-16 h-16 rounded-full flex items-center justify-center border-[3px] border-[#2A2A2A] shadow-[0_0_20px_rgba(255,255,255,0.15)] hover:scale-105 transition-transform overflow-hidden"
-              style={{
-                background:
-                  "radial-gradient(134.19% 134.19% at 50% 0%, #3C3C3C 0%, #1C1C1C 100%)",
-              }}
-              aria-label="Hushh Home"
-              tabIndex={0}
-            >
-              <img
-                src={hushhLogo}
-                alt="Hushh"
-                className="w-9 h-9 object-contain"
-              />
-            </button>
-          </div>
-
-          {/* Left nav items */}
-          <div className="flex items-center gap-8">
-            {leftTabs.map(renderTab)}
-          </div>
-
-          {/* Spacer for center button */}
-          <div className="w-8" />
-
-          {/* Right nav items */}
-          <div className="flex items-center gap-8">
-            {rightTabs.map(renderTab)}
+        <div className="h-[72px] bg-[#050505] rounded-[2rem] flex items-center px-5 relative shadow-2xl">
+          <div className="flex items-center w-full justify-between gap-2">
+            {tabs.map(renderTab)}
           </div>
         </div>
       </div>

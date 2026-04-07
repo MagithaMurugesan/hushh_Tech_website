@@ -4,7 +4,7 @@
  * Matches Home + Fund A design language.
  * Logic stays in logic.ts — zero data here.
  */
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useCommunityListLogic } from "./logic";
 import HushhTechBackHeader from "../../components/hushh-tech-back-header/HushhTechBackHeader";
 import HushhTechFooter, {
@@ -17,7 +17,6 @@ import NDADocumentModal from "../../components/NDADocumentModal";
 const playfair = { fontFamily: "'Playfair Display', serif" };
 
 export default function CommunityPage() {
-  const navigate = useNavigate();
   const {
     filteredContent,
     dropdownOptions,
@@ -189,15 +188,7 @@ export default function CommunityPage() {
       </main>
 
       {/* ═══ Footer Nav ═══ */}
-      <HushhTechFooter
-        activeTab={HushhFooterTab.COMMUNITY}
-        onTabChange={(tab) => {
-          if (tab === HushhFooterTab.HOME) navigate("/");
-          if (tab === HushhFooterTab.FUND_A) navigate("/discover-fund-a");
-          if (tab === HushhFooterTab.COMMUNITY) navigate("/community");
-          if (tab === HushhFooterTab.PROFILE) navigate("/profile");
-        }}
-      />
+      <HushhTechFooter activeTab={HushhFooterTab.COMMUNITY} />
 
       {/* ═══ NDA Modals ═══ */}
       <NDARequestModal

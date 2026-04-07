@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import config from '../resources/config/config';
 import { getCanonicalOnboardingRoute } from '../services/onboarding/flow';
 import { useAuthSession } from '../auth/AuthSessionProvider';
+import { buildLoginRedirectPath } from '../auth/routePolicy';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -23,15 +24,19 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
       }
 
       if (!config.supabaseClient) {
-        navigate("/login", { replace: true });
+        navigate(
+          buildLoginRedirectPath(location.pathname, location.search, location.hash),
+          { replace: true }
+        );
         return;
       }
 
       const user = session?.user;
       if (!user) {
-        navigate(`/login?redirect=${encodeURIComponent(location.pathname)}`, {
-          replace: true,
-        });
+        navigate(
+          buildLoginRedirectPath(location.pathname, location.search, location.hash),
+          { replace: true }
+        );
         return;
       }
 
@@ -55,9 +60,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
       setIsAuthorized(true);
     } catch (error) {
       console.error("Error checking auth:", error);
-      navigate(`/login?redirect=${encodeURIComponent(location.pathname)}`, {
-        replace: true,
-      });
+      navigate(
+        buildLoginRedirectPath(location.pathname, location.search, location.hash),
+        { replace: true }
+      );
     } finally {
       setIsLoading(false);
     }
@@ -68,7 +74,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
       setIsAuthorized(false);
     }
     checkAuthAndOnboarding();
-  }, [navigate, location.pathname, session?.user?.id, status]);
+  }, [location.hash, location.pathname, location.search, navigate, session?.user?.id, status]);
 
   if (isLoading) {
     return (

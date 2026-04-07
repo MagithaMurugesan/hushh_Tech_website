@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useToast } from "@chakra-ui/react";
 import resources from "../../resources/resources";
 import { InvestorProfile } from "../../types/investorProfile";
+import { useAuthSession } from "../../auth/AuthSessionProvider";
+import { buildLoginRedirectPath } from "../../auth/routePolicy";
 
 export interface InvestorProfileData {
   user_id: string;
@@ -35,8 +37,10 @@ export function pillForConfidence(confidence: number): ConfidencePill {
 
 export function useViewPreferencesLogic() {
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
   const { id: routeUserId } = useParams();
+  const { status, user } = useAuthSession();
   const [profileData, setProfileData] = useState<InvestorProfileData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -48,14 +52,18 @@ export function useViewPreferencesLogic() {
           throw new Error("Supabase client not available");
         }
 
-        // Get current user
-        const { data: { user } } = await supabase.auth.getUser();
+        if (status === "booting") {
+          return;
+        }
 
         // Use routeUserId if provided, otherwise use current user's id
         const userIdToFetch = routeUserId || user?.id;
 
         if (!userIdToFetch) {
-          navigate("/login");
+          navigate(
+            buildLoginRedirectPath(location.pathname, location.search, location.hash),
+            { replace: true }
+          );
           return;
         }
 
@@ -97,8 +105,8 @@ export function useViewPreferencesLogic() {
       }
     };
 
-    fetchProfile();
-  }, [routeUserId, navigate, toast]);
+    void fetchProfile();
+  }, [location.hash, location.pathname, location.search, navigate, routeUserId, status, toast, user?.id]);
 
   const profileUrl = profileData
     ? `https://hushhtech.com/investor/${profileData.user_id}`

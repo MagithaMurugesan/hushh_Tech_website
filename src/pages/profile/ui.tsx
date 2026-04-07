@@ -5,7 +5,6 @@
  * Logic stays in logic.ts via useProfileLogic().
  */
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import HushhTechBackHeader from '../../components/hushh-tech-back-header/HushhTechBackHeader';
 import HushhTechCta, { HushhTechCtaVariant } from '../../components/hushh-tech-cta/HushhTechCta';
 import HushhTechFooter, { HushhFooterTab } from '../../components/hushh-tech-footer/HushhTechFooter';
@@ -15,7 +14,6 @@ import { useProfileLogic } from './logic';
 const playfair = { fontFamily: "'Playfair Display', serif" };
 
 const ProfilePage: React.FC = () => {
-  const navigate = useNavigate();
   const {
     onboardingStatus,
     primaryCTA,
@@ -94,15 +92,7 @@ const ProfilePage: React.FC = () => {
       </main>
 
       {/* ═══ Footer Nav ═══ */}
-      <HushhTechFooter
-        activeTab={HushhFooterTab.PROFILE}
-        onTabChange={(tab) => {
-          if (tab === HushhFooterTab.HOME) navigate('/');
-          if (tab === HushhFooterTab.FUND_A) navigate('/discover-fund-a');
-          if (tab === HushhFooterTab.COMMUNITY) navigate('/community');
-          if (tab === HushhFooterTab.PROFILE) navigate('/profile');
-        }}
-      />
+      <HushhTechFooter activeTab={HushhFooterTab.PROFILE} />
     </div>
   );
 };

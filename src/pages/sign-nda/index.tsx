@@ -6,14 +6,15 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useToast } from '@chakra-ui/react';
 import config from '../../resources/config/config';
 import { signNDA, sendNDANotification, generateNDAPdf, uploadSignedNDA } from '../../services/nda/ndaService';
-import { resolveSignNDASession } from './sessionBootstrap';
 import HushhTechHeader from '../../components/hushh-tech-header/HushhTechHeader';
 import HushhTechFooter from '../../components/hushh-tech-footer/HushhTechFooter';
 import HushhTechCta, { HushhTechCtaVariant } from '../../components/hushh-tech-cta/HushhTechCta';
+import { useAuthSession } from '../../auth/AuthSessionProvider';
+import { buildLoginRedirectPath } from '../../auth/routePolicy';
 
 /* ── Fund documents config ── */
 const FUND_DOCUMENTS = [
@@ -80,8 +81,10 @@ const playfair = { fontFamily: "'Playfair Display', serif" };
 
 const SignNDAPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
   const isMountedRef = useRef(true);
+  const { session, status, user, revalidateSession } = useAuthSession();
 
   const [isLoading, setIsLoading] = useState(true);
   const [signerName, setSignerName] = useState('');
@@ -112,50 +115,33 @@ const SignNDAPage: React.FC = () => {
 
   /* Auth lifecycle */
   useEffect(() => {
-    let cancelled = false;
+    if (status === 'booting') {
+      return;
+    }
 
-    const bootstrapSession = async () => {
-      const result = await resolveSignNDASession(config.supabaseClient);
-
-      if (cancelled || !isMountedRef.current) {
-        return;
-      }
-
-      if (result.session?.user) {
-        const { user } = result.session;
-
-        setUserId(user.id);
-        setUserEmail(user.email || null);
-
-        const fullName =
-          user.user_metadata?.full_name ||
-          user.user_metadata?.name ||
-          '';
-
-        if (fullName) {
-          setSignerName((currentName) => currentName || fullName);
-        }
-
-        setIsLoading(false);
-        return;
-      }
-
-      if (result.source === 'error' && result.error) {
-        console.error('[SignNDA] Failed to bootstrap session:', result.error);
-      } else if (result.source === 'timeout') {
-        console.warn('[SignNDA] Timed out waiting for session hydration');
-      }
-
+    if (status !== 'authenticated' || !user) {
       setIsLoading(false);
-      navigate('/login', { replace: true });
-    };
+      navigate(
+        buildLoginRedirectPath(location.pathname, location.search, location.hash),
+        { replace: true }
+      );
+      return;
+    }
 
-    void bootstrapSession();
+    setUserId(user.id);
+    setUserEmail(user.email || null);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [navigate]);
+    const fullName =
+      user.user_metadata?.full_name ||
+      user.user_metadata?.name ||
+      '';
+
+    if (fullName) {
+      setSignerName((currentName) => currentName || fullName);
+    }
+
+    setIsLoading(false);
+  }, [location.hash, location.pathname, location.search, navigate, status, user]);
 
   /* Toggle individual document acknowledgment */
   const handleDocToggle = useCallback((docId: string) => {
@@ -224,15 +210,26 @@ const SignNDAPage: React.FC = () => {
         duration: 4000,
         isClosable: true,
       });
-      navigate('/login', { replace: true });
+      navigate(
+        buildLoginRedirectPath(location.pathname, location.search, location.hash),
+        { replace: true }
+      );
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      const { data: { session } } = await config.supabaseClient.auth.getSession();
-      if (!session) {
+      let accessToken = session?.access_token || null;
+
+      if (!accessToken) {
+        const snapshot = await revalidateSession();
+        if (snapshot.status === 'authenticated') {
+          accessToken = snapshot.session?.access_token || null;
+        }
+      }
+
+      if (!accessToken) {
         toast({
           title: 'session expired',
           description: 'your session has expired. please log in again.',
@@ -240,11 +237,13 @@ const SignNDAPage: React.FC = () => {
           duration: 4000,
           isClosable: true,
         });
-        navigate('/login', { replace: true });
+        navigate(
+          buildLoginRedirectPath(location.pathname, location.search, location.hash),
+          { replace: true }
+        );
         return;
       }
 
-      const accessToken = session.access_token;
       const trimmedName = signerName.trim();
       let generatedPdfUrl: string | undefined;
       let pdfBlob: Blob | undefined;
@@ -329,7 +328,20 @@ const SignNDAPage: React.FC = () => {
     } finally {
       if (isMountedRef.current) setIsSubmitting(false);
     }
-  }, [validateForm, isSubmitting, userId, userEmail, signerName, navigate, toast]);
+  }, [
+    location.hash,
+    location.pathname,
+    location.search,
+    navigate,
+    revalidateSession,
+    session?.access_token,
+    signerName,
+    toast,
+    userEmail,
+    userId,
+    validateForm,
+    isSubmitting,
+  ]);
 
   /* Loading state */
   if (isLoading) {

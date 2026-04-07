@@ -5,6 +5,8 @@ import axios from 'axios';
 import resources from '../../resources/resources';
 import services from '../../services/services';
 import { UserPreferenceProfile } from '../../types/preferences';
+import { useAuthSession } from '../../auth/AuthSessionProvider';
+import { buildLoginRedirectPath } from '../../auth/routePolicy';
 
 interface UserProfile {
   hushh_id: string;
@@ -24,6 +26,7 @@ interface UserProfile {
 
 const ProfilePage = () => {
   const navigate = useNavigate();
+  const { status, user } = useAuthSession();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -85,11 +88,13 @@ const ProfilePage = () => {
           return;
         }
         
-        const { data: { user } } = await resources.config.supabaseClient.auth.getUser();
-        
+        if (status === 'booting') {
+          return;
+        }
+
         if (!user?.email) {
           console.log('❌ No user email found, redirecting to login');
-          navigate("/login");
+          navigate(buildLoginRedirectPath('/your-profile'), { replace: true });
           return;
         }
         
@@ -109,8 +114,8 @@ const ProfilePage = () => {
       }
     };
 
-    fetchUserProfile();
-  }, [navigate]);
+    void fetchUserProfile();
+  }, [navigate, status, user]);
 
   const checkUserInDatabase = async (email: string) => {
     try {

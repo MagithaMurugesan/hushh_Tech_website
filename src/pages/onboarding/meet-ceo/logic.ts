@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import config from '../../../resources/config/config';
 import { useFooterVisibility } from '../../../utils/useFooterVisibility';
+import { useAuthSession } from '../../../auth/AuthSessionProvider';
+import { buildLoginRedirectPath } from '../../../auth/routePolicy';
 
 // Types
 export interface TimeSlot { startTime: string; endTime: string; available: boolean; }
@@ -13,6 +15,7 @@ export const VALID_COUPON = 'ILOVEHUSHH';
 export function useMeetCeoLogic() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { session, status, user } = useAuthSession();
   const [paymentState, setPaymentState] = useState<PaymentState>('loading');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,52 +36,41 @@ export function useMeetCeoLogic() {
   const [bookingInProgress, setBookingInProgress] = useState(false);
 
   useEffect(() => { window.scrollTo({ top: 0 }); }, []);
-  useEffect(() => { checkPaymentStatus(); }, []);
-
-  // Handle Stripe callback
-  useEffect(() => {
-    const payment = searchParams.get('payment');
-    const sessionId = searchParams.get('session_id');
-    if (payment === 'success' && sessionId) verifyPayment(sessionId);
-    else if (payment === 'cancel') { setError('Payment cancelled. Try again.'); setPaymentState('not_paid'); }
-  }, [searchParams]);
-
-  // Fetch calendar when paid
-  useEffect(() => { if (paymentState === 'paid') fetchCalendarSlots(); }, [paymentState]);
 
   /* ── Send Hushh Coins credit email (fire-and-forget) ── */
-  const sendCoinsEmail = async (email: string, name: string, coins: number) => {
+  const sendCoinsEmail = useCallback(async (email: string, name: string, coins: number) => {
     try {
-      const { data: { session } } = await config.supabaseClient!.auth.getSession();
-      if (!session) return;
+      if (!session?.access_token) return;
       await fetch(`${config.SUPABASE_URL}/functions/v1/coins-credit-notification`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ recipientEmail: email, recipientName: name, coinsAwarded: coins }),
       });
     } catch (err) { console.error('Coins email failed (non-blocking):', err); }
-  };
+  }, [session?.access_token]);
 
   /* ── Send Hushh Coins deduction email when meeting is booked (fire-and-forget) ── */
-  const sendCoinsDeductionEmail = async (email: string, name: string, coins: number, meetingDate: string, meetingTime: string) => {
+  const sendCoinsDeductionEmail = useCallback(async (email: string, name: string, coins: number, meetingDate: string, meetingTime: string) => {
     try {
-      const { data: { session } } = await config.supabaseClient!.auth.getSession();
-      if (!session) return;
+      if (!session?.access_token) return;
       await fetch(`${config.SUPABASE_URL}/functions/v1/coins-deduction-notification`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ recipientEmail: email, recipientName: name, coinsDeducted: coins, meetingDate, meetingTime }),
       });
     } catch (err) { console.error('Deduction email failed (non-blocking):', err); }
-  };
+  }, [session?.access_token]);
 
   /* ── API Handlers ── */
 
-  const checkPaymentStatus = async () => {
+  const checkPaymentStatus = useCallback(async () => {
     if (!config.supabaseClient) { setPaymentState('not_paid'); return; }
+    if (status === 'booting') return;
     try {
-      const { data: { user } } = await config.supabaseClient.auth.getUser();
-      if (!user) { navigate('/login'); return; }
+      if (status !== 'authenticated' || !user) {
+        navigate(buildLoginRedirectPath('/onboarding/meet-ceo'), { replace: true });
+        return;
+      }
       const { data: payment } = await config.supabaseClient
         .from('ceo_meeting_payments').select('*').eq('user_id', user.id).maybeSingle();
       if (payment?.payment_status === 'completed') {
@@ -86,13 +78,12 @@ export function useMeetCeoLogic() {
         setPaymentState(payment.calendly_booked ? 'booked' : 'paid');
       } else { setPaymentState('not_paid'); }
     } catch { setPaymentState('not_paid'); }
-  };
+  }, [navigate, status, user]);
 
-  const verifyPayment = async (sessionId: string) => {
+  const verifyPayment = useCallback(async (sessionId: string) => {
     setPaymentState('verifying'); setError(null);
     try {
-      const { data: { session } } = await config.supabaseClient!.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
+      if (!session?.access_token || !user) throw new Error('Not authenticated');
       const res = await fetch(`${config.SUPABASE_URL}/functions/v1/onboarding-verify-payment`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ sessionId }),
@@ -104,17 +95,15 @@ export function useMeetCeoLogic() {
         setPaymentState('paid');
         window.history.replaceState({}, '', '/onboarding/meet-ceo');
         // Send coins credit email after Stripe payment
-        const { data: { user } } = await config.supabaseClient!.auth.getUser();
-        if (user) sendCoinsEmail(user.email || '', user.user_metadata?.full_name || 'Hushh User', coins);
+        sendCoinsEmail(user.email || '', user.user_metadata?.full_name || 'Hushh User', coins);
       } else throw new Error(result.error || 'Verification failed');
     } catch (err: any) { setError(err.message); setPaymentState('not_paid'); }
-  };
+  }, [sendCoinsEmail, session?.access_token, user]);
 
   const handlePayment = async () => {
     setLoading(true); setError(null);
     try {
-      const { data: { session } } = await config.supabaseClient!.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
+      if (!session?.access_token) throw new Error('Not authenticated');
       const res = await fetch(`${config.SUPABASE_URL}/functions/v1/onboarding-create-checkout`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({}),
@@ -133,7 +122,6 @@ export function useMeetCeoLogic() {
     if (code !== VALID_COUPON) { setCouponError('Invalid coupon code. Please try again.'); return; }
     setCouponLoading(true);
     try {
-      const { data: { user } } = await config.supabaseClient!.auth.getUser();
       if (!user) throw new Error('Not authenticated');
       // Upsert payment record with coupon
       await config.supabaseClient!.from('ceo_meeting_payments').upsert({
@@ -149,11 +137,10 @@ export function useMeetCeoLogic() {
     finally { setCouponLoading(false); }
   };
 
-  const fetchCalendarSlots = async () => {
+  const fetchCalendarSlots = useCallback(async () => {
     setLoadingSlots(true);
     try {
-      const { data: { session } } = await config.supabaseClient!.auth.getSession();
-      if (!session) { setLoadingSlots(false); return; }
+      if (!session?.access_token) { setLoadingSlots(false); return; }
       const res = await fetch(`${config.SUPABASE_URL}/functions/v1/ceo-calendar-booking?days=14`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
@@ -161,15 +148,13 @@ export function useMeetCeoLogic() {
       if (data.success) { setCalendarData(data); if (data.availability?.length) setSelectedDate(data.availability[0].date); }
     } catch (err) { console.error('Calendar fetch error:', err); }
     finally { setLoadingSlots(false); }
-  };
+  }, [session?.access_token]);
 
   const handleBookMeeting = async () => {
     if (!selectedSlot) return;
     setBookingInProgress(true); setError(null);
     try {
-      const { data: { session } } = await config.supabaseClient!.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
-      const { data: { user } } = await config.supabaseClient!.auth.getUser();
+      if (!session?.access_token || !user) throw new Error('Not authenticated');
       const res = await fetch(`${config.SUPABASE_URL}/functions/v1/ceo-calendar-booking`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ startTime: selectedSlot.startTime, endTime: selectedSlot.endTime, attendeeName: user?.user_metadata?.full_name || 'Hushh User' }),
@@ -185,6 +170,33 @@ export function useMeetCeoLogic() {
     } catch (err: any) { setError(err.message); }
     finally { setBookingInProgress(false); }
   };
+
+  useEffect(() => {
+    void checkPaymentStatus();
+  }, [checkPaymentStatus]);
+
+  // Handle Stripe callback
+  useEffect(() => {
+    if (status === 'booting') {
+      return;
+    }
+
+    const payment = searchParams.get('payment');
+    const sessionId = searchParams.get('session_id');
+    if (payment === 'success' && sessionId && status === 'authenticated') {
+      void verifyPayment(sessionId);
+    } else if (payment === 'cancel') {
+      setError('Payment cancelled. Try again.');
+      setPaymentState('not_paid');
+    }
+  }, [searchParams, status, verifyPayment]);
+
+  // Fetch calendar when paid
+  useEffect(() => {
+    if (paymentState === 'paid') {
+      void fetchCalendarSlots();
+    }
+  }, [fetchCalendarSlots, paymentState]);
 
   const handleContinue = () => navigate('/hushh-user-profile');
   const handleBack = () => navigate('/onboarding/step-12');

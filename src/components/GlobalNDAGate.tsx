@@ -17,68 +17,17 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Box, Spinner, VStack, Text } from '@chakra-ui/react';
 import { checkNDAStatus } from '../services/nda/ndaService';
 import { useAuthSession } from '../auth/AuthSessionProvider';
+import {
+  buildLoginRedirectPath,
+  canGuestAccessRoute,
+  isAuthenticatedAccountRoute,
+  isGuestAuthRoute,
+  isPublicSharedProfileRoute,
+} from '../auth/routePolicy';
 
 interface GlobalNDAGateProps {
   children: ReactNode;
 }
-
-// MINIMAL routes that bypass NDA check for authenticated users
-// These are ONLY the routes needed for authentication and NDA signing itself
-const AUTH_ROUTES = [
-  '/Login',
-  '/Signup',
-  '/auth/callback',
-  '/sign-nda',
-  '/document-viewer',
-];
-
-// Public routes accessible WITHOUT authentication
-// These are marketing/info pages visible to non-logged-in users
-const UNAUTHENTICATED_PUBLIC_ROUTES = [
-  '/',
-  '/privacy-policy',
-  '/faq',
-  '/carrer-privacy-policy',
-  '/california-privacy-policy',
-  '/eu-uk-jobs-privacy-policy',
-  '/delete-account',
-  '/investor-guide',
-  '/about',
-  '/services',
-  '/career',
-  '/community',
-  '/Contact',
-  '/benefits',
-];
-
-// Public profile routes that should ALWAYS be accessible (even for authenticated users)
-// These are shared links that anyone should be able to open
-const PUBLIC_PROFILE_ROUTES = [
-  '/investor/',  // /investor/:slug — public shared profile pages
-];
-
-// Check if path is a public profile route (bypass NDA for these)
-const isPublicProfileRoute = (pathname: string): boolean => {
-  return PUBLIC_PROFILE_ROUTES.some(route => pathname.startsWith(route));
-};
-
-// Check if path is an auth-related route
-const isAuthRoute = (pathname: string): boolean => {
-  return AUTH_ROUTES.some(route => 
-    pathname === route || pathname.startsWith(`${route}/`)
-  );
-};
-
-// Check if path is a public route (for unauthenticated users)
-const isUnauthenticatedPublicRoute = (pathname: string): boolean => {
-  // Home page exact match
-  if (pathname === '/') return true;
-  
-  return UNAUTHENTICATED_PUBLIC_ROUTES.some(route => {
-    if (route === '/') return false; // Already handled above
-    return pathname === route || pathname.startsWith(`${route}/`);
-  });
-};
 
 const GlobalNDAGate: React.FC<GlobalNDAGateProps> = ({ children }) => {
   const navigate = useNavigate();
@@ -94,7 +43,7 @@ const GlobalNDAGate: React.FC<GlobalNDAGateProps> = ({ children }) => {
       const pathname = location.pathname;
 
       // Always allow auth-related routes (login, signup, sign-nda, callback)
-      if (isAuthRoute(pathname)) {
+      if (isGuestAuthRoute(pathname)) {
         if (!cancelled) {
           setIsChecking(false);
           setHasSignedNDA(true);
@@ -104,7 +53,7 @@ const GlobalNDAGate: React.FC<GlobalNDAGateProps> = ({ children }) => {
 
       // Always allow public profile routes (shared investor profiles)
       // These must be accessible by ANYONE — authenticated or not, NDA or not
-      if (isPublicProfileRoute(pathname)) {
+      if (isPublicSharedProfileRoute(pathname)) {
         if (!cancelled) {
           setIsChecking(false);
           setHasSignedNDA(true);
@@ -122,10 +71,22 @@ const GlobalNDAGate: React.FC<GlobalNDAGateProps> = ({ children }) => {
       }
 
       if (!session?.user?.id || status !== 'authenticated') {
-        // Allow public marketing pages for non-authenticated users
+        if (isAuthenticatedAccountRoute(pathname)) {
+          navigate(
+            buildLoginRedirectPath(
+              location.pathname,
+              location.search,
+              location.hash
+            ),
+            { replace: true }
+          );
+          return;
+        }
+
+        // Allow public marketing and guest-accessible routes for non-authenticated users
         if (!cancelled) {
           setIsChecking(false);
-          setHasSignedNDA(true);
+          setHasSignedNDA(canGuestAccessRoute(pathname));
         }
         return;
       }
@@ -171,7 +132,7 @@ const GlobalNDAGate: React.FC<GlobalNDAGateProps> = ({ children }) => {
     return () => {
       cancelled = true;
     };
-  }, [session?.user?.id, location.pathname, navigate, status]);
+  }, [location.hash, location.pathname, location.search, navigate, session?.user?.id, status]);
 
   // Show loading state while checking - Apple-style black/white design
   if (isChecking) {

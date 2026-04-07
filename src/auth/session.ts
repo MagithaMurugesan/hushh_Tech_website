@@ -214,6 +214,19 @@ export async function getValidatedSession(
   }
 }
 
+export async function getAuthenticatedSession(
+  client: SupabaseClient | undefined = config.supabaseClient,
+  errorMessage = "User not logged in. Please sign in again."
+): Promise<Session> {
+  const snapshot = await getValidatedSession(client);
+
+  if (snapshot.status !== "authenticated" || !snapshot.session?.access_token) {
+    throw new Error(errorMessage);
+  }
+
+  return snapshot.session;
+}
+
 export async function clearSupabaseSession(
   client: SupabaseClient | undefined = config.supabaseClient
 ) {

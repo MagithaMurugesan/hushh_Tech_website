@@ -4,6 +4,8 @@
  * Simple, no-frills service. All sensitive operations happen server-side.
  */
 
+import { getAuthenticatedSession } from "../../auth/session";
+
 // =====================================================
 // Types
 // =====================================================
@@ -51,8 +53,8 @@ const getUserAccessToken = async (): Promise<string> => {
     const config = (await import('../../resources/config/config')).default;
     const supabase = config.supabaseClient;
     if (!supabase) return getAnonKey();
-    const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token || getAnonKey();
+    const session = await getAuthenticatedSession(supabase);
+    return session.access_token || getAnonKey();
   } catch { return getAnonKey(); }
 };
 

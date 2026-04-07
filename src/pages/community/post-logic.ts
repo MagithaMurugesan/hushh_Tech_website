@@ -9,11 +9,13 @@ import { useToast } from "@chakra-ui/react";
 import axios from "axios";
 import { getPostBySlug, PostData } from "../../data/posts";
 import config from "../../resources/config/config";
+import { useAuthSession } from "../../auth/AuthSessionProvider";
 
 export const useCommunityPostLogic = () => {
   const { "*": slug } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
+  const { session, status } = useAuthSession();
   const toastShownRef = useRef<Record<string, boolean>>({});
 
   const [post, setPost] = useState<PostData | null>(null);
@@ -46,14 +48,11 @@ export const useCommunityPostLogic = () => {
 
       /* NDA-protected post — verify access */
       if (foundPost.accessLevel === "NDA") {
-        const {
-          data: { session },
-        } =
-          (await config.supabaseClient?.auth.getSession()) || {
-            data: { session: null },
-          };
+        if (status === "booting") {
+          return;
+        }
 
-        if (!session) {
+        if (status !== "authenticated" || !session?.access_token) {
           showToastOnce("access-restricted-no-session", {
             title: "Access Restricted",
             description:
@@ -111,8 +110,8 @@ export const useCommunityPostLogic = () => {
       setLoading(false);
     };
 
-    loadPost();
-  }, [slug, navigate, toast]);
+    void loadPost();
+  }, [navigate, session?.access_token, slug, status, toast]);
 
   const handleBack = () => navigate("/community");
 

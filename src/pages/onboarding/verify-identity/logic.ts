@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@chakra-ui/react';
 import config from '../../../resources/config/config';
+import { useAuthSession } from '../../../auth/AuthSessionProvider';
+import { buildLoginRedirectPath } from '../../../auth/routePolicy';
 
 export interface OnboardingData {
   legal_first_name?: string;
@@ -24,6 +26,7 @@ export interface VerificationStatus {
 export function useVerifyIdentityLogic() {
   const navigate = useNavigate();
   const toast = useToast();
+  const { session, status, user } = useAuthSession();
   const [loading, setLoading] = useState(true);
   const [startingVerification, setStartingVerification] = useState(false);
   const [onboardingData, setOnboardingData] = useState<OnboardingData | null>(null);
@@ -38,10 +41,13 @@ export function useVerifyIdentityLogic() {
   // Check authentication and load data
   useEffect(() => {
     window.scrollTo(0, 0);
-    loadUserData();
   }, []);
 
-  const loadUserData = async () => {
+  useEffect(() => {
+    if (status === 'booting') {
+      return;
+    }
+
     if (!config.supabaseClient) {
       toast({
         title: 'Error',
@@ -49,70 +55,74 @@ export function useVerifyIdentityLogic() {
         status: 'error',
         duration: 5000,
       });
+      setLoading(false);
       return;
     }
 
-    try {
-      const { data: { user } } = await config.supabaseClient.auth.getUser();
-      if (!user) {
-        navigate('/login');
-        return;
-      }
-
-      // Load onboarding data
-      const { data: onboarding } = await config.supabaseClient
-        .from('onboarding_data')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      if (onboarding) {
-        setOnboardingData(onboarding);
-        
-        // If already verified, redirect to profile
-        if (onboarding.identity_verified) {
-          navigate('/hushh-user-profile');
-          return;
-        }
-      }
-
-      // Check existing verification status
-      const { data: verification } = await config.supabaseClient
-        .from('identity_verifications')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (verification) {
-        setVerificationStatus({
-          status: verification.stripe_status || 'not_started',
-          document_verified: verification.document_verified || false,
-          selfie_verified: verification.selfie_verified || false,
-          email_verified: verification.email_verified || false,
-          phone_verified: verification.phone_verified || false,
-        });
-        
-        // If verified, redirect
-        if (verification.stripe_status === 'verified') {
-          navigate('/hushh-user-profile');
-          return;
-        }
-      }
-    } catch (error) {
-      console.error('Error loading data:', error);
-    } finally {
+    if (status !== 'authenticated' || !user) {
+      navigate(buildLoginRedirectPath('/onboarding/verify'), { replace: true });
       setLoading(false);
+      return;
     }
-  };
+
+    const loadUserData = async () => {
+      try {
+        // Load onboarding data
+        const { data: onboarding } = await config.supabaseClient
+          .from('onboarding_data')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        if (onboarding) {
+          setOnboardingData(onboarding);
+          
+          // If already verified, redirect to profile
+          if (onboarding.identity_verified) {
+            navigate('/hushh-user-profile');
+            return;
+          }
+        }
+
+        // Check existing verification status
+        const { data: verification } = await config.supabaseClient
+          .from('identity_verifications')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (verification) {
+          setVerificationStatus({
+            status: verification.stripe_status || 'not_started',
+            document_verified: verification.document_verified || false,
+            selfie_verified: verification.selfie_verified || false,
+            email_verified: verification.email_verified || false,
+            phone_verified: verification.phone_verified || false,
+          });
+          
+          // If verified, redirect
+          if (verification.stripe_status === 'verified') {
+            navigate('/hushh-user-profile');
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Error loading data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadUserData();
+  }, [navigate, status, toast, user]);
 
   const startVerification = async () => {
     setStartingVerification(true);
 
     try {
-      const { data: { session } } = await config.supabaseClient!.auth.getSession();
-      if (!session) {
+      if (!session?.access_token) {
         throw new Error('Not authenticated');
       }
 
