@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const startOAuthMock = vi.fn();
 const redirectToUrlMock = vi.fn();
+const resolveOAuthHostMock = vi.fn();
+var actualResolveOAuthHost: typeof import("../src/auth/authHost").resolveOAuthHost;
 const authState = {
   status: "anonymous",
 };
@@ -23,9 +25,11 @@ vi.mock("../src/auth/authHost", async () => {
   const actual = await vi.importActual<typeof import("../src/auth/authHost")>(
     "../src/auth/authHost"
   );
+  actualResolveOAuthHost = actual.resolveOAuthHost;
   return {
     ...actual,
     redirectToUrl: (...args: unknown[]) => redirectToUrlMock(...args),
+    resolveOAuthHost: (...args: unknown[]) => resolveOAuthHostMock(...args),
   };
 });
 
@@ -59,6 +63,9 @@ describe("login/signup OAuth UI", () => {
     vi.clearAllMocks();
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     authState.status = "anonymous";
+    resolveOAuthHostMock.mockImplementation((...args: Parameters<typeof actualResolveOAuthHost>) =>
+      actualResolveOAuthHost(...args)
+    );
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -107,13 +114,42 @@ describe("login/signup OAuth UI", () => {
     expect(redirectToUrlMock).not.toHaveBeenCalled();
   });
 
-  it("shows a signup fallback link and redirects unsupported hosts to the canonical host", async () => {
-    startOAuthMock.mockResolvedValue({
-      ok: false,
-      provider: "google",
-      reason: "unsupported_host",
-      message: "Sign-in is only available on https://hushhtech.com.",
-      redirectTo: "https://hushhtech.com/signup?redirect=%2Fprofile",
+  it("redirects unsupported login hosts before rendering sign-in CTAs", async () => {
+    resolveOAuthHostMock.mockReturnValue({
+      supported: false,
+      canonicalOrigin: "https://hushhtech.com",
+      callbackUrl: "https://hushhtech.com/auth/callback",
+      canonicalEntryUrl: "https://hushhtech.com/login?redirect=%2Fprofile",
+    });
+
+    await act(async () => {
+      root.render(
+        React.createElement(
+          MemoryRouter,
+          null,
+          React.createElement(LoginPage)
+        )
+      );
+    });
+    await flush();
+
+    expect(redirectToUrlMock).toHaveBeenCalledWith(
+      "https://hushhtech.com/login?redirect=%2Fprofile"
+    );
+    expect(startOAuthMock).not.toHaveBeenCalled();
+    expect(container.textContent).not.toContain("Continue with Apple");
+    expect(container.textContent).not.toContain("Continue with Google");
+    expect(container.textContent).not.toContain(
+      "Sign-in is only available on https://hushhtech.com."
+    );
+  });
+
+  it("redirects unsupported signup hosts before rendering sign-up CTAs", async () => {
+    resolveOAuthHostMock.mockReturnValue({
+      supported: false,
+      canonicalOrigin: "https://hushhtech.com",
+      callbackUrl: "https://hushhtech.com/auth/callback",
+      canonicalEntryUrl: "https://hushhtech.com/signup?redirect=%2Fprofile",
     });
 
     await act(async () => {
@@ -127,29 +163,14 @@ describe("login/signup OAuth UI", () => {
     });
     await flush();
 
-    const googleButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("Continue with Google")
-    );
-
-    await act(async () => {
-      googleButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    await flush();
-
-    expect(startOAuthMock).toHaveBeenCalledWith("google");
     expect(redirectToUrlMock).toHaveBeenCalledWith(
       "https://hushhtech.com/signup?redirect=%2Fprofile"
     );
-    expect(container.textContent).toContain(
+    expect(startOAuthMock).not.toHaveBeenCalled();
+    expect(container.textContent).not.toContain("Continue with Apple");
+    expect(container.textContent).not.toContain("Continue with Google");
+    expect(container.textContent).not.toContain(
       "Sign-in is only available on https://hushhtech.com."
-    );
-
-    const fallbackLink = Array.from(container.querySelectorAll("a")).find(
-      (link) => link.textContent?.includes("supported sign-up host")
-    );
-
-    expect(fallbackLink?.getAttribute("href")).toBe(
-      "https://hushhtech.com/signup?redirect=%2Fprofile"
     );
   });
 });
