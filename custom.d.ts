@@ -25,9 +25,10 @@ declare module "*.webp" {
 
 /// <reference types="vite/client" />
 
-// Vite define globals (injected at build time from package.json)
+// Vite define globals (injected at build time from package.json + git)
 declare const __APP_VERSION__: string;
 declare const __BUILD_TIMESTAMP__: string;
+declare const __GIT_COMMIT__: string;
 
 interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL: string;

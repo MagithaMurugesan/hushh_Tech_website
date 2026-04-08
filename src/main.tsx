@@ -9,11 +9,12 @@ import './i18n'
 
 // ─── App Version ────────────────────────────────────────────────────────────
 // Expose version globally so team can check via DevTools console:
-//   Type: __HUSHH_VERSION__  →  { version, built }
+//   Type: __HUSHH_VERSION__  →  { version, built, commit }
 // This survives production minification (unlike console.log which is stripped)
 ;(window as any).__HUSHH_VERSION__ = {
   version: __APP_VERSION__,
   built: __BUILD_TIMESTAMP__,
+  commit: __GIT_COMMIT__,
 }
 
 function upsertMeta(name: string, content: string) {
@@ -29,6 +30,7 @@ function upsertMeta(name: string, content: string) {
 }
 
 upsertMeta("app-version", __APP_VERSION__)
+upsertMeta("build-commit", __GIT_COMMIT__)
 upsertMeta("deploy-verified", __BUILD_TIMESTAMP__)
 
 // Import DM Sans font weights

@@ -5,14 +5,24 @@ import remarkFrontmatter from 'remark-frontmatter'
 import remarkGfm from 'remark-gfm'
 import rehypeSlug from 'rehype-slug'
 import { readFileSync } from 'fs'
+import { execSync } from 'child_process'
 
 // Read version from package.json at build time
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'))
+
+// Capture git commit hash at build time for deployment verification
+let gitCommitHash = 'unknown'
+try {
+  gitCommitHash = execSync('git rev-parse --short HEAD').toString().trim()
+} catch {
+  gitCommitHash = 'unknown'
+}
 
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
     __BUILD_TIMESTAMP__: JSON.stringify(new Date().toISOString()),
+    __GIT_COMMIT__: JSON.stringify(gitCommitHash),
   },
   plugins: [
     react(),
