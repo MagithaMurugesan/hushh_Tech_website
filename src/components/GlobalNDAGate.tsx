@@ -12,7 +12,7 @@
  * This ensures NO authenticated user can access ANY content without signing the NDA first.
  */
 
-import React, { useEffect, useState, ReactNode } from 'react';
+import React, { useEffect, useRef, useState, ReactNode } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Box, Spinner, VStack, Text } from '@chakra-ui/react';
 import { checkNDAStatus } from '../services/nda/ndaService';
@@ -35,6 +35,36 @@ const GlobalNDAGate: React.FC<GlobalNDAGateProps> = ({ children }) => {
   const { session, status } = useAuthSession();
   const [isChecking, setIsChecking] = useState(true);
   const [hasSignedNDA, setHasSignedNDA] = useState<boolean | null>(null);
+
+  // Fallback timeout — if isChecking stays true for >8 seconds,
+  // auto-resolve to prevent infinite "Verifying access..." spinner.
+  // This handles edge cases where auth status gets stuck at 'booting'
+  // (e.g., OAuth race condition, network hang on getUser()).
+  const bootTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (isChecking) {
+      bootTimeoutRef.current = setTimeout(() => {
+        console.warn(
+          '[GlobalNDAGate] Boot timeout reached (8s). Forcing access check to resolve.'
+        );
+        setIsChecking(false);
+        // Allow access to public/guest routes; authenticated-only routes
+        // will be caught by ProtectedRoute downstream.
+        setHasSignedNDA(canGuestAccessRoute(location.pathname));
+      }, 8000);
+    } else if (bootTimeoutRef.current) {
+      clearTimeout(bootTimeoutRef.current);
+      bootTimeoutRef.current = null;
+    }
+
+    return () => {
+      if (bootTimeoutRef.current) {
+        clearTimeout(bootTimeoutRef.current);
+        bootTimeoutRef.current = null;
+      }
+    };
+  }, [isChecking, location.pathname]);
 
   useEffect(() => {
     let cancelled = false;

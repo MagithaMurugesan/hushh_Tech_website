@@ -198,6 +198,13 @@ export function getAuthInvalidationReason(error?: {
   return "invalid_session";
 }
 
+/**
+ * Timeout duration for the server-side getUser() validation call.
+ * If the call takes longer than this, we fall back to trusting the local session.
+ * This prevents the "Verifying access..." infinite loading bug.
+ */
+const VALIDATE_SESSION_TIMEOUT_MS = 5000;
+
 export async function validateSessionCandidate(
   client: SupabaseClient | undefined,
   session: Session | null
@@ -219,10 +226,33 @@ export async function validateSessionCandidate(
   }
 
   try {
+    // Race getUser() against a timeout to prevent infinite loading.
+    // If the server call hangs (network issues, OAuth race condition),
+    // we fall back to trusting the local session data.
+    const getUserPromise = client.auth.getUser();
+    const timeoutPromise = new Promise<"timeout">((resolve) =>
+      setTimeout(() => resolve("timeout"), VALIDATE_SESSION_TIMEOUT_MS)
+    );
+
+    const result = await Promise.race([getUserPromise, timeoutPromise]);
+
+    // Timeout — fall back to trusting the local session
+    if (result === "timeout") {
+      console.warn(
+        "[AuthSession] getUser() timed out after %dms, trusting local session",
+        VALIDATE_SESSION_TIMEOUT_MS
+      );
+      return {
+        status: "authenticated",
+        session,
+        user: session.user as User,
+      };
+    }
+
     const {
       data: { user },
       error,
-    } = await client.auth.getUser();
+    } = result;
 
     if (error || !user || user.id !== session.user.id) {
       return {
