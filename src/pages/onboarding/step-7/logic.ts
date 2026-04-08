@@ -1,4 +1,9 @@
-import { useState, useEffect } from 'react';
+/**
+ * Step 9 - SSN + Date of Birth — Logic Hook
+ *
+ * All state, effects, handlers, and constants for the SSN & DOB step.
+ */
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import config from '../../../resources/config/config';
 import { getOnboardingDisplayMeta } from '../../../services/onboarding/flow';
@@ -15,163 +20,227 @@ export const DISPLAY_STEP = DISPLAY_META.displayStep;
 export const TOTAL_STEPS = DISPLAY_META.totalSteps;
 export const PROGRESS_PCT = Math.round((DISPLAY_STEP / TOTAL_STEPS) * 100);
 
+export const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
 /* ═══════════════════════════════════════════════
    HOOK
    ═══════════════════════════════════════════════ */
 
-export function useStep7Logic() {
+export function useStep9Logic() {
   const navigate = useNavigate();
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isPreFilledFromBank, setIsPreFilledFromBank] = useState(false);
   const isFooterVisible = useFooterVisibility();
+  const [ssn, setSsn] = useState('');
+  const [dob, setDob] = useState('');
+  const [dobMonth, setDobMonth] = useState('');
+  const [dobDay, setDobDay] = useState('');
+  const [dobYear, setDobYear] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showInfo, setShowInfo] = useState(false);
+  const dateInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { window.scrollTo(0, 0); }, []);
 
-  /* ─── Load user + existing data ─── */
+  /* ─── Helpers ─── */
+  const formatIsoToDisplay = (iso?: string | null) => {
+    if (!iso) return '';
+    const parts = iso.split('-');
+    if (parts.length === 3) return `${parts[1]}/${parts[2]}/${parts[0]}`;
+    return iso;
+  };
+
+  const parseDobToIso = (value: string) => {
+    if (!value) return null;
+    const parts = value.split('/');
+    if (parts.length === 3) {
+      let [p1, p2, year] = parts.map((p) => p.trim());
+      let month = p1, day = p2;
+      if (parseInt(p1, 10) > 12) { day = p1; month = p2; }
+      const iso = `${year.padStart(4, '0')}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      if (!Number.isNaN(Date.parse(iso))) return iso;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value))) return value;
+    return null;
+  };
+
+  /* ─── Load saved data ─── */
   useEffect(() => {
     const loadData = async () => {
       if (!config.supabaseClient) return;
-
       const { data: { user } } = await config.supabaseClient.auth.getUser();
-      if (!user) { navigate('/login'); return; }
+      if (!user) return;
 
-      // Extract name from OAuth provider metadata
-      const meta = user.user_metadata || {};
-      const oauthFirst = meta.given_name || meta.first_name || (meta.full_name?.split(' ')[0]) || (meta.name?.split(' ')[0]) || '';
-      const oauthLast = meta.family_name || meta.last_name || (meta.full_name?.split(' ').slice(1).join(' ')) || (meta.name?.split(' ').slice(1).join(' ')) || '';
-
-      // Check saved data — priority: DB > Plaid > OAuth
       const { data } = await config.supabaseClient
         .from('onboarding_data')
-        .select('legal_first_name, legal_last_name')
+        .select('ssn_encrypted, date_of_birth')
         .eq('user_id', user.id)
         .maybeSingle();
 
-      // If DB has names, use them directly
-      if (data?.legal_first_name && data?.legal_last_name) {
-        setFirstName(data.legal_first_name);
-        setLastName(data.legal_last_name);
-        return;
-      }
-
-      // Try Plaid identity data for name pre-fill
-      try {
-        const { data: financialData } = await config.supabaseClient
-          .from('user_financial_data')
-          .select('identity_data')
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (financialData?.identity_data) {
-          const identityData = financialData.identity_data as any;
-          const accounts = identityData?.accounts || [];
-          const owners = accounts[0]?.owners || [];
-          const owner = owners[0];
-
-          if (owner?.names?.length) {
-            // Plaid returns full name string like "John Michael Doe"
-            const fullName = String(owner.names[0]).trim();
-            if (fullName) {
-              const parts = fullName.split(/\s+/);
-              const plaidFirst = parts[0] || '';
-              const plaidLast = parts.slice(1).join(' ') || '';
-
-              if (plaidFirst && plaidLast) {
-                setFirstName(plaidFirst);
-                setLastName(plaidLast);
-                setIsPreFilledFromBank(true);
-                console.log('[Step7] Name pre-filled from Plaid identity:', plaidFirst, plaidLast.charAt(0) + '***');
-                return;
-              }
-            }
-          }
+      if (data?.date_of_birth) {
+        const saved = formatIsoToDisplay(data.date_of_birth);
+        if (saved) setDob(saved);
+        // Also populate dropdowns from ISO date
+        const parts = data.date_of_birth.split('-');
+        if (parts.length === 3) {
+          setDobYear(parts[0]);
+          setDobMonth(parts[1]);
+          setDobDay(parts[2]);
         }
-      } catch (err) {
-        console.warn('[Step7] Plaid identity fetch failed (ignoring):', err);
       }
-
-      // Fallback to OAuth metadata
-      setFirstName(oauthFirst);
-      setLastName(oauthLast);
+      if (data?.ssn_encrypted && data.ssn_encrypted !== '999-99-9999') {
+        setSsn(data.ssn_encrypted);
+      }
     };
     loadData();
-  }, [navigate]);
+  }, []);
+
+  /* ─── Formatters ─── */
+  const formatSSN = (v: string) => {
+    const d = v.replace(/\D/g, '');
+    if (d.length <= 3) return d;
+    if (d.length <= 5) return `${d.slice(0, 3)}-${d.slice(3)}`;
+    return `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5, 9)}`;
+  };
+
+  const formatDate = (v: string) => {
+    const d = v.replace(/\D/g, '');
+    if (d.length <= 2) return d;
+    if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`;
+    return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4, 8)}`;
+  };
+
+  const handleSSNChange = (e: React.ChangeEvent<HTMLInputElement>) => setSsn(formatSSN(e.target.value));
+  const handleDobChange = (e: React.ChangeEvent<HTMLInputElement>) => setDob(formatDate(e.target.value));
+
+  const handleNativeDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.value) setDob(formatIsoToDisplay(e.target.value));
+  };
+
+  const openDatePicker = () => {
+    if (dateInputRef.current) {
+      dateInputRef.current.showPicker?.();
+      dateInputRef.current.click();
+    }
+  };
+
+  // Sync dob string from dropdown selections
+  useEffect(() => {
+    if (dobMonth && dobDay && dobYear) {
+      setDob(`${dobMonth}/${dobDay}/${dobYear}`);
+    }
+  }, [dobMonth, dobDay, dobYear]);
+
+  // Generate year options (current year down to 1930)
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: currentYear - 1929 }, (_, i) => String(currentYear - i));
+
+  // Days in selected month/year
+  const daysInMonth = dobMonth && dobYear
+    ? new Date(parseInt(dobYear), parseInt(dobMonth), 0).getDate()
+    : 31;
+  const dayOptions = Array.from({ length: daysInMonth }, (_, i) => String(i + 1).padStart(2, '0'));
+
+  // Correct day if month changed and day is now out of range
+  useEffect(() => {
+    if (dobDay && parseInt(dobDay) > daysInMonth) {
+      setDobDay(String(daysInMonth).padStart(2, '0'));
+    }
+  }, [dobMonth, dobYear, daysInMonth, dobDay]);
+
+  /* ─── 18+ age check ─── */
+  const isUnder18 = (() => {
+    if (!dobMonth || !dobDay || !dobYear || dobYear.length !== 4) return false;
+    const birthDate = new Date(parseInt(dobYear), parseInt(dobMonth) - 1, parseInt(dobDay));
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age < 18;
+  })();
+
+  const ageError = isUnder18 ? 'you must be at least 18 years old to continue' : null;
+
+  const isFormValid = !!(dobMonth && dobDay && dobYear && dobYear.length === 4 && !isUnder18);
 
   /* ─── Handlers ─── */
   const handleContinue = async () => {
-    if (!firstName.trim() || !lastName.trim()) {
-      setError('Please enter both first and last name');
-      return;
-    }
+    if (isUnder18) { setError('you must be at least 18 years old to continue'); return; }
+    if (!isFormValid) { setError('Please enter your date of birth'); return; }
+    setLoading(true); setError(null);
 
-    setIsLoading(true);
-    setError(null);
-
-    if (!config.supabaseClient) { setError('Configuration error'); setIsLoading(false); return; }
-
+    if (!config.supabaseClient) { setError('Configuration error'); setLoading(false); return; }
     const { data: { user } } = await config.supabaseClient.auth.getUser();
-    if (!user) { setError('Not authenticated'); setIsLoading(false); return; }
+    if (!user) { setError('Not authenticated'); setLoading(false); return; }
 
-    const { error: upsertError } = await upsertOnboardingData(user.id, {
-      legal_first_name: firstName.trim(),
-      legal_last_name: lastName.trim(),
-      current_step: 7,
+    const isoDob = parseDobToIso(dob);
+    if (!isoDob) { setError('Please enter a valid date (MM/DD/YYYY)'); setLoading(false); return; }
+
+    const { error: e } = await upsertOnboardingData(user.id, {
+      ssn_encrypted: ssn, date_of_birth: isoDob, current_step: 9,
     });
-
-    if (upsertError) { setError('Failed to save data'); setIsLoading(false); return; }
+    if (e) { setError('Failed to save data'); setLoading(false); return; }
     navigate('/onboarding/step-8');
   };
 
-  const handleBack = () => navigate('/onboarding/step-5');
-
   const handleSkip = async () => {
-    if (isLoading) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      if (config.supabaseClient) {
-        const { data: { user } } = await config.supabaseClient.auth.getUser();
-        if (user) await upsertOnboardingData(user.id, { current_step: 7 });
-      }
-      navigate('/onboarding/step-8');
-    } catch { navigate('/onboarding/step-8'); }
-    finally { setIsLoading(false); }
+    if (!isFormValid) { setError('Please enter your date of birth before skipping'); return; }
+    setLoading(true); setError(null);
+
+    if (!config.supabaseClient) { setError('Configuration error'); setLoading(false); return; }
+    const { data: { user } } = await config.supabaseClient.auth.getUser();
+    if (!user) { setError('Not authenticated'); setLoading(false); return; }
+
+    const isoDob = parseDobToIso(dob);
+    if (!isoDob) { setError('Please enter a valid date (MM/DD/YYYY)'); setLoading(false); return; }
+
+    const { error: e } = await upsertOnboardingData(user.id, {
+      ssn_encrypted: '999-99-9999', date_of_birth: isoDob, current_step: 9,
+    });
+    if (e) { setError('Failed to save data'); setLoading(false); return; }
+    navigate('/onboarding/step-8');
   };
 
-  const isValid = Boolean(firstName.trim() && lastName.trim());
+  const handleBack = () => navigate('/onboarding/step-6');
 
-  const handleFirstNameChange = (value: string) => {
-    setFirstName(value);
-    if (error) setError(null);
-    if (isPreFilledFromBank) setIsPreFilledFromBank(false);
-  };
-
-  const handleLastNameChange = (value: string) => {
-    setLastName(value);
-    if (error) setError(null);
-    if (isPreFilledFromBank) setIsPreFilledFromBank(false);
-  };
+  const handleShowInfoToggle = (open: boolean) => setShowInfo(open);
 
   return {
     // State
-    firstName,
-    lastName,
-    isLoading,
+    ssn,
+    dob,
+    dobMonth,
+    setDobMonth,
+    dobDay,
+    setDobDay,
+    dobYear,
+    setDobYear,
+    loading,
     error,
+    showInfo,
+    isFormValid,
     isFooterVisible,
+    dateInputRef,
 
     // Derived
-    isValid,
-    isPreFilledFromBank,
+    yearOptions,
+    dayOptions,
+    daysInMonth,
+    isUnder18,
+    ageError,
 
     // Handlers
-    handleFirstNameChange,
-    handleLastNameChange,
+    handleSSNChange,
+    handleDobChange,
+    handleNativeDateChange,
+    openDatePicker,
     handleContinue,
-    handleBack,
     handleSkip,
+    handleBack,
+    handleShowInfoToggle,
   };
 }

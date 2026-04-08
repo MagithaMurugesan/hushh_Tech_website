@@ -1,350 +1,324 @@
-/**
- * Step 4 — All Business Logic
- * Country/residence detection, GPS/IP location, Supabase upsert
- */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import config from '../../../resources/config/config';
 import { TOTAL_VISIBLE_ONBOARDING_STEPS } from '../../../services/onboarding/flow';
-import { resolveOnboardingPrefill } from '../../../services/onboarding/prefill';
 import { upsertOnboardingData } from '../../../services/onboarding/upsertOnboardingData';
+import type { UIAccountType } from '../../../types/onboarding';
+import { ACCOUNT_TYPE_OPTIONS } from '../../../types/onboarding';
 import { useFooterVisibility } from '../../../utils/useFooterVisibility';
-import {
-  locationService,
-  type LocationCacheRecord,
-  type LocationData,
-  COUNTRY_CODE_TO_NAME,
-} from '../../../services/location';
+import { locationService } from '../../../services/location';
 
-export const CURRENT_STEP = 4;
+/* ═══════════════════════════════════════════════
+   CONSTANTS
+   ═══════════════════════════════════════════════ */
+
+export const CURRENT_STEP = 5;
 export const TOTAL_STEPS = TOTAL_VISIBLE_ONBOARDING_STEPS;
 export const PROGRESS_PCT = Math.round((CURRENT_STEP / TOTAL_STEPS) * 100);
 
-export const countries = [
-  'United States','Afghanistan','Albania','Algeria','Andorra','Angola','Argentina','Armenia','Australia',
-  'Austria','Azerbaijan','Bahamas','Bahrain','Bangladesh','Barbados','Belarus','Belgium','Belize','Benin',
-  'Bhutan','Bolivia','Bosnia and Herzegovina','Botswana','Brazil','Brunei','Bulgaria','Burkina Faso',
-  'Burundi','Cambodia','Cameroon','Canada','Cape Verde','Central African Republic','Chad','Chile','China',
-  'Colombia','Comoros','Congo','Costa Rica','Croatia','Cuba','Cyprus','Czech Republic','Denmark','Djibouti',
-  'Dominica','Dominican Republic','East Timor','Ecuador','Egypt','El Salvador','Equatorial Guinea','Eritrea',
-  'Estonia','Ethiopia','Fiji','Finland','France','Gabon','Gambia','Georgia','Germany','Ghana','Greece',
-  'Grenada','Guatemala','Guinea','Guinea-Bissau','Guyana','Haiti','Honduras','Hungary','Iceland','India',
-  'Indonesia','Iran','Iraq','Ireland','Israel','Italy','Jamaica','Japan','Jordan','Kazakhstan','Kenya',
-  'Kiribati','North Korea','South Korea','Kuwait','Kyrgyzstan','Laos','Latvia','Lebanon','Lesotho','Liberia',
-  'Libya','Liechtenstein','Lithuania','Luxembourg','Macedonia','Madagascar','Malawi','Malaysia','Maldives',
-  'Mali','Malta','Marshall Islands','Mauritania','Mauritius','Mexico','Micronesia','Moldova','Monaco',
-  'Mongolia','Montenegro','Morocco','Mozambique','Myanmar','Namibia','Nauru','Nepal','Netherlands',
-  'New Zealand','Nicaragua','Niger','Nigeria','Norway','Oman','Pakistan','Palau','Panama',
-  'Papua New Guinea','Paraguay','Peru','Philippines','Poland','Portugal','Qatar','Romania','Russia','Rwanda',
-  'Saint Kitts and Nevis','Saint Lucia','Saint Vincent and the Grenadines','Samoa','San Marino',
-  'Sao Tome and Principe','Saudi Arabia','Senegal','Serbia','Seychelles','Sierra Leone','Singapore',
-  'Slovakia','Slovenia','Solomon Islands','Somalia','South Africa','South Sudan','Spain','Sri Lanka','Sudan',
-  'Suriname','Swaziland','Sweden','Switzerland','Syria','Taiwan','Tajikistan','Tanzania','Thailand','Togo',
-  'Tonga','Trinidad and Tobago','Tunisia','Turkey','Turkmenistan','Tuvalu','Uganda','Ukraine',
-  'United Arab Emirates','United Kingdom','Uruguay','Uzbekistan','Vanuatu','Vatican City','Venezuela',
-  'Vietnam','Yemen','Zambia','Zimbabwe',
-];
-
-export type LocationStatus = 'detecting' | 'success' | 'ip-success' | 'denied' | 'failed' | 'manual' | null;
-
-export interface Step4Logic {
-  citizenshipCountry: string; residenceCountry: string;
-  isLoading: boolean; isFooterVisible: boolean;
-  isDetectingLocation: boolean; locationDetected: boolean;
-  locationStatus: LocationStatus; detectedLocation: string;
-  userConfirmedManual: boolean; showPermissionHelp: boolean;
-  showLocationModal: boolean; canContinue: boolean;
-  isErrorStatus: boolean; isSuccessStatus: boolean;
-  shouldShowForm: boolean; canConfirmSelection: boolean;
-  handleCitizenshipChange: (v: string) => void;
-  handleResidenceChange: (v: string) => void;
-  handleConfirmManualSelection: () => void;
-  handleRetry: () => Promise<void>;
-  handleAllowLocation: () => Promise<void>;
-  handleDontAllow: () => void;
-  handleContinue: () => Promise<void>;
-  handleBack: () => void;
-  handleSkip: () => void;
-  setShowPermissionHelp: (v: boolean) => void;
+export interface DialCodeOption {
+  code: string;
+  country: string;
+  iso: string;
 }
 
-export const mergeDetectedCountryIntoStep4Fields = ({
-  citizenshipCountry,
-  residenceCountry,
-}: {
-  citizenshipCountry: string;
-  residenceCountry: string;
-}): { citizenshipCountry: string; residenceCountry: string } => {
-  return {
-    citizenshipCountry,
-    residenceCountry,
-  };
+export const PHONE_DIAL_CODES: DialCodeOption[] = [
+  { code: '+1', country: 'United States', iso: 'US' },
+  { code: '+44', country: 'United Kingdom', iso: 'GB' },
+  { code: '+33', country: 'France', iso: 'FR' },
+  { code: '+49', country: 'Germany', iso: 'DE' },
+  { code: '+39', country: 'Italy', iso: 'IT' },
+  { code: '+34', country: 'Spain', iso: 'ES' },
+  { code: '+31', country: 'Netherlands', iso: 'NL' },
+  { code: '+91', country: 'India', iso: 'IN' },
+  { code: '+86', country: 'China', iso: 'CN' },
+  { code: '+81', country: 'Japan', iso: 'JP' },
+  { code: '+82', country: 'South Korea', iso: 'KR' },
+  { code: '+61', country: 'Australia', iso: 'AU' },
+  { code: '+65', country: 'Singapore', iso: 'SG' },
+  { code: '+971', country: 'United Arab Emirates', iso: 'AE' },
+  { code: '+966', country: 'Saudi Arabia', iso: 'SA' },
+  { code: '+55', country: 'Brazil', iso: 'BR' },
+  { code: '+52', country: 'Mexico', iso: 'MX' },
+  { code: '+7', country: 'Russia', iso: 'RU' },
+  { code: '+62', country: 'Indonesia', iso: 'ID' },
+  { code: '+60', country: 'Malaysia', iso: 'MY' },
+  { code: '+66', country: 'Thailand', iso: 'TH' },
+  { code: '+63', country: 'Philippines', iso: 'PH' },
+  { code: '+92', country: 'Pakistan', iso: 'PK' },
+  { code: '+880', country: 'Bangladesh', iso: 'BD' },
+  { code: '+27', country: 'South Africa', iso: 'ZA' },
+  { code: '+234', country: 'Nigeria', iso: 'NG' },
+  { code: '+20', country: 'Egypt', iso: 'EG' },
+  { code: '+90', country: 'Turkey', iso: 'TR' },
+];
+
+/** Maps UIAccountType → legacy account_structure for backward compatibility */
+const toAccountStructure = (accountType: UIAccountType): 'individual' | 'other' => {
+  return accountType === 'individual' ? 'individual' : 'other';
 };
 
-export const getTrustedStep4Countries = (onboardingData: {
-  citizenship_country?: string | null;
-  residence_country?: string | null;
-  current_step?: number | null;
-} | null | undefined): {
-  citizenship_country?: string;
-  residence_country?: string;
-} => {
-  if (!onboardingData) return {};
+/* ═══════════════════════════════════════════════
+   RE-EXPORTS for UI
+   ═══════════════════════════════════════════════ */
 
-  const currentStep =
-    typeof onboardingData.current_step === 'number'
-      ? onboardingData.current_step
-      : Number(onboardingData.current_step || 0);
+export { ACCOUNT_TYPE_OPTIONS };
+export type { UIAccountType };
 
-  // Ignore schema/default country values before Step 4 has actually been reached.
-  if (!Number.isFinite(currentStep) || currentStep < 4) {
-    return {};
-  }
+/* ═══════════════════════════════════════════════
+   HOOK
+   ═══════════════════════════════════════════════ */
 
-  return {
-    citizenship_country: onboardingData.citizenship_country || undefined,
-    residence_country: onboardingData.residence_country || undefined,
-  };
-};
+/**
+ * Parse a full international phone number (e.g. "+12125551234")
+ * into { dialCode, localNumber } by matching against known dial codes.
+ * Uses longest-match to handle codes like +1 vs +91.
+ */
+const parseInternationalPhone = (raw: string): { dialCode: string; localNumber: string } | null => {
+  if (!raw) return null;
+  const cleaned = raw.replace(/[^\d+]/g, '');
+  if (!cleaned.startsWith('+')) return null;
 
-export const getStep4StatusFromCacheRecord = (
-  cacheRecord: LocationCacheRecord | null
-): LocationStatus => {
-  if (!cacheRecord) return null;
-  return cacheRecord.source === 'gps' ? 'success' : 'ip-success';
-};
-
-/** Check browser geolocation permission state without triggering the prompt. */
-const checkGeoPermission = async (): Promise<'granted' | 'denied' | 'prompt'> => {
-  try {
-    if (navigator.permissions && navigator.permissions.query) {
-      const result = await navigator.permissions.query({ name: 'geolocation' });
-      return result.state as 'granted' | 'denied' | 'prompt';
+  // Sort dial codes by length descending to match longest first (e.g. +880 before +8)
+  const sorted = [...PHONE_DIAL_CODES].sort((a, b) => b.code.length - a.code.length);
+  for (const opt of sorted) {
+    if (cleaned.startsWith(opt.code)) {
+      const local = cleaned.slice(opt.code.length);
+      if (local.length >= 6) {
+        return { dialCode: opt.code, localNumber: local };
+      }
     }
-  } catch {
-    // Permissions API not supported (e.g. older Safari)
   }
-  // Default to 'prompt' so we show the modal
-  return 'prompt';
+  return null;
 };
 
-export const useStep4Logic = (): Step4Logic => {
+export function useStep5Logic() {
   const navigate = useNavigate();
-  const autoDetectionStartedRef = useRef(false);
-  const citizenshipCountryRef = useRef('');
-  const residenceCountryRef = useRef('');
   const [userId, setUserId] = useState<string | null>(null);
-  const [citizenshipCountry, setCitizenshipCountry] = useState('');
-  const [residenceCountry, setResidenceCountry] = useState('');
+  const [selectedAccountType, setSelectedAccountType] = useState<UIAccountType | null>(null);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [countryCode, setCountryCode] = useState('+1');
+  const [selectedDialCountryIso, setSelectedDialCountryIso] = useState('US');
+  const [isAutoDetectingDialCode, setIsAutoDetectingDialCode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showDialPicker, setShowDialPicker] = useState(false);
+  const [isPreFilledFromBank, setIsPreFilledFromBank] = useState(false);
   const isFooterVisible = useFooterVisibility();
-  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
-  const [locationDetected, setLocationDetected] = useState(false);
-  const [locationStatus, setLocationStatus] = useState<LocationStatus>(null);
-  const [detectedLocation, setDetectedLocation] = useState('');
-  const [userConfirmedManual, setUserConfirmedManual] = useState(false);
-  const [showPermissionHelp, setShowPermissionHelp] = useState(false);
-  const [showLocationModal, setShowLocationModal] = useState(false);
 
-  const canContinue = Boolean(citizenshipCountry && residenceCountry);
-  const isErrorStatus = locationStatus === 'denied' || locationStatus === 'failed';
-  const isSuccessStatus = locationStatus === 'success' || locationStatus === 'ip-success';
-  const shouldShowForm = true;
-  const canConfirmSelection = false;
+  /* ─── Enable page-level scrolling ─── */
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    document.documentElement.classList.add('onboarding-page-scroll');
+    document.body.classList.add('onboarding-page-scroll');
+    return () => {
+      document.documentElement.classList.remove('onboarding-page-scroll');
+      document.body.classList.remove('onboarding-page-scroll');
+    };
+  }, []);
 
-  useEffect(() => { window.scrollTo(0, 0); }, []);
-
-  useEffect(() => { citizenshipCountryRef.current = citizenshipCountry; }, [citizenshipCountry]);
-  useEffect(() => { residenceCountryRef.current = residenceCountry; }, [residenceCountry]);
-
-  const applyDetectedLocation = (locationData: LocationData, status: LocationStatus) => {
-    const countryName = COUNTRY_CODE_TO_NAME[locationData.countryCode] || locationData.country;
-    const matchedCountry = countries.includes(countryName) ? countryName : '';
-
-    // Pre-populate citizenship country from GPS if the user hasn't picked one yet
-    if (!citizenshipCountryRef.current && matchedCountry) {
-      citizenshipCountryRef.current = matchedCountry;
-      setCitizenshipCountry(matchedCountry);
-    }
-
-    // Pre-populate residence country from GPS if the user hasn't picked one yet
-    if (!residenceCountryRef.current && matchedCountry) {
-      residenceCountryRef.current = matchedCountry;
-      setResidenceCountry(matchedCountry);
-    }
-
-    setDetectedLocation(
-      locationData.formattedAddress ||
-      locationData.city ||
-      locationData.state ||
-      countryName
-    );
-    setLocationDetected(true);
-    setLocationStatus(status);
-  };
-
-  const refreshLocation = async (uid: string) => {
-    setIsDetectingLocation(true);
-    setLocationStatus('detecting');
-
-    try {
-      const result = await locationService.refreshStep4Location(uid);
-
-      if (result.fresh) {
-        applyDetectedLocation(
-          result.fresh.data,
-          result.fresh.source === 'gps' ? 'success' : 'ip-success'
-        );
-        return;
-      }
-
-      if (result.cached) {
-        applyDetectedLocation(result.cached.data, getStep4StatusFromCacheRecord(result.cached));
-        return;
-      }
-
-      setLocationStatus('failed');
-    } catch (error) {
-      console.error('[Step4] Location refresh error:', error);
-      const cachedRecord = await locationService.readSharedLocationCache(uid);
-      if (cachedRecord) {
-        applyDetectedLocation(cachedRecord.data, getStep4StatusFromCacheRecord(cachedRecord));
-      } else {
-        setLocationStatus('failed');
-      }
-    } finally {
-      setIsDetectingLocation(false);
-    }
-  };
-
+  /* ─── Load user + existing data ─── */
   useEffect(() => {
     const getCurrentUser = async () => {
       if (!config.supabaseClient) return;
+
       const { data: { user } } = await config.supabaseClient.auth.getUser();
       if (!user) { navigate('/login'); return; }
       setUserId(user.id);
 
-      const [onboardingResult, sharedCache] = await Promise.all([
-        config.supabaseClient
-          .from('onboarding_data')
-          .select('citizenship_country, residence_country, current_step')
-          .eq('user_id', user.id)
-          .maybeSingle(),
-        locationService.readSharedLocationCache(user.id),
-      ]);
-      const cachedLocation = sharedCache?.data || await locationService.getCachedLocation(user.id);
+      const { data: onboardingData } = await config.supabaseClient
+        .from('onboarding_data')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-      const onboardingData = onboardingResult.data || null;
-      const trustedCountries = getTrustedStep4Countries(onboardingData);
-      const resolved = resolveOnboardingPrefill({
-        onboardingData: trustedCountries,
-        locationData: cachedLocation || undefined,
-      });
-
-      if (resolved.values.citizenship_country) {
-        citizenshipCountryRef.current = resolved.values.citizenship_country;
-        setCitizenshipCountry(resolved.values.citizenship_country);
-      }
-      if (resolved.values.residence_country) {
-        residenceCountryRef.current = resolved.values.residence_country;
-        setResidenceCountry(resolved.values.residence_country);
-      }
-
-      // Fallback: if prefill didn't set countries but we have cached GPS data, extract country
-      if (cachedLocation) {
-        const cachedCountryName =
-          COUNTRY_CODE_TO_NAME[cachedLocation.countryCode] || cachedLocation.country;
-        const matchedCached = countries.includes(cachedCountryName) ? cachedCountryName : '';
-
-        if (!citizenshipCountryRef.current && matchedCached) {
-          citizenshipCountryRef.current = matchedCached;
-          setCitizenshipCountry(matchedCached);
+      // Restore account type
+      if (onboardingData?.account_type) {
+        const validTypes: UIAccountType[] = ['individual', 'joint', 'retirement', 'trust'];
+        const saved = onboardingData.account_type as string;
+        if (validTypes.includes(saved as UIAccountType)) {
+          setSelectedAccountType(saved as UIAccountType);
         }
-        if (!residenceCountryRef.current && matchedCached) {
-          residenceCountryRef.current = matchedCached;
-          setResidenceCountry(matchedCached);
-        }
-
-        setDetectedLocation(
-          cachedLocation.formattedAddress ||
-          cachedLocation.city ||
-          cachedLocation.state ||
-          cachedLocation.country
-        );
-        setLocationDetected(true);
-        setLocationStatus(getStep4StatusFromCacheRecord(sharedCache) || 'ip-success');
+      } else if (onboardingData?.account_structure === 'individual') {
+        setSelectedAccountType('individual');
       }
 
-      // Check geolocation permission before auto-detecting
-      if (!autoDetectionStartedRef.current) {
-        autoDetectionStartedRef.current = true;
+      /* ── Pre-populate phone from Plaid identity if not already saved ── */
+      let hasPhoneFromOnboarding = false;
 
-        // If we already have cached location data, just refresh silently
-        if (cachedLocation) {
-          void refreshLocation(user.id);
-        } else {
-          // No cached data — check if browser permission is already granted
-          const permState = await checkGeoPermission();
-          if (permState === 'granted') {
-            // Permission already granted, detect silently
-            void refreshLocation(user.id);
+      if (onboardingData?.phone_number) {
+        setPhoneNumber(String(onboardingData.phone_number).replace(/\D/g, ''));
+        hasPhoneFromOnboarding = true;
+      }
+
+      /* Try Plaid identity data for phone pre-fill (only if no phone saved yet) */
+      let plaidSetDialCode = false;
+      if (!hasPhoneFromOnboarding) {
+        try {
+          const { data: financialData } = await config.supabaseClient
+            .from('user_financial_data')
+            .select('identity_data')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+          if (financialData?.identity_data) {
+            const identityData = financialData.identity_data as any;
+            const accounts = identityData?.accounts || [];
+            const owners = accounts[0]?.owners || [];
+            const owner = owners[0];
+
+            if (owner?.phone_numbers?.length) {
+              // Use the first (primary) phone number from bank
+              const bankPhone = owner.phone_numbers[0]?.data;
+              if (bankPhone) {
+                const parsed = parseInternationalPhone(String(bankPhone));
+                if (parsed) {
+                  setPhoneNumber(parsed.localNumber);
+                  setCountryCode(parsed.dialCode);
+                  const matched = PHONE_DIAL_CODES.find((o) => o.code === parsed.dialCode);
+                  if (matched) setSelectedDialCountryIso(matched.iso);
+                  setIsPreFilledFromBank(true);
+                  plaidSetDialCode = true;
+                  console.log('[Step5] Phone pre-filled from Plaid identity:', parsed.dialCode, parsed.localNumber.slice(0, 3) + '***');
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('[Step5] Plaid identity fetch failed (ignoring):', err);
+        }
+      }
+
+      /* Only run dial code detection if Plaid didn't already set it */
+      if (!plaidSetDialCode) {
+        const sharedLocationRecord = await locationService.readSharedLocationCache(user.id);
+        const sharedLocation = sharedLocationRecord?.data || null;
+        const savedPhoneCode = onboardingData?.phone_country_code ? String(onboardingData.phone_country_code) : '';
+        const cachedDial =
+          savedPhoneCode ||
+          (sharedLocation?.phoneDialCode ? String(sharedLocation.phoneDialCode) : '') ||
+          (onboardingData?.gps_detected_phone_dial_code ? String(onboardingData.gps_detected_phone_dial_code) : '') ||
+          ((onboardingData?.gps_location_data as any)?.phoneDialCode ? String((onboardingData.gps_location_data as any).phoneDialCode) : '');
+
+        if (cachedDial) {
+          setCountryCode(cachedDial);
+          if (sharedLocation?.countryCode) {
+            const sharedIso = String(sharedLocation.countryCode).toUpperCase();
+            if (PHONE_DIAL_CODES.some((o) => o.iso === sharedIso)) setSelectedDialCountryIso(sharedIso);
           } else {
-            // Permission not yet granted ('prompt') or denied — show our modal
-            setShowLocationModal(true);
+            const matched = PHONE_DIAL_CODES.find((o) => o.code === cachedDial);
+            if (matched) setSelectedDialCountryIso(matched.iso);
+          }
+        } else {
+          setIsAutoDetectingDialCode(true);
+          try {
+            const cachedLocation = await locationService.getCachedLocation(user.id);
+            const resolvedLocation = cachedLocation || await locationService.getLocationByIp();
+
+            if (resolvedLocation?.phoneDialCode) {
+              setCountryCode(resolvedLocation.phoneDialCode);
+              const matched = PHONE_DIAL_CODES.find((o) => o.code === resolvedLocation.phoneDialCode);
+              if (matched) setSelectedDialCountryIso(matched.iso);
+            }
+            if (resolvedLocation?.countryCode) {
+              const iso = String(resolvedLocation.countryCode).toUpperCase();
+              if (PHONE_DIAL_CODES.some((o) => o.iso === iso)) setSelectedDialCountryIso(iso);
+            }
+            if (!cachedLocation && resolvedLocation) {
+              try { await locationService.saveLocationToOnboarding(user.id, resolvedLocation, 'ip'); }
+              catch (e) { console.warn('[Step5] cache fail:', e); }
+            }
+          } catch (err) {
+            console.warn('[Step5] IP detection failed:', err);
+          } finally {
+            setIsAutoDetectingDialCode(false);
           }
         }
-      }
+      } // end if (!plaidSetDialCode)
     };
     getCurrentUser();
-    return () => { locationService.cancel(); };
   }, [navigate]);
 
-  const handleCitizenshipChange = (value: string) => {
-    citizenshipCountryRef.current = value;
-    setCitizenshipCountry(value);
-    setUserConfirmedManual(true);
-    setLocationStatus('manual');
+  /* ─── Phone formatting ─── */
+  const formatPhoneNumber = (value: string) => {
+    const d = value.replace(/\D/g, '');
+    if (d.length <= 3) return d;
+    if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
+    if (d.length <= 10) return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6, 10)}`;
+    return d;
   };
 
-  const handleResidenceChange = (value: string) => {
-    residenceCountryRef.current = value;
-    setResidenceCountry(value);
-    setUserConfirmedManual(true);
-    setLocationStatus('manual');
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, '');
+    if (value.length <= 15) {
+      setPhoneNumber(value);
+      // Clear pre-filled badge once user edits the phone
+      if (isPreFilledFromBank) setIsPreFilledFromBank(false);
+    }
   };
 
-  const handleConfirmManualSelection = () => {
-    if (citizenshipCountry && residenceCountry) { setUserConfirmedManual(true); setLocationStatus('manual'); }
-  };
+  const isValidPhone = phoneNumber.length >= 8 && phoneNumber.length <= 15;
+  const canContinue = Boolean(selectedAccountType) && isValidPhone;
 
-  const handleRetry = async () => {
-    setUserConfirmedManual(false);
-    if (userId) await refreshLocation(userId);
-  };
+  const selectedDialOption = useMemo(() => {
+    return PHONE_DIAL_CODES.find((o) => o.code === countryCode && o.iso === selectedDialCountryIso)
+      || PHONE_DIAL_CODES.find((o) => o.code === countryCode)
+      || PHONE_DIAL_CODES[0];
+  }, [countryCode, selectedDialCountryIso]);
 
-  const handleAllowLocation = async () => { if (!userId) return; setShowLocationModal(false); await refreshLocation(userId); };
-  const handleDontAllow = () => { setShowLocationModal(false); setLocationStatus('manual'); };
-
+  /* ─── Handlers ─── */
   const handleContinue = async () => {
-    if (!userId || !config.supabaseClient || !canContinue) return;
+    if (!selectedAccountType || !userId || !config.supabaseClient || !isValidPhone) return;
     setIsLoading(true);
     try {
-      await upsertOnboardingData(userId, { citizenship_country: citizenshipCountry, residence_country: residenceCountry, current_step: 4 });
+      await upsertOnboardingData(userId, {
+        account_type: selectedAccountType,
+        account_structure: toAccountStructure(selectedAccountType),
+        phone_number: phoneNumber,
+        phone_country_code: countryCode,
+        current_step: 5,
+      });
       navigate('/onboarding/step-5');
-    } catch (error) { console.error('Error:', error); }
-    finally { setIsLoading(false); }
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleBack = () => navigate('/onboarding/step-2');
+  const handleBack = () => navigate('/onboarding/step-3');
   const handleSkip = () => navigate('/onboarding/step-5');
 
-  return {
-    citizenshipCountry, residenceCountry, isLoading, isFooterVisible,
-    isDetectingLocation, locationDetected, locationStatus, detectedLocation,
-    userConfirmedManual, showPermissionHelp, showLocationModal, canContinue,
-    isErrorStatus, isSuccessStatus, shouldShowForm, canConfirmSelection,
-    handleCitizenshipChange, handleResidenceChange, handleConfirmManualSelection,
-    handleRetry, handleAllowLocation, handleDontAllow, handleContinue,
-    handleBack, handleSkip, setShowPermissionHelp,
+  const handleSelectDialCode = (option: DialCodeOption) => {
+    setCountryCode(option.code);
+    setSelectedDialCountryIso(option.iso);
+    setShowDialPicker(false);
   };
-};
+
+  return {
+    // State
+    selectedAccountType,
+    setSelectedAccountType,
+    phoneNumber,
+    countryCode,
+    selectedDialCountryIso,
+    isAutoDetectingDialCode,
+    isLoading,
+    showDialPicker,
+    setShowDialPicker,
+    isFooterVisible,
+
+    // Derived
+    isValidPhone,
+    canContinue,
+    selectedDialOption,
+    formatPhoneNumber,
+    isPreFilledFromBank,
+
+    // Handlers
+    handlePhoneChange,
+    handleContinue,
+    handleBack,
+    handleSkip,
+    handleSelectDialCode,
+  };
+}

@@ -189,7 +189,7 @@ function MeetCeoPage() {
   };
 
   const handleContinue = () => navigate('/hushh-user-profile');
-  const handleBack = () => navigate('/onboarding/step-13');
+  const handleBack = () => navigate('/onboarding/step-10');
 
   /* ── Shimmer Loader ── */
   if (paymentState === 'loading' || paymentState === 'verifying') {

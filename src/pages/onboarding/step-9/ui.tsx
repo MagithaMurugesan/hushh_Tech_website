@@ -1,53 +1,189 @@
-/**
- * Step 9 — SSN + Date of Birth
- * Premium Hushh design. Overlay select pattern for reliable mobile taps.
- */
-import {
-  useStep9Logic,
-  PROGRESS_PCT,
-  DISPLAY_STEP,
-  TOTAL_STEPS,
-  MONTH_NAMES,
-} from "./logic";
-import HushhTechBackHeader from "../../../components/hushh-tech-back-header/HushhTechBackHeader";
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import config from '../../../resources/config/config';
+import HushhTechBackHeader from '../../../components/hushh-tech-back-header/HushhTechBackHeader';
 import HushhTechCta, {
   HushhTechCtaVariant,
-} from "../../../components/hushh-tech-cta/HushhTechCta";
+} from '../../../components/hushh-tech-cta/HushhTechCta';
+import { getOnboardingDisplayMeta } from '../../../services/onboarding/flow';
 
-export default function OnboardingStep9() {
-  const {
-    ssn,
-    dobMonth,
-    setDobMonth,
-    dobDay,
-    setDobDay,
-    dobYear,
-    setDobYear,
-    loading,
-    error,
-    showInfo,
-    isFormValid,
-    isUnder18,
-    ageError,
-    yearOptions,
-    dayOptions,
-    handleSSNChange,
-    handleContinue,
-    handleSkip,
-    handleBack,
-    handleShowInfoToggle,
-  } = useStep9Logic();
+interface ReviewSummary {
+  legal_first_name: string | null;
+  legal_last_name: string | null;
+  phone_number: string | null;
+  phone_country_code: string | null;
+  citizenship_country: string | null;
+  residence_country: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
+  city: string | null;
+  state: string | null;
+  zip_code: string | null;
+  address_country: string | null;
+  class_a_units: number | null;
+  class_b_units: number | null;
+  class_c_units: number | null;
+  initial_investment_amount: number | null;
+  recurring_amount: number | null;
+  recurring_frequency: string | null;
+  recurring_day_of_month: number | null;
+}
+
+const DISPLAY_META = getOnboardingDisplayMeta('/onboarding/step-9');
+const PROGRESS_PCT = Math.round((DISPLAY_META.displayStep / DISPLAY_META.totalSteps) * 100);
+
+const formatCurrency = (amount: number | null | undefined) => {
+  if (!amount) return 'Not set';
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(amount);
+};
+
+const formatRecurringSummary = (data: ReviewSummary) => {
+  if (!data.recurring_amount) return 'No recurring investment configured';
+  const frequency = (data.recurring_frequency || 'once_a_month').replace(/_/g, ' ');
+  const day = data.recurring_day_of_month === 31 ? 'Last day' : `Day ${data.recurring_day_of_month || 1}`;
+  return `${formatCurrency(data.recurring_amount)} • ${frequency} • ${day}`;
+};
+
+const joinParts = (parts: Array<string | null | undefined>, fallback = 'Not provided') => {
+  const value = parts.map((part) => (part || '').trim()).filter(Boolean).join(', ');
+  return value || fallback;
+};
+
+const SummaryRow = ({
+  icon,
+  label,
+  value,
+  editLabel,
+  onEdit,
+}: {
+  icon: string;
+  label: string;
+  value: string;
+  editLabel: string;
+  onEdit: () => void;
+}) => (
+  <div className="py-5 border-b border-gray-200">
+    <div className="flex items-start gap-4">
+      <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+        <span className="material-symbols-outlined text-gray-700 text-lg" style={{ fontVariationSettings: "'wght' 400" }}>
+          {icon}
+        </span>
+      </div>
+      <div className="flex-1 min-w-0">
+        <span className="text-sm font-semibold text-gray-900 block mb-1">{label}</span>
+        <span className="text-sm text-gray-600 font-medium leading-relaxed">{value}</span>
+      </div>
+      <button
+        type="button"
+        onClick={onEdit}
+        className="text-xs font-semibold text-hushh-blue hover:underline shrink-0"
+      >
+        {editLabel}
+      </button>
+    </div>
+  </div>
+);
+
+export default function OnboardingReviewStep() {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [summary, setSummary] = useState<ReviewSummary | null>(null);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    document.documentElement.classList.add('onboarding-page-scroll');
+    document.body.classList.add('onboarding-page-scroll');
+
+    return () => {
+      document.documentElement.classList.remove('onboarding-page-scroll');
+      document.body.classList.remove('onboarding-page-scroll');
+    };
+  }, []);
+
+  useEffect(() => {
+    const loadSummary = async () => {
+      if (!config.supabaseClient) {
+        setError('Configuration error');
+        setLoading(false);
+        return;
+      }
+
+      const { data: { user } } = await config.supabaseClient.auth.getUser();
+      if (!user) {
+        navigate('/login', { replace: true });
+        return;
+      }
+
+      const { data, error: fetchError } = await config.supabaseClient
+        .from('onboarding_data')
+        .select(`
+          legal_first_name, legal_last_name,
+          phone_number, phone_country_code,
+          citizenship_country, residence_country,
+          address_line_1, address_line_2, city, state, zip_code, address_country,
+          class_a_units, class_b_units, class_c_units,
+          initial_investment_amount,
+          recurring_amount, recurring_frequency, recurring_day_of_month
+        `)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (fetchError) {
+        setError('Failed to load your onboarding summary');
+        setLoading(false);
+        return;
+      }
+
+      setSummary((data || null) as ReviewSummary | null);
+      setLoading(false);
+    };
+
+    loadSummary();
+  }, [navigate]);
+
+  const fullName = joinParts([
+    summary?.legal_first_name,
+    summary?.legal_last_name,
+  ]);
+
+  const phone = joinParts([
+    summary?.phone_country_code,
+    summary?.phone_number,
+  ]);
+
+  const residence = joinParts([
+    summary?.residence_country,
+    summary?.citizenship_country ? `Citizen of ${summary.citizenship_country}` : null,
+  ]);
+
+  const address = joinParts([
+    summary?.address_line_1,
+    summary?.address_line_2,
+    summary?.city,
+    summary?.state,
+    summary?.zip_code,
+    summary?.address_country,
+  ]);
+
+  const shareUnits = [
+    summary?.class_a_units ? `${summary.class_a_units} Class A` : null,
+    summary?.class_b_units ? `${summary.class_b_units} Class B` : null,
+    summary?.class_c_units ? `${summary.class_c_units} Class C` : null,
+  ].filter(Boolean).join(' • ') || 'No share units selected';
 
   return (
     <div className="bg-white text-gray-900 min-h-screen antialiased flex flex-col selection:bg-hushh-blue selection:text-white">
-      {/* ═══ Header ═══ */}
-      <HushhTechBackHeader onBackClick={handleBack} rightLabel="FAQs" />
+      <HushhTechBackHeader onBackClick={() => navigate('/onboarding/step-8')} rightLabel="FAQs" />
 
       <main className="px-6 flex-grow max-w-md mx-auto w-full pb-48">
-        {/* ── Progress Bar ── */}
         <div className="py-4">
           <div className="flex justify-between text-[11px] font-semibold tracking-wide text-gray-500 mb-3">
-            <span>Step {DISPLAY_STEP}/{TOTAL_STEPS}</span>
+            <span>Step {DISPLAY_META.displayStep}/{DISPLAY_META.totalSteps}</span>
             <span>{PROGRESS_PCT}% Complete</span>
           </div>
           <div className="h-0.5 w-full bg-gray-200 rounded-full overflow-hidden">
@@ -55,201 +191,100 @@ export default function OnboardingStep9() {
           </div>
         </div>
 
-        {/* ── Title Section ── */}
         <section className="py-8">
-          <h3 className="text-[10px] tracking-[0.2em] text-gray-400 uppercase mb-4 font-medium">Verification</h3>
-          <h1 className="text-[2.75rem] leading-[1.1] font-normal text-black tracking-tight font-serif" style={{ fontFamily: "'Playfair Display', serif" }}>
-            A Few More<br />
+          <h3 className="text-[10px] tracking-[0.2em] text-gray-400 uppercase mb-4 font-medium">Review</h3>
+          <h1
+            className="text-[2.75rem] leading-[1.1] font-normal text-black tracking-tight font-serif"
+            style={{ fontFamily: "'Playfair Display', serif" }}
+          >
+            Confirm Your
+            <br />
             <span className="text-gray-400 italic font-light">Details</span>
           </h1>
           <p className="text-sm text-gray-500 mt-4 leading-relaxed font-light">
-            Federal law requires us to collect this info for tax reporting.
+            We already filled what we could. Review the details once and continue to bank details.
           </p>
         </section>
 
-        {/* ── Error ── */}
-        {error && (
+        {loading && (
+          <div className="space-y-4 animate-pulse">
+            {[1, 2, 3, 4].map((item) => (
+              <div key={item} className="h-20 bg-gray-100 rounded-xl border border-gray-200" />
+            ))}
+          </div>
+        )}
+
+        {!loading && error && (
           <div className="mb-6 flex items-center gap-3 py-4 px-1 border-b border-red-100">
             <div className="w-10 h-10 rounded-full bg-red-50 border border-red-200 flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-red-500 text-lg" style={{ fontVariationSettings: "'FILL' 1, 'wght' 600" }}>error</span>
+              <span className="material-symbols-outlined text-red-500 text-lg" style={{ fontVariationSettings: "'FILL' 1, 'wght' 600" }}>
+                error
+              </span>
             </div>
             <p className="text-sm font-medium text-red-700">{error}</p>
           </div>
         )}
 
-        {/* ── SSN Section ── */}
-        <section className="space-y-0 mb-6">
-          <div className="py-5 border-b border-gray-200">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-gray-700 text-lg" style={{ fontVariationSettings: "'wght' 400" }}>lock</span>
+        {!loading && !error && (
+          <>
+            <section className="space-y-0 mb-8">
+              <div className="py-4">
+                <h3 className="text-[10px] tracking-[0.2em] text-gray-400 uppercase font-medium">KYC Summary</h3>
               </div>
-              <div className="flex-1 min-w-0">
-                <label htmlFor="ssn" className="text-sm font-semibold text-gray-900 block mb-1">Social Security Number</label>
-                <input
-                  id="ssn"
-                  type="text"
-                  value={ssn}
-                  onChange={handleSSNChange}
-                  placeholder="000-00-0000"
-                  maxLength={11}
-                  inputMode="numeric"
-                  className="w-full text-sm text-gray-700 font-medium bg-transparent border-none outline-none p-0 placeholder-gray-400 focus:ring-0 tracking-widest"
-                />
-              </div>
-            </div>
-          </div>
 
-          {/* Why SSN Info */}
-          <details className="group border-b border-gray-200" open={showInfo} onToggle={(e) => handleShowInfoToggle((e.target as HTMLDetailsElement).open)}>
-            <summary className="py-5 flex items-center gap-4 cursor-pointer list-none">
-              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0 group-hover:bg-gray-200 transition-colors">
-                <span className="material-symbols-outlined text-gray-700 text-lg" style={{ fontVariationSettings: "'wght' 400" }}>info</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900">Why do we need your SSN?</p>
-                <p className="text-xs text-gray-500 font-medium">Tap to learn more</p>
-              </div>
-              <span className="material-symbols-outlined text-gray-400 text-lg transition-transform group-open:rotate-180" style={{ fontVariationSettings: "'wght' 400" }}>expand_more</span>
-            </summary>
-            <div className="pl-14 pb-5 pr-4">
-              <p className="text-xs text-gray-500 leading-relaxed font-light">
-                We are required by federal law to collect this information to prevent fraud and verify your identity before opening an investment account.
-              </p>
-            </div>
-          </details>
-        </section>
+              <SummaryRow
+                icon="badge"
+                label="Legal Name"
+                value={fullName}
+                editLabel="Edit"
+                onEdit={() => navigate('/onboarding/step-5')}
+              />
+              <SummaryRow
+                icon="call"
+                label="Phone Number"
+                value={phone}
+                editLabel="Edit"
+                onEdit={() => navigate('/onboarding/step-4')}
+              />
+              <SummaryRow
+                icon="public"
+                label="Citizenship & Residence"
+                value={residence}
+                editLabel="Edit"
+                onEdit={() => navigate('/onboarding/step-3')}
+              />
+              <SummaryRow
+                icon="home_pin"
+                label="Address"
+                value={address}
+                editLabel="Edit"
+                onEdit={() => navigate('/onboarding/step-6')}
+              />
+              <SummaryRow
+                icon="monitoring"
+                label="Investment"
+                value={`${formatCurrency(summary?.initial_investment_amount)} • ${shareUnits} • ${formatRecurringSummary(summary || {} as ReviewSummary)}`}
+                editLabel="Edit"
+                onEdit={() => navigate('/onboarding/step-8')}
+              />
+            </section>
 
-        {/* ── Date of Birth Section ── */}
-        <section className="space-y-0 mb-6">
-          <div className="py-4">
-            <h3 className="text-[10px] tracking-[0.2em] text-gray-400 uppercase font-medium">Date of Birth</h3>
-          </div>
-
-          {/* Month — overlay select */}
-          <div className="relative py-5 border-b border-gray-200 cursor-pointer">
-            <div className="flex items-center gap-4 pointer-events-none">
-              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-gray-700 text-lg" style={{ fontVariationSettings: "'wght' 400" }}>calendar_month</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className="text-sm font-semibold text-gray-900 block mb-1">Month</span>
-                <span className="text-sm text-gray-700 font-medium">
-                  {dobMonth ? MONTH_NAMES[parseInt(dobMonth) - 1] : 'Select month'}
-                </span>
-              </div>
-              <span className="material-symbols-outlined text-gray-400 text-lg" style={{ fontVariationSettings: "'wght' 400" }}>expand_more</span>
-            </div>
-            <select
-              value={dobMonth}
-              onChange={(e) => setDobMonth(e.target.value)}
-              aria-label="Birth month"
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            >
-              <option value="" disabled>Select month</option>
-              {MONTH_NAMES.map((name, idx) => (
-                <option key={name} value={String(idx + 1).padStart(2, "0")}>{name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Day — overlay select */}
-          <div className="relative py-5 border-b border-gray-200 cursor-pointer">
-            <div className="flex items-center gap-4 pointer-events-none">
-              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-gray-700 text-lg" style={{ fontVariationSettings: "'wght' 400" }}>today</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className="text-sm font-semibold text-gray-900 block mb-1">Day</span>
-                <span className="text-sm text-gray-700 font-medium">
-                  {dobDay ? parseInt(dobDay) : 'Select day'}
-                </span>
-              </div>
-              <span className="material-symbols-outlined text-gray-400 text-lg" style={{ fontVariationSettings: "'wght' 400" }}>expand_more</span>
-            </div>
-            <select
-              value={dobDay}
-              onChange={(e) => setDobDay(e.target.value)}
-              aria-label="Birth day"
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            >
-              <option value="" disabled>Select day</option>
-              {dayOptions.map((d) => (
-                <option key={d} value={d}>{parseInt(d)}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Year — overlay select */}
-          <div className="relative py-5 border-b border-gray-200 cursor-pointer">
-            <div className="flex items-center gap-4 pointer-events-none">
-              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-gray-700 text-lg" style={{ fontVariationSettings: "'wght' 400" }}>event</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className="text-sm font-semibold text-gray-900 block mb-1">Year</span>
-                <span className="text-sm text-gray-700 font-medium">
-                  {dobYear || 'Select year'}
-                </span>
-              </div>
-              <span className="material-symbols-outlined text-gray-400 text-lg" style={{ fontVariationSettings: "'wght' 400" }}>expand_more</span>
-            </div>
-            <select
-              value={dobYear}
-              onChange={(e) => setDobYear(e.target.value)}
-              aria-label="Birth year"
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            >
-              <option value="" disabled>Select year</option>
-              {yearOptions.map((y) => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* 18+ age warning */}
-          {isUnder18 && ageError && (
-            <div className="flex items-center gap-3 py-4 px-1">
-              <div className="w-10 h-10 rounded-full bg-red-50 border border-red-200 flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-red-500 text-lg" style={{ fontVariationSettings: "'FILL' 1, 'wght' 600" }}>error</span>
-              </div>
-              <p className="text-sm font-medium text-red-600">{ageError}</p>
-            </div>
-          )}
-
-          {/* Confirmation when all selected and 18+ */}
-          {isFormValid && (
-            <div className="flex items-center gap-3 py-4 px-1">
-              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-ios-green text-lg" style={{ fontVariationSettings: "'FILL' 1, 'wght' 600" }}>check</span>
-              </div>
-              <p className="text-sm font-medium text-gray-700">
-                {MONTH_NAMES[parseInt(dobMonth) - 1]} {parseInt(dobDay)}, {dobYear}
-              </p>
-            </div>
-          )}
-        </section>
-
-        {/* ── CTAs ── */}
-        <section className="pb-12 space-y-3">
-          <HushhTechCta variant={HushhTechCtaVariant.BLACK} onClick={handleContinue} disabled={!isFormValid || loading}>
-            {loading ? "Saving..." : "Continue"}
-          </HushhTechCta>
-          <HushhTechCta variant={HushhTechCtaVariant.WHITE} onClick={handleSkip}>
-            Skip SSN
-          </HushhTechCta>
-        </section>
-
-        {/* ── Trust Badges ── */}
-        <section className="flex flex-col items-center justify-center text-center gap-2 pb-8">
-          <div className="flex items-center gap-1">
-            <span className="material-symbols-outlined text-[12px] text-hushh-blue">lock</span>
-            <span className="text-[10px] text-gray-500 tracking-wide uppercase font-medium">256 Bit Encryption</span>
-          </div>
-          <p className="text-[10px] text-gray-400 font-light max-w-xs">
-            Your SSN is encrypted end-to-end and never stored in plain text.
-          </p>
-        </section>
+            <section className="pb-12 space-y-3">
+              <HushhTechCta
+                variant={HushhTechCtaVariant.BLACK}
+                onClick={() => navigate('/onboarding/step-10')}
+              >
+                Continue to Bank Details
+              </HushhTechCta>
+              <HushhTechCta
+                variant={HushhTechCtaVariant.WHITE}
+                onClick={() => navigate('/onboarding/step-8')}
+              >
+                Back to Investment Summary
+              </HushhTechCta>
+            </section>
+          </>
+        )}
       </main>
     </div>
   );

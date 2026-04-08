@@ -1,324 +1,177 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import config from '../../../resources/config/config';
-import { TOTAL_VISIBLE_ONBOARDING_STEPS } from '../../../services/onboarding/flow';
+import { getOnboardingDisplayMeta } from '../../../services/onboarding/flow';
 import { upsertOnboardingData } from '../../../services/onboarding/upsertOnboardingData';
-import type { UIAccountType } from '../../../types/onboarding';
-import { ACCOUNT_TYPE_OPTIONS } from '../../../types/onboarding';
 import { useFooterVisibility } from '../../../utils/useFooterVisibility';
-import { locationService } from '../../../services/location';
 
 /* ═══════════════════════════════════════════════
    CONSTANTS
    ═══════════════════════════════════════════════ */
 
-export const CURRENT_STEP = 5;
-export const TOTAL_STEPS = TOTAL_VISIBLE_ONBOARDING_STEPS;
-export const PROGRESS_PCT = Math.round((CURRENT_STEP / TOTAL_STEPS) * 100);
+const DISPLAY_META = getOnboardingDisplayMeta('/onboarding/step-5');
 
-export interface DialCodeOption {
-  code: string;
-  country: string;
-  iso: string;
-}
-
-export const PHONE_DIAL_CODES: DialCodeOption[] = [
-  { code: '+1', country: 'United States', iso: 'US' },
-  { code: '+44', country: 'United Kingdom', iso: 'GB' },
-  { code: '+33', country: 'France', iso: 'FR' },
-  { code: '+49', country: 'Germany', iso: 'DE' },
-  { code: '+39', country: 'Italy', iso: 'IT' },
-  { code: '+34', country: 'Spain', iso: 'ES' },
-  { code: '+31', country: 'Netherlands', iso: 'NL' },
-  { code: '+91', country: 'India', iso: 'IN' },
-  { code: '+86', country: 'China', iso: 'CN' },
-  { code: '+81', country: 'Japan', iso: 'JP' },
-  { code: '+82', country: 'South Korea', iso: 'KR' },
-  { code: '+61', country: 'Australia', iso: 'AU' },
-  { code: '+65', country: 'Singapore', iso: 'SG' },
-  { code: '+971', country: 'United Arab Emirates', iso: 'AE' },
-  { code: '+966', country: 'Saudi Arabia', iso: 'SA' },
-  { code: '+55', country: 'Brazil', iso: 'BR' },
-  { code: '+52', country: 'Mexico', iso: 'MX' },
-  { code: '+7', country: 'Russia', iso: 'RU' },
-  { code: '+62', country: 'Indonesia', iso: 'ID' },
-  { code: '+60', country: 'Malaysia', iso: 'MY' },
-  { code: '+66', country: 'Thailand', iso: 'TH' },
-  { code: '+63', country: 'Philippines', iso: 'PH' },
-  { code: '+92', country: 'Pakistan', iso: 'PK' },
-  { code: '+880', country: 'Bangladesh', iso: 'BD' },
-  { code: '+27', country: 'South Africa', iso: 'ZA' },
-  { code: '+234', country: 'Nigeria', iso: 'NG' },
-  { code: '+20', country: 'Egypt', iso: 'EG' },
-  { code: '+90', country: 'Turkey', iso: 'TR' },
-];
-
-/** Maps UIAccountType → legacy account_structure for backward compatibility */
-const toAccountStructure = (accountType: UIAccountType): 'individual' | 'other' => {
-  return accountType === 'individual' ? 'individual' : 'other';
-};
-
-/* ═══════════════════════════════════════════════
-   RE-EXPORTS for UI
-   ═══════════════════════════════════════════════ */
-
-export { ACCOUNT_TYPE_OPTIONS };
-export type { UIAccountType };
+export const DISPLAY_STEP = DISPLAY_META.displayStep;
+export const TOTAL_STEPS = DISPLAY_META.totalSteps;
+export const PROGRESS_PCT = Math.round((DISPLAY_STEP / TOTAL_STEPS) * 100);
 
 /* ═══════════════════════════════════════════════
    HOOK
    ═══════════════════════════════════════════════ */
 
-/**
- * Parse a full international phone number (e.g. "+12125551234")
- * into { dialCode, localNumber } by matching against known dial codes.
- * Uses longest-match to handle codes like +1 vs +91.
- */
-const parseInternationalPhone = (raw: string): { dialCode: string; localNumber: string } | null => {
-  if (!raw) return null;
-  const cleaned = raw.replace(/[^\d+]/g, '');
-  if (!cleaned.startsWith('+')) return null;
-
-  // Sort dial codes by length descending to match longest first (e.g. +880 before +8)
-  const sorted = [...PHONE_DIAL_CODES].sort((a, b) => b.code.length - a.code.length);
-  for (const opt of sorted) {
-    if (cleaned.startsWith(opt.code)) {
-      const local = cleaned.slice(opt.code.length);
-      if (local.length >= 6) {
-        return { dialCode: opt.code, localNumber: local };
-      }
-    }
-  }
-  return null;
-};
-
-export function useStep5Logic() {
+export function useStep7Logic() {
   const navigate = useNavigate();
-  const [userId, setUserId] = useState<string | null>(null);
-  const [selectedAccountType, setSelectedAccountType] = useState<UIAccountType | null>(null);
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [countryCode, setCountryCode] = useState('+1');
-  const [selectedDialCountryIso, setSelectedDialCountryIso] = useState('US');
-  const [isAutoDetectingDialCode, setIsAutoDetectingDialCode] = useState(false);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showDialPicker, setShowDialPicker] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isPreFilledFromBank, setIsPreFilledFromBank] = useState(false);
   const isFooterVisible = useFooterVisibility();
 
-  /* ─── Enable page-level scrolling ─── */
-  useEffect(() => {
-    window.scrollTo(0, 0);
-    document.documentElement.classList.add('onboarding-page-scroll');
-    document.body.classList.add('onboarding-page-scroll');
-    return () => {
-      document.documentElement.classList.remove('onboarding-page-scroll');
-      document.body.classList.remove('onboarding-page-scroll');
-    };
-  }, []);
+  useEffect(() => { window.scrollTo(0, 0); }, []);
 
   /* ─── Load user + existing data ─── */
   useEffect(() => {
-    const getCurrentUser = async () => {
+    const loadData = async () => {
       if (!config.supabaseClient) return;
 
       const { data: { user } } = await config.supabaseClient.auth.getUser();
       if (!user) { navigate('/login'); return; }
-      setUserId(user.id);
 
-      const { data: onboardingData } = await config.supabaseClient
+      // Extract name from OAuth provider metadata
+      const meta = user.user_metadata || {};
+      const oauthFirst = meta.given_name || meta.first_name || (meta.full_name?.split(' ')[0]) || (meta.name?.split(' ')[0]) || '';
+      const oauthLast = meta.family_name || meta.last_name || (meta.full_name?.split(' ').slice(1).join(' ')) || (meta.name?.split(' ').slice(1).join(' ')) || '';
+
+      // Check saved data — priority: DB > Plaid > OAuth
+      const { data } = await config.supabaseClient
         .from('onboarding_data')
-        .select('*')
+        .select('legal_first_name, legal_last_name')
         .eq('user_id', user.id)
         .maybeSingle();
 
-      // Restore account type
-      if (onboardingData?.account_type) {
-        const validTypes: UIAccountType[] = ['individual', 'joint', 'retirement', 'trust'];
-        const saved = onboardingData.account_type as string;
-        if (validTypes.includes(saved as UIAccountType)) {
-          setSelectedAccountType(saved as UIAccountType);
-        }
-      } else if (onboardingData?.account_structure === 'individual') {
-        setSelectedAccountType('individual');
+      // If DB has names, use them directly
+      if (data?.legal_first_name && data?.legal_last_name) {
+        setFirstName(data.legal_first_name);
+        setLastName(data.legal_last_name);
+        return;
       }
 
-      /* ── Pre-populate phone from Plaid identity if not already saved ── */
-      let hasPhoneFromOnboarding = false;
+      // Try Plaid identity data for name pre-fill
+      try {
+        const { data: financialData } = await config.supabaseClient
+          .from('user_financial_data')
+          .select('identity_data')
+          .eq('user_id', user.id)
+          .maybeSingle();
 
-      if (onboardingData?.phone_number) {
-        setPhoneNumber(String(onboardingData.phone_number).replace(/\D/g, ''));
-        hasPhoneFromOnboarding = true;
-      }
+        if (financialData?.identity_data) {
+          const identityData = financialData.identity_data as any;
+          const accounts = identityData?.accounts || [];
+          const owners = accounts[0]?.owners || [];
+          const owner = owners[0];
 
-      /* Try Plaid identity data for phone pre-fill (only if no phone saved yet) */
-      let plaidSetDialCode = false;
-      if (!hasPhoneFromOnboarding) {
-        try {
-          const { data: financialData } = await config.supabaseClient
-            .from('user_financial_data')
-            .select('identity_data')
-            .eq('user_id', user.id)
-            .maybeSingle();
+          if (owner?.names?.length) {
+            // Plaid returns full name string like "John Michael Doe"
+            const fullName = String(owner.names[0]).trim();
+            if (fullName) {
+              const parts = fullName.split(/\s+/);
+              const plaidFirst = parts[0] || '';
+              const plaidLast = parts.slice(1).join(' ') || '';
 
-          if (financialData?.identity_data) {
-            const identityData = financialData.identity_data as any;
-            const accounts = identityData?.accounts || [];
-            const owners = accounts[0]?.owners || [];
-            const owner = owners[0];
-
-            if (owner?.phone_numbers?.length) {
-              // Use the first (primary) phone number from bank
-              const bankPhone = owner.phone_numbers[0]?.data;
-              if (bankPhone) {
-                const parsed = parseInternationalPhone(String(bankPhone));
-                if (parsed) {
-                  setPhoneNumber(parsed.localNumber);
-                  setCountryCode(parsed.dialCode);
-                  const matched = PHONE_DIAL_CODES.find((o) => o.code === parsed.dialCode);
-                  if (matched) setSelectedDialCountryIso(matched.iso);
-                  setIsPreFilledFromBank(true);
-                  plaidSetDialCode = true;
-                  console.log('[Step5] Phone pre-filled from Plaid identity:', parsed.dialCode, parsed.localNumber.slice(0, 3) + '***');
-                }
+              if (plaidFirst && plaidLast) {
+                setFirstName(plaidFirst);
+                setLastName(plaidLast);
+                setIsPreFilledFromBank(true);
+                console.log('[Step7] Name pre-filled from Plaid identity:', plaidFirst, plaidLast.charAt(0) + '***');
+                return;
               }
             }
           }
-        } catch (err) {
-          console.warn('[Step5] Plaid identity fetch failed (ignoring):', err);
         }
+      } catch (err) {
+        console.warn('[Step7] Plaid identity fetch failed (ignoring):', err);
       }
 
-      /* Only run dial code detection if Plaid didn't already set it */
-      if (!plaidSetDialCode) {
-        const sharedLocationRecord = await locationService.readSharedLocationCache(user.id);
-        const sharedLocation = sharedLocationRecord?.data || null;
-        const savedPhoneCode = onboardingData?.phone_country_code ? String(onboardingData.phone_country_code) : '';
-        const cachedDial =
-          savedPhoneCode ||
-          (sharedLocation?.phoneDialCode ? String(sharedLocation.phoneDialCode) : '') ||
-          (onboardingData?.gps_detected_phone_dial_code ? String(onboardingData.gps_detected_phone_dial_code) : '') ||
-          ((onboardingData?.gps_location_data as any)?.phoneDialCode ? String((onboardingData.gps_location_data as any).phoneDialCode) : '');
-
-        if (cachedDial) {
-          setCountryCode(cachedDial);
-          if (sharedLocation?.countryCode) {
-            const sharedIso = String(sharedLocation.countryCode).toUpperCase();
-            if (PHONE_DIAL_CODES.some((o) => o.iso === sharedIso)) setSelectedDialCountryIso(sharedIso);
-          } else {
-            const matched = PHONE_DIAL_CODES.find((o) => o.code === cachedDial);
-            if (matched) setSelectedDialCountryIso(matched.iso);
-          }
-        } else {
-          setIsAutoDetectingDialCode(true);
-          try {
-            const cachedLocation = await locationService.getCachedLocation(user.id);
-            const resolvedLocation = cachedLocation || await locationService.getLocationByIp();
-
-            if (resolvedLocation?.phoneDialCode) {
-              setCountryCode(resolvedLocation.phoneDialCode);
-              const matched = PHONE_DIAL_CODES.find((o) => o.code === resolvedLocation.phoneDialCode);
-              if (matched) setSelectedDialCountryIso(matched.iso);
-            }
-            if (resolvedLocation?.countryCode) {
-              const iso = String(resolvedLocation.countryCode).toUpperCase();
-              if (PHONE_DIAL_CODES.some((o) => o.iso === iso)) setSelectedDialCountryIso(iso);
-            }
-            if (!cachedLocation && resolvedLocation) {
-              try { await locationService.saveLocationToOnboarding(user.id, resolvedLocation, 'ip'); }
-              catch (e) { console.warn('[Step5] cache fail:', e); }
-            }
-          } catch (err) {
-            console.warn('[Step5] IP detection failed:', err);
-          } finally {
-            setIsAutoDetectingDialCode(false);
-          }
-        }
-      } // end if (!plaidSetDialCode)
+      // Fallback to OAuth metadata
+      setFirstName(oauthFirst);
+      setLastName(oauthLast);
     };
-    getCurrentUser();
+    loadData();
   }, [navigate]);
-
-  /* ─── Phone formatting ─── */
-  const formatPhoneNumber = (value: string) => {
-    const d = value.replace(/\D/g, '');
-    if (d.length <= 3) return d;
-    if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
-    if (d.length <= 10) return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6, 10)}`;
-    return d;
-  };
-
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, '');
-    if (value.length <= 15) {
-      setPhoneNumber(value);
-      // Clear pre-filled badge once user edits the phone
-      if (isPreFilledFromBank) setIsPreFilledFromBank(false);
-    }
-  };
-
-  const isValidPhone = phoneNumber.length >= 8 && phoneNumber.length <= 15;
-  const canContinue = Boolean(selectedAccountType) && isValidPhone;
-
-  const selectedDialOption = useMemo(() => {
-    return PHONE_DIAL_CODES.find((o) => o.code === countryCode && o.iso === selectedDialCountryIso)
-      || PHONE_DIAL_CODES.find((o) => o.code === countryCode)
-      || PHONE_DIAL_CODES[0];
-  }, [countryCode, selectedDialCountryIso]);
 
   /* ─── Handlers ─── */
   const handleContinue = async () => {
-    if (!selectedAccountType || !userId || !config.supabaseClient || !isValidPhone) return;
-    setIsLoading(true);
-    try {
-      await upsertOnboardingData(userId, {
-        account_type: selectedAccountType,
-        account_structure: toAccountStructure(selectedAccountType),
-        phone_number: phoneNumber,
-        phone_country_code: countryCode,
-        current_step: 5,
-      });
-      navigate('/onboarding/step-7');
-    } catch (error) {
-      console.error('Error:', error);
-    } finally {
-      setIsLoading(false);
+    if (!firstName.trim() || !lastName.trim()) {
+      setError('Please enter both first and last name');
+      return;
     }
+
+    setIsLoading(true);
+    setError(null);
+
+    if (!config.supabaseClient) { setError('Configuration error'); setIsLoading(false); return; }
+
+    const { data: { user } } = await config.supabaseClient.auth.getUser();
+    if (!user) { setError('Not authenticated'); setIsLoading(false); return; }
+
+    const { error: upsertError } = await upsertOnboardingData(user.id, {
+      legal_first_name: firstName.trim(),
+      legal_last_name: lastName.trim(),
+      current_step: 7,
+    });
+
+    if (upsertError) { setError('Failed to save data'); setIsLoading(false); return; }
+    navigate('/onboarding/step-6');
   };
 
   const handleBack = () => navigate('/onboarding/step-4');
-  const handleSkip = () => navigate('/onboarding/step-7');
 
-  const handleSelectDialCode = (option: DialCodeOption) => {
-    setCountryCode(option.code);
-    setSelectedDialCountryIso(option.iso);
-    setShowDialPicker(false);
+  const handleSkip = async () => {
+    if (isLoading) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      if (config.supabaseClient) {
+        const { data: { user } } = await config.supabaseClient.auth.getUser();
+        if (user) await upsertOnboardingData(user.id, { current_step: 7 });
+      }
+      navigate('/onboarding/step-6');
+    } catch { navigate('/onboarding/step-6'); }
+    finally { setIsLoading(false); }
+  };
+
+  const isValid = Boolean(firstName.trim() && lastName.trim());
+
+  const handleFirstNameChange = (value: string) => {
+    setFirstName(value);
+    if (error) setError(null);
+    if (isPreFilledFromBank) setIsPreFilledFromBank(false);
+  };
+
+  const handleLastNameChange = (value: string) => {
+    setLastName(value);
+    if (error) setError(null);
+    if (isPreFilledFromBank) setIsPreFilledFromBank(false);
   };
 
   return {
     // State
-    selectedAccountType,
-    setSelectedAccountType,
-    phoneNumber,
-    countryCode,
-    selectedDialCountryIso,
-    isAutoDetectingDialCode,
+    firstName,
+    lastName,
     isLoading,
-    showDialPicker,
-    setShowDialPicker,
+    error,
     isFooterVisible,
 
     // Derived
-    isValidPhone,
-    canContinue,
-    selectedDialOption,
-    formatPhoneNumber,
+    isValid,
     isPreFilledFromBank,
 
     // Handlers
-    handlePhoneChange,
+    handleFirstNameChange,
+    handleLastNameChange,
     handleContinue,
     handleBack,
     handleSkip,
-    handleSelectDialCode,
   };
 }

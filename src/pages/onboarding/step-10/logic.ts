@@ -641,7 +641,7 @@ export const useStep13Logic = (): Step13Logic => {
   };
 
   const handleBack = () => {
-    navigate('/onboarding/step-11');
+    navigate('/onboarding/step-9');
   };
 
   return {

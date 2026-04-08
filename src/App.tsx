@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import HomePage from './pages/home/ui';
 import Leadership from './components/Leadership';
@@ -48,14 +48,14 @@ import HushhIDHeroDemo from './pages/hushhid-hero-demo';
 import FinancialLinkPage from './pages/onboarding/financial-link/ui';
 import OnboardingStep1 from './pages/onboarding/step-1/ui';
 import OnboardingStep2 from './pages/onboarding/step-2/ui';
+import OnboardingStep3 from './pages/onboarding/step-3/ui';
 import OnboardingStep4 from './pages/onboarding/step-4/ui';
 import OnboardingStep5 from './pages/onboarding/step-5/ui';
+import OnboardingStep6 from './pages/onboarding/step-6/ui';
 import OnboardingStep7 from './pages/onboarding/step-7/ui';
 import OnboardingStep8 from './pages/onboarding/step-8/ui';
-import OnboardingStep9 from './pages/onboarding/step-9/ui';
-import OnboardingInvestmentSummaryStep from './pages/onboarding/step-11/ui';
-import OnboardingReviewStep from './pages/onboarding/step-11-review/ui';
-import OnboardingBankDetailsStep from './pages/onboarding/step-13/ui';
+import OnboardingReviewStep from './pages/onboarding/step-9/ui';
+import OnboardingBankDetailsStep from './pages/onboarding/step-10/ui';
 import VerifyIdentityPage from './pages/onboarding/verify-identity/ui';
 import VerifyCompletePage from './pages/onboarding/verify-complete/ui';
 import MeetCeoPage from './pages/onboarding/meet-ceo/ui';
@@ -249,7 +249,7 @@ function App() {
             } />
             <Route path="/onboarding/step-3" element={
               <ProtectedRoute>
-                <Navigate to="/onboarding/step-4" replace />
+                <OnboardingStep3 />
               </ProtectedRoute>
             } />
             <Route path="/onboarding/step-4" element={
@@ -264,7 +264,7 @@ function App() {
             } />
             <Route path="/onboarding/step-6" element={
               <ProtectedRoute>
-                <Navigate to="/onboarding/step-5" replace />
+                <OnboardingStep6 />
               </ProtectedRoute>
             } />
             <Route path="/onboarding/step-7" element={
@@ -279,27 +279,12 @@ function App() {
             } />
             <Route path="/onboarding/step-9" element={
               <ProtectedRoute>
-                <OnboardingStep9 />
+                <OnboardingReviewStep />
               </ProtectedRoute>
             } />
             <Route path="/onboarding/step-10" element={
               <ProtectedRoute>
-                <OnboardingInvestmentSummaryStep />
-              </ProtectedRoute>
-            } />
-            <Route path="/onboarding/step-11" element={
-              <ProtectedRoute>
-                <OnboardingReviewStep />
-              </ProtectedRoute>
-            } />
-            <Route path="/onboarding/step-12" element={
-              <ProtectedRoute>
                 <OnboardingBankDetailsStep />
-              </ProtectedRoute>
-            } />
-            <Route path="/onboarding/step-13" element={
-              <ProtectedRoute>
-                <Navigate to="/onboarding/step-12" replace />
               </ProtectedRoute>
             } />
             <Route path="/onboarding/verify" element={

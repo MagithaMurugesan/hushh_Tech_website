@@ -16,7 +16,7 @@ import HushhTechCta, {
 } from '../../../components/hushh-tech-cta/HushhTechCta';
 import { getOnboardingDisplayMeta } from '../../../services/onboarding/flow';
 
-const DISPLAY_META = getOnboardingDisplayMeta('/onboarding/step-12');
+const DISPLAY_META = getOnboardingDisplayMeta('/onboarding/step-10');
 const PROGRESS_PCT = Math.round((DISPLAY_META.displayStep / DISPLAY_META.totalSteps) * 100);
 
 export default function OnboardingStep13() {

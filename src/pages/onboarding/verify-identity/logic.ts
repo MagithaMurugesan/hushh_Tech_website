@@ -178,7 +178,7 @@ export function useVerifyIdentityLogic() {
     navigate('/hushh-user-profile');
   };
 
-  const goBack = () => navigate('/onboarding/step-12');
+  const goBack = () => navigate('/onboarding/step-10');
 
   return {
     loading,

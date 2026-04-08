@@ -1,76 +1,202 @@
 /**
- * Step 8 - Address Entry — Logic Hook
- *
- * All state, effects, handlers, and constants for the address entry step.
- *
- * GPS Auto-Fill Flow:
- * 1. On load, check for cached GPS data → parse address → fill all fields
- * 2. Trigger cascading dropdowns (country → state → city) with loading UX
- * 3. While dropdowns load, country/state are locked (isAutoFilling = true)
- * 4. Once all dropdowns resolve, unlock and show "Address auto-filled"
+ * Step 11 — All Business Logic
+ * Investment summary, share class editing modal, recurring investment config
  */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import config from '../../../resources/config/config';
 import { getOnboardingDisplayMeta } from '../../../services/onboarding/flow';
-import { resolveOnboardingPrefill } from '../../../services/onboarding/prefill';
 import { upsertOnboardingData } from '../../../services/onboarding/upsertOnboardingData';
 import { useFooterVisibility } from '../../../utils/useFooterVisibility';
-import { useLocationDropdowns } from '../../../hooks/useLocationDropdowns';
-import { locationService } from '../../../services/location/locationService';
 
-/* ═══════════════════════════════════════════════
-   CONSTANTS & VALIDATION
-   ═══════════════════════════════════════════════ */
+/* ─── Types & Constants ─── */
+export type RecurringFrequency = 'once_a_month' | 'twice_a_month' | 'weekly' | 'every_other_week';
+
+export interface ShareClassInfo {
+  id: string;
+  name: string;
+  unitPrice: number;
+  tier: 'platinum' | 'gold' | 'standard';
+  borderGradient: string;
+  badge?: string;
+}
+
+export const SHARE_CLASSES: ShareClassInfo[] = [
+  {
+    id: 'class_a',
+    name: 'Class A',
+    unitPrice: 25000000,
+    tier: 'platinum',
+    borderGradient: 'bg-gradient-to-b from-gray-300 via-gray-100 to-gray-300',
+    badge: 'ULTRA',
+  },
+  {
+    id: 'class_b',
+    name: 'Class B',
+    unitPrice: 5000000,
+    tier: 'gold',
+    borderGradient: 'bg-gradient-to-b from-yellow-400 via-yellow-200 to-yellow-500',
+    badge: 'PREMIUM',
+  },
+  {
+    id: 'class_c',
+    name: 'Class C',
+    unitPrice: 1000000,
+    tier: 'standard',
+    borderGradient: 'bg-[#2b8cee]',
+  },
+];
+
+export const MIN_RECURRING_AMOUNT = 100;
+export const MAX_RECURRING_AMOUNT = 100000000;
 
 const DISPLAY_META = getOnboardingDisplayMeta('/onboarding/step-8');
 
 export const DISPLAY_STEP = DISPLAY_META.displayStep;
-export const TOTAL_STEPS = DISPLAY_META.totalSteps;
-export const PROGRESS_PCT = Math.round((DISPLAY_STEP / TOTAL_STEPS) * 100);
+export const PROG_TOTAL = DISPLAY_META.totalSteps;
+export const PROG_PCT = Math.round((DISPLAY_STEP / PROG_TOTAL) * 100);
 
-export const validateAddress = (v: string) => {
-  if (!v.trim()) return 'Address is required';
-  if (v.trim().length < 5) return 'Address is too short';
-  if (v.trim().length > 100) return 'Address is too long';
-  if (!/[a-zA-Z]/.test(v)) return 'Please enter a valid address';
-  return undefined;
+export const FREQUENCY_OPTIONS: { value: RecurringFrequency; label: string }[] = [
+  { value: 'once_a_month', label: 'Once a month' },
+  { value: 'twice_a_month', label: 'Twice a month' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'every_other_week', label: 'Every other week' },
+];
+
+export const AMOUNT_PRESETS = [500000, 750000, 1000000, 1500000];
+
+export const DAY_OPTIONS = [
+  { value: '1st', label: '1st' },
+  { value: '2nd', label: '2nd' },
+  { value: '5th', label: '5th' },
+  { value: '10th', label: '10th' },
+  { value: '15th', label: '15th' },
+  { value: '20th', label: '20th' },
+  { value: '25th', label: '25th' },
+  { value: 'Last', label: 'Last day of month' },
+];
+
+/* ─── Utility Functions ─── */
+export const formatCurrency = (amount: number): string => {
+  if (amount >= 1000000000) return `$${(amount / 1000000000).toFixed(1)}B`;
+  if (amount >= 1000000) return `$${(amount / 1000000).toFixed(0)}M`;
+  if (amount >= 1000) return `$${(amount / 1000).toFixed(0)}K`;
+  return `$${amount.toLocaleString()}`;
 };
 
-export const validateRequired = (v: string, label: string) =>
-  !v ? `Please select a ${label}` : undefined;
-
-export const validateZip = (v: string) => {
-  if (!v.trim()) return 'ZIP / postal code is required';
-  if (v.trim().length < 3 || v.trim().length > 10) return 'Enter a valid postal code';
-  return undefined;
+export const formatFullCurrency = (amount: number): string => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(amount);
 };
 
-/* ═══════════════════════════════════════════════
-   HOOK
-   ═══════════════════════════════════════════════ */
+export const formatNumberWithCommas = (value: string): string => {
+  const numbers = value.replace(/[^\d]/g, '');
+  return numbers.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+};
 
-export function useStep8Logic() {
+export const parseFormattedNumber = (value: string): number => {
+  return parseInt(value.replace(/[^\d]/g, ''), 10) || 0;
+};
+
+export const getFrequencyLabel = (value: RecurringFrequency): string => {
+  if (value === 'once_a_month') return 'Once a month';
+  if (value === 'twice_a_month') return 'Twice a month';
+  if (value === 'weekly') return 'Weekly';
+  return 'Every other week';
+};
+
+/* ─── Hook Return Type ─── */
+export interface Step11Logic {
+  loading: boolean;
+  error: string | null;
+  isFooterVisible: boolean;
+  shareUnits: { class_a_units: number; class_b_units: number; class_c_units: number };
+  frequency: RecurringFrequency;
+  investmentDay: string;
+  selectedAmount: number | null;
+  customAmount: string;
+  customAmountError: string | null;
+  showRecurringEditor: boolean;
+  isModalOpen: boolean;
+  localShareUnits: { class_a_units: number; class_b_units: number; class_c_units: number };
+  savingModal: boolean;
+  totalInvestment: number;
+  modalTotalInvestment: number;
+  hasModalChanges: boolean;
+  hasAnyUnits: boolean;
+  recurringAmount: number;
+  isFormValid: boolean;
+  recurringSummaryTitle: string;
+  recurringSummarySubtitle: string;
+  getUnits: (classId: string) => number;
+  getModalUnits: (classId: string) => number;
+  getUnitsSummary: () => string;
+  handleBack: () => void;
+  handleSkip: () => void;
+  handleContinue: () => Promise<void>;
+  handleOpenModal: () => void;
+  handleCloseModal: () => void;
+  handleIncrement: (classId: string) => void;
+  handleDecrement: (classId: string) => void;
+  handleSaveChanges: () => Promise<void>;
+  handleAmountClick: (amount: number) => void;
+  handleCustomAmountChange: (e: ChangeEvent<HTMLInputElement>) => void;
+  setFrequency: (f: RecurringFrequency) => void;
+  setInvestmentDay: (d: string) => void;
+  setShowRecurringEditor: (v: boolean | ((prev: boolean) => boolean)) => void;
+}
+
+/* ─── Main Hook ─── */
+export const useStep11Logic = (): Step11Logic => {
   const navigate = useNavigate();
   const isFooterVisible = useFooterVisibility();
-  const dropdowns = useLocationDropdowns();
-  const autoDetectionStartedRef = useRef(false);
-
-  const [addressLine1, setAddressLine1] = useState('');
-  const [addressLine2, setAddressLine2] = useState('');
-  const [zipCode, setZipCode] = useState('');
-
   const [loading, setLoading] = useState(false);
-  const [isDetecting, setIsDetecting] = useState(false);
-  const [detectionStatus, setDetectionStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
-  const [errors, setErrors] = useState<Record<string, string | undefined>>({});
+  const [shareUnits, setShareUnits] = useState<{
+    class_a_units: number;
+    class_b_units: number;
+    class_c_units: number;
+  }>({
+    class_a_units: 0,
+    class_b_units: 0,
+    class_c_units: 0,
+  });
+  const [frequency, setFrequency] = useState<RecurringFrequency>('once_a_month');
+  const [investmentDay, setInvestmentDay] = useState('1st');
+  const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
+  const [customAmount, setCustomAmount] = useState('');
+  const [customAmountError, setCustomAmountError] = useState<string | null>(null);
+  const [showRecurringEditor, setShowRecurringEditor] = useState(false);
 
-  // GPS auto-fill: true while cascading dropdowns are still resolving
-  const [isAutoFilling, setIsAutoFilling] = useState(false);
-  // Tracks whether we triggered a GPS-based cascade that needs monitoring
-  const autoFillCascadeRef = useRef(false);
+  // Modal state
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [localShareUnits, setLocalShareUnits] = useState({
+    class_a_units: 0,
+    class_b_units: 0,
+    class_c_units: 0,
+  });
+  const [savingModal, setSavingModal] = useState(false);
+
+  // Calculate total investment from share units
+  const calculateTotal = (units = shareUnits) => {
+    return (
+      (units.class_a_units * 25000000) +
+      (units.class_b_units * 5000000) +
+      (units.class_c_units * 1000000)
+    );
+  };
+
+  const totalInvestment = calculateTotal();
+  const modalTotalInvestment = calculateTotal(localShareUnits);
+
+  // Check if modal has changes
+  const hasModalChanges =
+    localShareUnits.class_a_units !== shareUnits.class_a_units ||
+    localShareUnits.class_b_units !== shareUnits.class_b_units ||
+    localShareUnits.class_c_units !== shareUnits.class_c_units;
 
   /* ─── Enable page-level scrolling ─── */
   useEffect(() => {
@@ -83,344 +209,316 @@ export function useStep8Logic() {
     };
   }, []);
 
-  /* ─── Monitor cascade completion to clear isAutoFilling ─── */
   useEffect(() => {
-    if (!autoFillCascadeRef.current) return;
-
-    // Cascade is done when states and cities have finished loading
-    // AND we have resolved values for country, state, and city
-    const cascadeDone =
-      !dropdowns.loadingStates &&
-      !dropdowns.loadingCities &&
-      dropdowns.country &&
-      dropdowns.state &&
-      dropdowns.city;
-
-    if (cascadeDone) {
-      autoFillCascadeRef.current = false;
-      setIsAutoFilling(false);
-      setDetectionStatus('Address auto-filled from GPS');
-      setTimeout(() => setDetectionStatus(null), 3000);
-    }
-  }, [
-    dropdowns.loadingStates,
-    dropdowns.loadingCities,
-    dropdowns.country,
-    dropdowns.state,
-    dropdowns.city,
-  ]);
-
-  /* ─── Auto-detect location ─── */
-  const detectAndApply = async (userId?: string, overwrite = true) => {
-    setIsDetecting(true);
-    setIsAutoFilling(true);
-    autoFillCascadeRef.current = true;
-    setDetectionStatus('Auto-filling address from GPS...');
-
-    try {
-      const result = await locationService.detectLocation();
-      if (!result.data) {
-        setDetectionStatus(null);
-        setIsAutoFilling(false);
-        autoFillCascadeRef.current = false;
-        return;
-      }
-
-      // Fill postal code
-      if (result.data.postalCode && (overwrite || !zipCode)) {
-        setZipCode(result.data.postalCode);
-      }
-
-      // Parse formatted address — combine line1 + line2 into a single Address Line 1
-      if (result.data.formattedAddress) {
-        const parsed = locationService.parseFormattedAddress(result.data.formattedAddress, result.data);
-        const combined = [parsed.line1, parsed.line2].filter(Boolean).join(', ');
-        if (combined && (overwrite || !addressLine1)) setAddressLine1(combined);
-      }
-
-      // Trigger cascading dropdowns (country → state → city)
-      if (
-        overwrite ||
-        !dropdowns.country ||
-        !dropdowns.state ||
-        !dropdowns.city
-      ) {
-        dropdowns.applyDetectedLocation(
-          result.data.countryCode,
-          result.data.stateCode,
-          result.data.state,
-          result.data.city,
-        );
-      }
-
-      // Save to DB in background
-      if (userId) {
-        locationService
-          .saveLocationToOnboarding(
-            userId,
-            result.data,
-            result.source === 'detected' ? 'gps' : 'ip'
-          )
-          .catch(() => {});
-      }
-
-      setDetectionStatus('Auto-filling address from GPS...');
-    } catch {
-      setDetectionStatus(null);
-      setIsAutoFilling(false);
-      autoFillCascadeRef.current = false;
-    } finally {
-      setIsDetecting(false);
-    }
-  };
-
-  /* ─── Init: Load saved data or prefill from known sources ─── */
-  useEffect(() => {
-    const init = async () => {
+    const loadData = async () => {
       if (!config.supabaseClient) return;
+
       const { data: { user } } = await config.supabaseClient.auth.getUser();
       if (!user) return;
 
-      const [onboardingResult, financialResult, enrichedResult, cachedLocation] = await Promise.all([
-        config.supabaseClient
-          .from('onboarding_data')
-          .select(`
-            address_line_1, address_line_2, address_country, state, city, zip_code, residence_country
-          `)
-          .eq('user_id', user.id)
-          .maybeSingle(),
-        config.supabaseClient
-          .from('user_financial_data')
-          .select('identity_data')
-          .eq('user_id', user.id)
-          .maybeSingle(),
-        config.supabaseClient
-          .from('user_enriched_profiles')
-          .select('enriched_address_line1, enriched_address_city, enriched_address_state, enriched_address_zip, enriched_address_country')
-          .eq('user_id', user.id)
-          .maybeSingle(),
-        locationService.getCachedLocation(user.id),
-      ]);
+      const { data } = await config.supabaseClient
+        .from('onboarding_data')
+        .select('class_a_units, class_b_units, class_c_units, initial_investment_amount, recurring_frequency, recurring_day_of_month, recurring_amount')
+        .eq('user_id', user.id)
+        .single();
 
-      const enrichedProfile = enrichedResult.data
-        ? {
-            address_line_1: enrichedResult.data.enriched_address_line1 || '',
-            city: enrichedResult.data.enriched_address_city || '',
-            state: enrichedResult.data.enriched_address_state || '',
-            zip_code: enrichedResult.data.enriched_address_zip || '',
-            address_country: enrichedResult.data.enriched_address_country || '',
+      if (data) {
+        setShareUnits({
+          class_a_units: data.class_a_units || 0,
+          class_b_units: data.class_b_units || 0,
+          class_c_units: data.class_c_units || 0,
+        });
+
+        if (data.recurring_frequency) {
+          const freqMap: Record<string, RecurringFrequency> = {
+            once_a_month: 'once_a_month',
+            twice_a_month: 'twice_a_month',
+            weekly: 'weekly',
+            every_other_week: 'every_other_week',
+            monthly: 'once_a_month',
+            bimonthly: 'twice_a_month',
+            biweekly: 'every_other_week',
+          };
+          const raw = String(data.recurring_frequency);
+          setFrequency(freqMap[raw] || 'once_a_month');
+        }
+
+        if (data.recurring_day_of_month) {
+          const dayNum = data.recurring_day_of_month;
+          if (dayNum === 31) {
+            setInvestmentDay('Last');
+          } else {
+            const suffix = dayNum === 1 ? 'st' : dayNum === 2 ? 'nd' : dayNum === 3 ? 'rd' : 'th';
+            setInvestmentDay(`${dayNum}${suffix}`);
           }
-        : undefined;
-
-      const resolved = resolveOnboardingPrefill({
-        onboardingData: onboardingResult.data || undefined,
-        plaidIdentity: financialResult.data?.identity_data,
-        enrichedProfile,
-        locationData: cachedLocation || undefined,
-      });
-
-      // Apply resolved values from saved data / enriched profile
-      if (resolved.values.address_line_1) setAddressLine1(resolved.values.address_line_1);
-      if (resolved.values.address_line_2) setAddressLine2(resolved.values.address_line_2);
-      if (resolved.values.zip_code) setZipCode(resolved.values.zip_code);
-
-      // ─── GPS auto-fill: parse cached address into fields ───
-      // If we have cached GPS data but no saved address_line_1,
-      // parse the formatted address into line1 and line2.
-      if (cachedLocation && !resolved.values.address_line_1) {
-        if (cachedLocation.formattedAddress) {
-          const parsed = locationService.parseFormattedAddress(
-            cachedLocation.formattedAddress,
-            cachedLocation
-          );
-          // Combine line1 + line2 into a single Address Line 1
-          const combined = [parsed.line1, parsed.line2].filter(Boolean).join(', ');
-          if (combined) setAddressLine1(combined);
         }
-        // Also fill ZIP from GPS if not already set
-        if (cachedLocation.postalCode && !resolved.values.zip_code) {
-          setZipCode(cachedLocation.postalCode);
+
+        if (data.recurring_amount) {
+          const amount = data.recurring_amount;
+          if ([500000, 750000, 1000000, 1500000].includes(amount)) {
+            setSelectedAmount(amount);
+            setCustomAmount('');
+          } else {
+            setSelectedAmount(null);
+            setCustomAmount(amount.toLocaleString());
+          }
         }
-      }
-
-      // Resolve country code for cascading dropdowns
-      const resolvedCountry =
-        resolved.values.address_country ||
-        resolved.values.residence_country ||
-        cachedLocation?.country ||
-        'US';
-      const countryCode = locationService.mapCountryToIsoCode(resolvedCountry);
-
-      // Determine state/city values for cascade
-      const stateValue = resolved.values.state || cachedLocation?.stateCode || cachedLocation?.state || '';
-      const cityValue = resolved.values.city || cachedLocation?.city || '';
-
-      if (countryCode || stateValue || cityValue) {
-        // Show auto-filling UX while cascade loads
-        setIsAutoFilling(true);
-        autoFillCascadeRef.current = true;
-        setDetectionStatus('Auto-filling address from GPS...');
-
-        dropdowns.applyDetectedLocation(
-          countryCode,
-          stateValue,
-          stateValue,
-          cityValue
-        );
-      }
-
-      // If cached location exists, show the detection status
-      if (cachedLocation && !resolved.values.address_line_1) {
-        setDetectionStatus('Auto-filling address from GPS...');
-      }
-
-      const hasCompleteKnownAddress = Boolean(
-        (resolved.values.address_line_1 || cachedLocation?.formattedAddress) &&
-        (resolved.values.city || cachedLocation?.city) &&
-        (resolved.values.state || cachedLocation?.state) &&
-        (resolved.values.zip_code || cachedLocation?.postalCode)
-      );
-
-      // Only run fresh GPS detection if no known address at all
-      if (!hasCompleteKnownAddress && !autoDetectionStartedRef.current) {
-        autoDetectionStartedRef.current = true;
-        void detectAndApply(user.id, false);
       }
     };
-    init();
-    return () => { locationService.cancel(); };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ─── Safety timeout: clear isAutoFilling after 10s to avoid stuck state ─── */
-  useEffect(() => {
-    if (!isAutoFilling) return;
-    const timer = setTimeout(() => {
-      if (isAutoFilling) {
-        setIsAutoFilling(false);
-        autoFillCascadeRef.current = false;
-        // If we have some data, show success
-        if (dropdowns.country) {
-          setDetectionStatus('Address fields populated');
-          setTimeout(() => setDetectionStatus(null), 2500);
-        } else {
-          setDetectionStatus(null);
-        }
-      }
-    }, 10000);
-    return () => clearTimeout(timer);
-  }, [isAutoFilling, dropdowns.country]);
+    loadData();
+  }, []);
 
-  /* ─── Handlers ─── */
-  const handleDetectClick = async () => {
-    if (!config.supabaseClient) return;
-    const { data: { user } } = await config.supabaseClient.auth.getUser();
-    await detectAndApply(user?.id, true);
+  // Open modal and initialize local state
+  const handleOpenModal = () => {
+    setLocalShareUnits({ ...shareUnits });
+    setIsModalOpen(true);
   };
 
-  const validate = (field: string, value: string) => {
-    switch (field) {
-      case 'addressLine1': return validateAddress(value);
-      case 'country': return validateRequired(value, 'country');
-      case 'state': return validateRequired(value, 'state');
-      case 'city': return validateRequired(value, 'city');
-      case 'zipCode': return validateZip(value);
-      default: return undefined;
+  // Close modal without saving
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+  };
+
+  // Increment units in modal
+  const handleIncrement = (classId: string) => {
+    setLocalShareUnits(prev => ({
+      ...prev,
+      [`${classId}_units`]: (prev[`${classId}_units` as keyof typeof prev] || 0) + 1,
+    }));
+  };
+
+  // Decrement units in modal
+  const handleDecrement = (classId: string) => {
+    setLocalShareUnits(prev => ({
+      ...prev,
+      [`${classId}_units`]: Math.max(0, (prev[`${classId}_units` as keyof typeof prev] || 0) - 1),
+    }));
+  };
+
+  // Save modal changes to Supabase
+  const handleSaveChanges = async () => {
+    if (!hasModalChanges) return;
+
+    setSavingModal(true);
+
+    if (!config.supabaseClient) {
+      setSavingModal(false);
+      return;
     }
+
+    const { data: { user } } = await config.supabaseClient.auth.getUser();
+    if (!user) {
+      setSavingModal(false);
+      return;
+    }
+
+    const { error: upsertError } = await upsertOnboardingData(user.id, {
+      class_a_units: localShareUnits.class_a_units,
+      class_b_units: localShareUnits.class_b_units,
+      class_c_units: localShareUnits.class_c_units,
+      initial_investment_amount: modalTotalInvestment,
+    });
+
+    if (!upsertError) {
+      setShareUnits({ ...localShareUnits });
+      setIsModalOpen(false);
+    }
+
+    setSavingModal(false);
   };
 
-  const handleBlur = (field: string, value: string) => {
-    setTouched((p) => ({ ...p, [field]: true }));
-    setErrors((p) => ({ ...p, [field]: validate(field, value) }));
+  const handleAmountClick = (amount: number) => {
+    setSelectedAmount(amount);
+    setCustomAmount('');
+    setCustomAmountError(null);
+    setError(null);
   };
 
-  const validateAll = () => {
-    const next = {
-      addressLine1: validateAddress(addressLine1),
-      country: validateRequired(dropdowns.country, 'country'),
-      state: validateRequired(dropdowns.state, 'state'),
-      city: validateRequired(dropdowns.city, 'city'),
-      zipCode: validateZip(zipCode),
-    };
-    setErrors(next);
-    setTouched({ addressLine1: true, country: true, state: true, city: true, zipCode: true });
-    return !Object.values(next).some(Boolean);
+  const validateRecurringAmount = (rawValue: number): string | null => {
+    if (rawValue === 0) return null;
+    if (rawValue < MIN_RECURRING_AMOUNT) {
+      return `Minimum recurring amount is $${MIN_RECURRING_AMOUNT.toLocaleString()}`;
+    }
+    if (rawValue > MAX_RECURRING_AMOUNT) {
+      return `Maximum recurring amount is $${(MAX_RECURRING_AMOUNT / 1000000).toFixed(0)}M`;
+    }
+    return null;
+  };
+
+  const handleCustomAmountChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setSelectedAmount(null);
+    setError(null);
+
+    const rawValue = e.target.value.replace(/[^\d]/g, '');
+    if (rawValue.length > 12) return;
+
+    const formattedValue = formatNumberWithCommas(rawValue);
+    setCustomAmount(formattedValue);
+    setCustomAmountError(validateRecurringAmount(parseFormattedNumber(formattedValue)));
+  };
+
+  const getFinalRecurringAmount = () => {
+    if (selectedAmount) return selectedAmount;
+    return parseFormattedNumber(customAmount);
+  };
+
+  // Get units for modal display
+  const getModalUnits = (classId: string): number => {
+    if (classId === 'class_a') return localShareUnits.class_a_units;
+    if (classId === 'class_b') return localShareUnits.class_b_units;
+    if (classId === 'class_c') return localShareUnits.class_c_units;
+    return 0;
   };
 
   const handleContinue = async () => {
-    if (!validateAll()) { setError('Please fix the errors above'); return; }
+    if (totalInvestment < 1000000) {
+      setError('Minimum investment is $1 million');
+      return;
+    }
+
+    if (customAmountError) {
+      setShowRecurringEditor(true);
+      setError(customAmountError);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
-    if (!config.supabaseClient) { setLoading(false); return; }
+    if (!config.supabaseClient) {
+      setError('Configuration error');
+      setLoading(false);
+      return;
+    }
+
     const { data: { user } } = await config.supabaseClient.auth.getUser();
-    if (!user) { setError('Not authenticated'); setLoading(false); return; }
+    if (!user) {
+      setError('Not authenticated');
+      setLoading(false);
+      return;
+    }
 
-    const { error: saveError } = await upsertOnboardingData(user.id, {
-      address_line_1: addressLine1.trim(),
-      address_line_2: addressLine2.trim() || null,
-      address_country: dropdowns.country,
-      state: dropdowns.state,
-      city: dropdowns.city,
-      zip_code: zipCode.trim(),
-      current_step: 8,
-    });
+    const recurringAmount = getFinalRecurringAmount();
+    const convertDayToInt = (day: string | number): number => {
+      if (typeof day === 'number') return day;
+      if (day === 'Last') return 31;
+      return parseInt(day.replace(/\D/g, ''), 10);
+    };
 
-    if (saveError) { setError('Failed to save. Please try again.'); setLoading(false); return; }
+    const convertFrequencyToDb = (freq: RecurringFrequency): string => {
+      return freq;
+    };
+
+    const updateData: Record<string, unknown> = {
+      user_id: user.id,
+      initial_investment_amount: totalInvestment,
+      current_step: 12,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (recurringAmount > 0) {
+      updateData.recurring_frequency = convertFrequencyToDb(frequency);
+      updateData.recurring_day_of_month = convertDayToInt(investmentDay);
+      updateData.recurring_amount = recurringAmount;
+    } else {
+      updateData.recurring_frequency = null;
+      updateData.recurring_day_of_month = null;
+      updateData.recurring_amount = null;
+    }
+
+    const { error: upsertError } = await upsertOnboardingData(user.id, updateData);
+
+    if (upsertError) {
+      setError('Failed to save data');
+      setLoading(false);
+      return;
+    }
+
     navigate('/onboarding/step-9');
   };
 
-  const handleBack = () => navigate('/onboarding/step-7');
-
-  const handleSkip = async () => {
-    if (loading) return;
-    setLoading(true);
-    try {
-      if (config.supabaseClient) {
-        const { data: { user } } = await config.supabaseClient.auth.getUser();
-        if (user) await upsertOnboardingData(user.id, { current_step: 8 });
-      }
-      navigate('/onboarding/step-9');
-    } catch { navigate('/onboarding/step-9'); }
-    finally { setLoading(false); }
+  // Get units for a class
+  const getUnits = (classId: string): number => {
+    if (classId === 'class_a') return shareUnits.class_a_units;
+    if (classId === 'class_b') return shareUnits.class_b_units;
+    if (classId === 'class_c') return shareUnits.class_c_units;
+    return 0;
   };
 
-  const handleAddressLine1Change = (value: string) => {
-    setAddressLine1(value);
-    if (touched.addressLine1) setErrors((p) => ({ ...p, addressLine1: validateAddress(value) }));
+  const hasAnyUnits = shareUnits.class_a_units > 0 || shareUnits.class_b_units > 0 || shareUnits.class_c_units > 0;
+  const recurringAmount = getFinalRecurringAmount();
+  const hasValidRecurringAmount =
+    !customAmountError &&
+    (
+      !customAmount || selectedAmount !== null ||
+      (recurringAmount >= MIN_RECURRING_AMOUNT && recurringAmount <= MAX_RECURRING_AMOUNT)
+    );
+  const isFormValid = hasAnyUnits && totalInvestment >= 1000000 && hasValidRecurringAmount;
+
+  const handleBack = () => {
+    navigate('/onboarding/step-7');
   };
 
-  const handleZipCodeChange = (value: string) => {
-    const next = value.slice(0, 10);
-    setZipCode(next);
-    if (touched.zipCode) setErrors((p) => ({ ...p, zipCode: validateZip(next) }));
+  const handleSkip = () => {
+    navigate('/onboarding/step-9');
   };
 
-  const isValid = !!(addressLine1.trim() && dropdowns.country && dropdowns.state && dropdowns.city && zipCode.trim());
+  // Generate units summary text
+  const getUnitsSummary = () => {
+    const parts: string[] = [];
+    if (shareUnits.class_a_units > 0) parts.push(`${shareUnits.class_a_units} Class A`);
+    if (shareUnits.class_b_units > 0) parts.push(`${shareUnits.class_b_units} Class B`);
+    if (shareUnits.class_c_units > 0) parts.push(`${shareUnits.class_c_units} Class C`);
+    return parts.join(' + ') + ' units';
+  };
+
+  const recurringSummaryTitle =
+    recurringAmount > 0
+      ? `$${recurringAmount.toLocaleString()} recurring`
+      : 'No recurring investment configured';
+  const recurringSummarySubtitle =
+    recurringAmount > 0
+      ? `${getFrequencyLabel(frequency)} \u2022 Day ${investmentDay}`
+      : 'Tap Edit to add recurring amount, frequency, and day.';
 
   return {
-    // State
-    addressLine1,
-    addressLine2,
-    setAddressLine2,
-    zipCode,
     loading,
-    isDetecting,
-    isAutoFilling,
-    detectionStatus,
     error,
-    touched,
-    errors,
-    isValid,
     isFooterVisible,
-    dropdowns,
-
-    // Handlers
+    shareUnits,
+    frequency,
+    investmentDay,
+    selectedAmount,
+    customAmount,
+    customAmountError,
+    showRecurringEditor,
+    isModalOpen,
+    localShareUnits,
+    savingModal,
+    totalInvestment,
+    modalTotalInvestment,
+    hasModalChanges,
+    hasAnyUnits,
+    recurringAmount,
+    isFormValid,
+    recurringSummaryTitle,
+    recurringSummarySubtitle,
+    getUnits,
+    getModalUnits,
+    getUnitsSummary,
     handleBack,
     handleSkip,
     handleContinue,
-    handleDetectClick,
-    handleBlur,
-    handleAddressLine1Change,
-    handleZipCodeChange,
+    handleOpenModal,
+    handleCloseModal,
+    handleIncrement,
+    handleDecrement,
+    handleSaveChanges,
+    handleAmountClick,
+    handleCustomAmountChange,
+    setFrequency,
+    setInvestmentDay,
+    setShowRecurringEditor,
   };
-}
+};
