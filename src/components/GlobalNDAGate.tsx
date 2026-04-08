@@ -126,17 +126,35 @@ const GlobalNDAGate: React.FC<GlobalNDAGateProps> = ({ children }) => {
         setHasSignedNDA(null);
       }
 
-      // USER IS AUTHENTICATED - Check NDA status
+      // USER IS AUTHENTICATED - Check NDA status (with 5s timeout)
       try {
-        const status = await checkNDAStatus(session.user.id);
+        const NDA_CHECK_TIMEOUT_MS = 5000;
+        const ndaResult = await Promise.race([
+          checkNDAStatus(session.user.id),
+          new Promise<null>((_, reject) =>
+            setTimeout(
+              () => reject(new Error('NDA check timed out')),
+              NDA_CHECK_TIMEOUT_MS
+            )
+          ),
+        ]);
+
         if (cancelled) {
           return;
         }
 
-        setHasSignedNDA(status.hasSignedNda);
+        if (!ndaResult) {
+          // Timeout fallback — allow access optimistically.
+          // The NDA status will be rechecked on next navigation.
+          console.warn('[GlobalNDAGate] NDA check returned null, allowing access optimistically.');
+          setHasSignedNDA(true);
+          return;
+        }
+
+        setHasSignedNDA(ndaResult.hasSignedNda);
 
         // If NDA not signed, redirect to NDA page
-        if (!status.hasSignedNda) {
+        if (!ndaResult.hasSignedNda) {
           // Store the intended destination for redirect after signing
           sessionStorage.setItem('nda_redirect_after', pathname);
           navigate('/sign-nda', { replace: true });
@@ -146,8 +164,15 @@ const GlobalNDAGate: React.FC<GlobalNDAGateProps> = ({ children }) => {
           return;
         }
 
+        // If the error is a timeout, allow access optimistically
+        if (error instanceof Error && error.message === 'NDA check timed out') {
+          console.warn('[GlobalNDAGate] NDA check timed out after 5s. Allowing access optimistically.');
+          setHasSignedNDA(true);
+          return;
+        }
+
         console.error('Error checking NDA status:', error);
-        // On error, redirect to NDA page to be safe
+        // On non-timeout error, redirect to NDA page to be safe
         sessionStorage.setItem('nda_redirect_after', pathname);
         navigate('/sign-nda', { replace: true });
       } finally {

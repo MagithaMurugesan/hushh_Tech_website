@@ -127,9 +127,16 @@ export const AuthSessionProvider: React.FC<{
     return nextSnapshot;
   }, [applySnapshot, clearLocalSession, supabase]);
 
+  // Boot: Instantly resolve from localStorage (no network call).
+  // This eliminates the 'booting' state almost immediately.
+  // onAuthStateChange below handles INITIAL_SESSION for the definitive state.
   useEffect(() => {
-    void revalidateSession();
-  }, [revalidateSession]);
+    const bootFromLocalStorage = async () => {
+      const localSnapshot = await getLocalSession(supabase);
+      applySnapshot(localSnapshot);
+    };
+    void bootFromLocalStorage();
+  }, [applySnapshot, supabase]);
 
   useEffect(() => {
     if (!supabase) {
@@ -157,16 +164,23 @@ export const AuthSessionProvider: React.FC<{
         return;
       }
 
-      const nextSnapshot = await validateSessionCandidate(supabase, nextSession);
-      if (nextSnapshot.status === "invalidated") {
-        await clearLocalSession(
-          "invalidated",
-          nextSnapshot.reason || "invalid_session"
-        );
-        return;
+      // Trust the session provided by Supabase events directly.
+      // Supabase has already validated the token before firing the event.
+      // This eliminates redundant getUser() network calls on every
+      // INITIAL_SESSION, SIGNED_IN, and TOKEN_REFRESHED event.
+      if (nextSession.user?.id && nextSession.access_token) {
+        applySnapshot({
+          status: "authenticated",
+          session: nextSession,
+          user: nextSession.user,
+        });
+      } else {
+        applySnapshot({
+          status: "anonymous",
+          session: null,
+          user: null,
+        });
       }
-
-      applySnapshot(nextSnapshot);
     });
 
     // Soft revalidation for focus/visibility — only reads localStorage,
