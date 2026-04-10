@@ -1,3 +1,8 @@
+import {
+  buildGoldPassPayload as buildSharedGoldPassPayload,
+  buildWalletCardContent,
+} from "../../api/shared/walletPassModel.js";
+
 const HUSHH_WALLET_ENDPOINT = "/api/wallet-pass";
 const HUSHH_GOOGLE_WALLET_ENDPOINT = "/api/google-wallet-pass";
 
@@ -51,13 +56,13 @@ interface AppleWalletSupportInput {
 }
 
 interface GoldPassDescriptor {
-  investorName: string;
+  holderName: string;
   organizationName: string;
   investmentClass: string;
   membershipId: string;
   email: string;
   passUrl: string;
-  publicProfileUrl: string | null;
+  profileUrl: string | null;
 }
 
 const DEFAULT_GOOGLE_WALLET_AVAILABILITY: GoogleWalletAvailability = {
@@ -78,35 +83,17 @@ const sanitizeForFilename = (value: string) => {
   return safe || "hushh-gold-card";
 };
 
-const getDisplayValue = (value?: string | null, fallback = "Not provided") =>
-  value && value.trim().length > 0 ? value : fallback;
-
-const getInvestmentClass = (amount?: number | null) => {
-  if (typeof amount !== "number" || Number.isNaN(amount)) return "Class C";
-  if (amount >= 5_000_000) return "Class A";
-  if (amount >= 2_000_000) return "Class B";
-  return "Class C";
-};
-
-const buildPublicProfileUrl = (input: WalletPassInput) =>
-  input.slug ? `https://hushhtech.com/investor/${input.slug}` : null;
-
-const buildMembershipId = (input: WalletPassInput) =>
-  input.slug ||
-  input.userId ||
-  (input.email ? input.email.split("@")[0] : "hushh-investor");
-
 const buildGoldPassDescriptor = (input: WalletPassInput): GoldPassDescriptor => {
-  const publicProfileUrl = buildPublicProfileUrl(input);
+  const content = buildWalletCardContent(input);
 
   return {
-    investorName: getDisplayValue(input.name, "Hushh Investor"),
-    organizationName: getDisplayValue(input.organisation, "Hushh"),
-    investmentClass: getInvestmentClass(input.investmentAmount),
-    membershipId: buildMembershipId(input),
-    email: getDisplayValue(input.email, "—"),
-    passUrl: publicProfileUrl || "https://hushhtech.com",
-    publicProfileUrl,
+    holderName: content.holderName,
+    organizationName: content.organizationName,
+    investmentClass: content.investmentClass,
+    membershipId: content.membershipId,
+    email: content.email,
+    passUrl: content.passUrl,
+    profileUrl: content.profileUrl,
   };
 };
 
@@ -156,67 +143,7 @@ const submitWalletPassForm = (
 };
 
 export const buildGoldPassPayload = (input: WalletPassInput) => {
-  const descriptor = buildGoldPassDescriptor(input);
-
-  return {
-    passType: "storeCard",
-    description: "Hushh Gold Investor Pass",
-    organizationName: "Hushh Technologies",
-    logoText: "hushh Gold Pass",
-    backgroundColor: "rgb(212, 175, 55)",
-    foregroundColor: "rgb(12, 12, 12)",
-    labelColor: "rgb(32, 32, 32)",
-    headerFields: [
-      {
-        key: "status",
-        label: "Status",
-        value: "Gold Member",
-        textAlignment: "PKTextAlignmentLeft",
-      },
-      {
-        key: "org",
-        label: "Organization",
-        value: descriptor.organizationName,
-        textAlignment: "PKTextAlignmentLeft",
-      },
-    ],
-    primaryFields: [
-      {
-        key: "investor",
-        label: "Holder",
-        value: descriptor.investorName,
-        textAlignment: "PKTextAlignmentLeft",
-      },
-    ],
-    secondaryFields: [
-      {
-        key: "class",
-        label: "Investor",
-        value: `Investor - ${descriptor.investmentClass}`,
-        textAlignment: "PKTextAlignmentLeft",
-      },
-    ],
-    auxiliaryFields: [
-      {
-        key: "email",
-        label: "Email",
-        value: descriptor.email,
-        textAlignment: "PKTextAlignmentLeft",
-      },
-      {
-        key: "memberId",
-        label: "Membership ID",
-        value: descriptor.membershipId,
-        textAlignment: "PKTextAlignmentLeft",
-      },
-    ],
-    barcode: {
-      message: descriptor.passUrl,
-      format: "PKBarcodeFormatQR",
-      altText: "Hushh Gold Pass QR",
-    },
-    webServiceURL: descriptor.passUrl,
-  };
+  return buildSharedGoldPassPayload(input);
 };
 
 export const buildGoldPassPreviewModel = (
@@ -227,13 +154,13 @@ export const buildGoldPassPreviewModel = (
   return {
     badgeText: "HUSHH GOLD",
     title: "Hushh Gold Investor Pass",
-    holderName: descriptor.investorName,
+    holderName: descriptor.holderName,
     organizationName: descriptor.organizationName,
     membershipId: descriptor.membershipId,
     investmentClass: descriptor.investmentClass,
     email: descriptor.email,
     qrValue: descriptor.passUrl,
-    profileUrl: descriptor.publicProfileUrl,
+    profileUrl: descriptor.profileUrl,
   };
 };
 

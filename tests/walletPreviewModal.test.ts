@@ -156,6 +156,9 @@ describe("WalletCardPreviewModal", () => {
     });
 
     expect(document.body.textContent).toContain("Preview Card");
+    expect(document.body.textContent).toContain(
+      "Apple Wallet and Google Wallet use the same Hushh Gold card details."
+    );
     expect(document.body.textContent).toContain("Add to Apple Wallet");
     expect(document.body.textContent).toContain(
       "Google Wallet is temporarily unavailable"

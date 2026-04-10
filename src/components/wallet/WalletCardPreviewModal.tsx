@@ -183,7 +183,7 @@ export default function WalletCardPreviewModal({
                 This is a browser preview of your Hushh Gold Wallet card.
               </Text>
               <Text fontSize={{ base: "sm", md: "md" }} color="gray.500">
-                Add to Apple Wallet stays device-aware. Google Wallet appears only when the pass generator is healthy.
+                Apple Wallet and Google Wallet use the same Hushh Gold card details. Apple stays device-aware, and Google Wallet appears only when issuer setup is healthy.
               </Text>
             </VStack>
 

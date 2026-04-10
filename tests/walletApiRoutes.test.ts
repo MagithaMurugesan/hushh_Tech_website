@@ -35,6 +35,36 @@ const createResponse = () => {
 };
 
 describe("wallet proxy routes", () => {
+  it("reports Google Wallet health as ready when local issuer config is set", async () => {
+    process.env.GOOGLE_WALLET_ISSUER_ID = "issuer-123";
+    process.env.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL =
+      "wallet-service@hushh-tech-prod.iam.gserviceaccount.com";
+    process.env.GOOGLE_WALLET_PRIVATE_KEY = "test-private-key";
+
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const req = {
+      method: "GET",
+      body: null,
+    };
+    const res = createResponse();
+
+    await googleWalletPassHandler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({
+      available: true,
+      provider: "local",
+      message: "Google Wallet is ready.",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    delete process.env.GOOGLE_WALLET_ISSUER_ID;
+    delete process.env.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL;
+    delete process.env.GOOGLE_WALLET_PRIVATE_KEY;
+  });
+
   it("accepts Apple form payloads and preserves upstream pass headers", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

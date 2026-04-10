@@ -1,4 +1,9 @@
 import { createSign } from "crypto";
+import {
+  buildWalletCardContentFromPayload,
+  getWalletPayloadFieldValue,
+  WALLET_CARD_ORGANIZATION_NAME,
+} from "./shared/walletPassModel.js";
 
 const UPSTREAM_GOOGLE_WALLET_ENDPOINT =
   "https://hushh-wallet.vercel.app/api/passes/google/create";
@@ -28,14 +33,6 @@ const normalizeGoogleWalletId = (value) =>
     .replace(/[^a-z0-9._-]+/g, "_")
     .replace(/^_+|_+$/g, "")
     .slice(0, 64) || "hushh-investor";
-
-const findFieldValue = (fields, key, fallback = "") => {
-  if (!Array.isArray(fields)) return fallback;
-  const field = fields.find((item) => item?.key === key);
-  return typeof field?.value === "string" && field.value.trim().length > 0
-    ? field.value.trim()
-    : fallback;
-};
 
 const getLocalGoogleWalletConfig = () => {
   const issuerId = process.env.GOOGLE_WALLET_ISSUER_ID?.trim();
@@ -75,44 +72,9 @@ const createSignedJwt = (claims, privateKey) => {
   return `${payload}.${signature}`;
 };
 
-const getGoogleWalletMetadata = (payload) => {
-  const status = findFieldValue(payload.headerFields, "status", "Gold Member");
-  const organization = findFieldValue(
-    payload.headerFields,
-    "org",
-    payload.organizationName || "Hushh Technologies"
-  );
-  const holderName = findFieldValue(payload.primaryFields, "investor", "Hushh Investor");
-  const investmentClass = findFieldValue(
-    payload.secondaryFields,
-    "class",
-    "Investor - Class C"
-  );
-  const email = findFieldValue(payload.auxiliaryFields, "email", "—");
-  const membershipId = findFieldValue(
-    payload.auxiliaryFields,
-    "memberId",
-    payload.barcode?.message || "hushh-investor"
-  );
-  const barcodeValue =
-    typeof payload?.barcode?.message === "string" && payload.barcode.message.trim()
-      ? payload.barcode.message.trim()
-      : "https://hushhtech.com";
-
-  return {
-    status,
-    organization,
-    holderName,
-    investmentClass,
-    email,
-    membershipId,
-    barcodeValue,
-  };
-};
-
 const buildGenericClass = (classId) => ({
   id: classId,
-  issuerName: "Hushh Technologies",
+  issuerName: WALLET_CARD_ORGANIZATION_NAME,
   reviewStatus: "UNDER_REVIEW",
   hexBackgroundColor: "#D4AF37",
   logo: {
@@ -152,7 +114,7 @@ const buildGenericClass = (classId) => ({
 });
 
 const buildGenericObject = (objectId, classId, payload) => {
-  const metadata = getGoogleWalletMetadata(payload);
+  const content = buildWalletCardContentFromPayload(payload);
 
   return {
     id: objectId,
@@ -168,46 +130,46 @@ const buildGenericObject = (objectId, classId, payload) => {
     cardTitle: {
       defaultValue: {
         language: "en-US",
-        value: payload.description || "Hushh Gold Investor Pass",
+        value: content.title,
       },
     },
     subheader: {
       defaultValue: {
         language: "en-US",
-        value: metadata.organization,
+        value: content.organizationName,
       },
     },
     header: {
       defaultValue: {
         language: "en-US",
-        value: metadata.holderName,
+        value: content.holderName,
       },
     },
     barcode: {
       type: "QR_CODE",
-      value: metadata.barcodeValue,
+      value: content.passUrl,
       alternateText: payload?.barcode?.altText || "Hushh Gold Pass QR",
     },
     textModulesData: [
       {
         id: "status",
         header: "Status",
-        body: metadata.status,
+        body: content.status,
       },
       {
         id: "class",
         header: "Investor",
-        body: metadata.investmentClass,
+        body: content.investmentLabel,
       },
       {
         id: "memberId",
         header: "Membership ID",
-        body: metadata.membershipId,
+        body: content.membershipId,
       },
       {
         id: "email",
         header: "Email",
-        body: metadata.email,
+        body: content.email,
       },
     ],
     linksModuleData: {
@@ -215,7 +177,7 @@ const buildGenericObject = (objectId, classId, payload) => {
         {
           id: "profile",
           description: "Investor Profile",
-          uri: metadata.barcodeValue,
+          uri: content.passUrl,
         },
       ],
     },
@@ -282,7 +244,11 @@ const createLocalGoogleWalletPass = async (payload, config) => {
 
   const classId = `${config.issuerId}.${normalizeGoogleWalletId(config.classSuffix)}`;
   const objectSuffix = normalizeGoogleWalletId(
-    findFieldValue(payload.auxiliaryFields, "memberId", payload.barcode?.message)
+    getWalletPayloadFieldValue(
+      payload.auxiliaryFields,
+      "memberId",
+      payload.barcode?.message
+    )
   );
   const objectId = `${config.issuerId}.${objectSuffix}`;
 

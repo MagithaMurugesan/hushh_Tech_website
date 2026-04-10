@@ -10,12 +10,14 @@ import {
 } from "vitest";
 
 import {
+  buildGoldPassPayload,
   buildGoldPassPreviewModel,
   downloadHushhGoldPass,
   fetchGoogleWalletAvailability,
   isAppleWalletSupported,
   requestGoogleWalletPass,
 } from "../src/services/walletPass";
+import { buildWalletCardContentFromPayload } from "../api/shared/walletPassModel.js";
 
 describe("wallet pass service", () => {
   beforeEach(() => {
@@ -105,6 +107,35 @@ describe("wallet pass service", () => {
       qrValue: "https://hushhtech.com/investor/test-user",
       profileUrl: "https://hushhtech.com/investor/test-user",
     });
+  });
+
+  it("maps Google Wallet card data from the same shared payload values", () => {
+    const input = {
+      name: "Test User",
+      email: "test@example.com",
+      organisation: "Hushh",
+      slug: "test-user",
+      userId: "user-123",
+      investmentAmount: 2_500_000,
+    };
+
+    const preview = buildGoldPassPreviewModel(input);
+    const payload = buildGoldPassPayload(input);
+    const googleCard = buildWalletCardContentFromPayload(payload);
+
+    expect(googleCard).toMatchObject({
+      title: preview.title,
+      holderName: preview.holderName,
+      organizationName: preview.organizationName,
+      membershipId: preview.membershipId,
+      investmentClass: preview.investmentClass,
+      email: preview.email,
+      passUrl: preview.qrValue,
+      profileUrl: preview.profileUrl,
+    });
+    expect(googleCard.investmentLabel).toBe(
+      `Investor - ${preview.investmentClass}`
+    );
   });
 
   it("marks the public profile link unavailable when there is no slug-backed URL", () => {
