@@ -139,9 +139,15 @@ export default function WalletCardPreviewModal({
   const qrSize = qrFrameSize - qrPadding * 2;
   const hasPublicProfileUrl = Boolean(preview.profileUrl);
   const enableCardTilt = supportsInteractiveTilt && !reducedMotion;
+  const modalAppleSupportMessage = appleWalletSupportMessage
+    ? "On iPhone, in Wallet-supported browsers."
+    : appleWalletSupportMessage;
+  const modalGoogleSupportMessage = googleWalletSupportMessage
+    ? "Google Wallet soon."
+    : googleWalletSupportMessage;
   const profileLinkDescription = hasPublicProfileUrl
     ? preview.profileUrl
-    : "Public profile link unavailable until your shared profile is ready.";
+    : "Shared soon";
 
   const handleMouseMove = (event: MouseEvent<HTMLDivElement>) => {
     if (!enableCardTilt) {
@@ -177,15 +183,10 @@ export default function WalletCardPreviewModal({
         </ModalHeader>
         <ModalCloseButton />
         <ModalBody px={{ base: 4, md: 6 }} pb={{ base: 6, md: 8 }}>
-          <VStack spacing={{ base: 4, md: 6 }} align="stretch">
-            <VStack spacing={{ base: 1.5, md: 1 }} align="stretch">
-              <Text fontSize={{ base: "md", md: "lg" }} color="gray.600">
-                This is a browser preview of your Hushh Gold Wallet card.
-              </Text>
-              <Text fontSize={{ base: "sm", md: "md" }} color="gray.500">
-                Apple Wallet and Google Wallet use the same Hushh Gold card details. Apple stays device-aware, and Google Wallet appears only when issuer setup is healthy.
-              </Text>
-            </VStack>
+          <VStack spacing={{ base: 4, md: 5 }} align="stretch">
+            <Text fontSize={{ base: "md", md: "lg" }} color="gray.600">
+              A preview of your Hushh Gold card.
+            </Text>
 
             <Box perspective="1600px">
               <Box
@@ -395,19 +396,16 @@ export default function WalletCardPreviewModal({
                 <HStack spacing={2} mb={2} color="#0B1120">
                   <Eye size={16} />
                   <Text fontWeight="600" fontSize="sm">
-                    Browser Preview
+                    Details
                   </Text>
                 </HStack>
-                <Text fontSize="xs" color="gray.600">
-                  This preview mirrors the same holder, class, member ID, and QR data used for the live pass.
-                </Text>
-                <VStack mt={3} spacing={1.5} align="stretch">
+                <VStack spacing={1.5} align="stretch">
                   <Text
                     fontSize="xs"
                     color="gray.700"
                     overflowWrap="anywhere"
                   >
-                    Full membership ID · {preview.membershipId}
+                    ID · {preview.membershipId}
                   </Text>
                   <Text
                     fontSize="xs"
@@ -446,7 +444,7 @@ export default function WalletCardPreviewModal({
                 <HStack spacing={2} mb={2} color="#0B1120">
                   <ExternalLink size={16} />
                   <Text fontWeight="600" fontSize="sm">
-                    Profile Link
+                    Profile
                   </Text>
                 </HStack>
                 <Text
@@ -479,7 +477,7 @@ export default function WalletCardPreviewModal({
                 </Button>
               ) : (
                 <Text fontSize="sm" color="gray.600">
-                  {appleWalletSupportMessage}
+                  {modalAppleSupportMessage}
                 </Text>
               )}
 
@@ -500,7 +498,7 @@ export default function WalletCardPreviewModal({
                 </Button>
               ) : (
                 <Text fontSize="sm" color="gray.600">
-                  {googleWalletSupportMessage}
+                  {modalGoogleSupportMessage}
                 </Text>
               )}
             </VStack>

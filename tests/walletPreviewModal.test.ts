@@ -157,11 +157,17 @@ describe("WalletCardPreviewModal", () => {
 
     expect(document.body.textContent).toContain("Preview Card");
     expect(document.body.textContent).toContain(
-      "Apple Wallet and Google Wallet use the same Hushh Gold card details."
+      "A preview of your Hushh Gold card."
     );
+    expect(document.body.textContent).toContain("Details");
+    expect(document.body.textContent).toContain("Profile");
     expect(document.body.textContent).toContain("Add to Apple Wallet");
-    expect(document.body.textContent).toContain(
-      "Google Wallet is temporarily unavailable"
+    expect(document.body.textContent).toContain("Google Wallet soon.");
+    expect(document.body.textContent).not.toContain(
+      "This is a browser preview of your Hushh Gold Wallet card."
+    );
+    expect(document.body.textContent).not.toContain(
+      "Apple Wallet and Google Wallet use the same Hushh Gold card details."
     );
   });
 
@@ -169,7 +175,7 @@ describe("WalletCardPreviewModal", () => {
     await renderModal();
 
     expect(document.body.textContent).toContain(
-      "Available on iPhone in Wallet-supported browsers."
+      "On iPhone, in Wallet-supported browsers."
     );
     const buttonLabels = Array.from(
       document.body.querySelectorAll("button")
@@ -207,9 +213,7 @@ describe("WalletCardPreviewModal", () => {
     expect(membershipPreview?.textContent).toContain("Membership ID · ");
     expect(membershipPreview?.textContent).toContain("…");
     expect(membershipPreview?.textContent).toContain("2597e6b8".slice(-6));
-    expect(document.body.textContent).toContain(
-      `Full membership ID · ${longPreview.membershipId}`
-    );
+    expect(document.body.textContent).toContain(`ID · ${longPreview.membershipId}`);
     expect(profileLinkTile?.getAttribute("href")).toBe(longPreview.profileUrl);
     expect(profileLinkTile?.getAttribute("target")).toBe("_blank");
     expect(profileUrlDetails?.textContent).toContain(longPreview.profileUrl);
@@ -236,9 +240,7 @@ describe("WalletCardPreviewModal", () => {
     expect(desktopQrNode).not.toBeNull();
     expect(desktopPreviewShell?.getAttribute("data-tilt-enabled")).toBe("true");
     expect(document.body.textContent).toContain("Add to Apple Wallet");
-    expect(document.body.textContent).toContain(
-      "Google Wallet is temporarily unavailable"
-    );
+    expect(document.body.textContent).toContain("Google Wallet soon.");
   });
 
   it("renders the profile tile as unavailable when there is no slug-backed public URL", async () => {
@@ -257,8 +259,6 @@ describe("WalletCardPreviewModal", () => {
     );
 
     expect(profileLinkTile?.getAttribute("href")).toBeNull();
-    expect(profileUrlDetails?.textContent).toContain(
-      "Public profile link unavailable"
-    );
+    expect(profileUrlDetails?.textContent).toContain("Shared soon");
   });
 });
