@@ -40,6 +40,7 @@ npm run security:audit
 - Protected branches require an approving review from `@ankitkumarsingh1702`.
 - CODEOWNERS automatically routes PRs to the default maintainer.
 - AI review comments help surface risk, but they do not replace human approval.
+- PR Agent auto-reviews PRs on open, sync, and ready-for-review; maintainers can also trigger follow-up review with a `/review` comment.
 - First-time or fork contributors may need maintainer approval before code-executing workflows can run.
 
 Example:

@@ -1,8 +1,8 @@
 ## Summary
 
-- what changed
-- why it changed
-- what risk area this touches (`ui`, `api`, `auth`, `deploy`, `security`, `docs`)
+- what changed:
+- why it changed:
+- risk area touched: `ui` | `api` | `auth` | `deploy` | `security` | `docs`
 
 ## Validation
 
@@ -17,7 +17,7 @@
 
 ## Notes
 
-- deployment impact
-- migration or env requirements
-- follow-up work if any
-- reviewer callouts or CODEOWNERS you expect to review this
+- deployment impact:
+- migration or env requirements:
+- follow-up work if any:
+- reviewer callouts or CODEOWNERS you expect to review this:
